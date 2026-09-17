@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude Fable 5发布：最强模型来了，但先别急着把Opus 4.8换掉 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>claude-fable-5</span></div>
+      <h1 id="claude-fable-5发布-最强模型来了-但先别急着把opus-4-8换掉">Claude Fable 5发布：最强模型来了，但先别急着把Opus 4.8换掉</h1>
+<blockquote>
+<p>不少读者问我，如何Claude账号被封，如果用上Claude opus4.8，或者Fable5，充值Claude会员，我在这里单独讲一下：<a href="../../qita/0020.no-claude-account-use-opus-4-8-fable-5.html">没有Claude账号，怎么用上Opus模型</a></p>
+</blockquote>
+<p>6月9日，Anthropic 发布了 Claude Fable 5。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-06-10_14-34-30.jpg" /></p>
+<p>现在就已经可以用上了：</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-06-11_11-19-01.jpg" /> </p>
+<p>官方的定位很直接：<strong>目前最强的公开发布模型</strong>，专门给高难度推理和长链路 Agent 任务用。</p>
+<p>官方介绍在这里：https://www.anthropic.com/news/claude-fable-5-mythos-5</p>
+<p>Anthropic 表示，Fable 5 堪称其有史以来最强大的模型，而从下面的跑分表中可以看出出来，确实是碾压。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-06-11_11-19-02.jpg" /></p>
+<p>不过他的价格也是最贵的。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/20260611143412_position.png" /></p>
+<p>这次和上次 Opus 4.8 的"温和更新"不一样。</p>
+<p>Opus 4.8 是把老问题往前推一步，Fable 5 是换了一个梯队。</p>
+<p>但卡哥要先泼一盆冷水：</p>
+<p><strong>Fable 5 很强，可它不是用来替换你手里 Opus 4.8 的。</strong></p>
+<p>它更像一台攻坚机器，平时不开，关键时刻才上。</p>
+<p>为什么这么说？往下看。</p>
+<h2 id="一-先看价格-这是绕不过去的事">一、先看价格，这是绕不过去的事</h2>
+<p>很多文章一上来就吹能力，卡哥习惯先看账单。</p>
+<p>这是官网价格：https://claude.com/pricing#api，大家可以去看。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-06-11_11-25-15.jpg" /> </p>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>输入价格</th>
+<th>输出价格</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Fable 5</td>
+<td>$10 / 百万 token</td>
+<td>$50 / 百万 token</td>
+</tr>
+<tr>
+<td>Claude Opus 4.8</td>
+<td>$5 / 百万 token</td>
+<td>$25 / 百万 token</td>
+</tr>
+</tbody>
+</table>
+<p>一眼就能看出来：<strong>Fable 5 的单价，正好是 Opus 4.8 的两倍。</strong></p>
+<p>但真实成本的涨幅，不止两倍。</p>
+<p>因为 Fable 5 换了新的 tokenizer。</p>
+<p>同样一段内容，在 Fable 5 上切出来的 token 数，比 Opus 那一代大约多 <strong>30%</strong>。</p>
+<p>这两个因素叠在一起，<strong>同一个任务的实际花费，可能是 Opus 4.8 的 2.5 倍甚至更多。</strong></p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/20260611143412_cost.png" /></p>
+<p>所以那种"既然更强就全换 Fable 5"的想法，钱包会第一个反对。</p>
+<p>录友要记住一句话：</p>
+<p><strong>Fable 5 是按"难度"付费的，不是按"数量"付费的。</strong></p>
+<h2 id="二-它到底强在哪">二、它到底强在哪</h2>
+<p>价格摆完，再说能力，这样心里有数。</p>
+<p>Fable 5 的提升不在"会不会"，而在"扛不扛得住"。</p>
+<p>它最值得用的几类场景：</p>
+<p><strong>第一，长链路 Agent。</strong></p>
+<p>就是那种一口气跑很久、中间要不停读文件、调工具、自我验证的任务。</p>
+<p>这类任务最考验模型的"耐力"和"连续性"，Fable 5 在这上面是目前最稳的。</p>
+<p><strong>第二，一次成型的复杂实现。</strong></p>
+<p>需求说清楚之后，让它从零搭一个结构完整的系统，而不是来回补丁。</p>
+<p><strong>第三，难啃的代码审查和 debug。</strong></p>
+<p>尤其是那种藏得深、偶发的 bug，以前模型容易"跑一次没复现就说修好了"，Fable 5 在这点上更老实。</p>
+<p><strong>第四，密集视觉和长上下文。</strong></p>
+<p>1M 上下文是默认值，单次最多输出 128K token。配合高分辨率视觉，处理大文档、截图、图表更从容。</p>
+<p>但注意，<strong>这些都是"上限"提升，不是"日常"提升。</strong></p>
+<p>你让它写个普通脚本、解释段代码，它不会比 Opus 4.8 强到哪去，钱反而花得更多。</p>
+<h2 id="三-接入方式变了-老代码可能直接报错">三、接入方式变了，老代码可能直接报错</h2>
+<p>这一节最重要，做开发的录友一定要看。</p>
+<p>Fable 5 不是把模型名一换就完事，它的 API 行为有几处硬变化。</p>
+<p><strong>第一，思考是常开的，关不掉。</strong></p>
+<p>在 Fable 5 上，adaptive thinking 是唯一的思考模式。</p>
+<p>你不传 <code>thinking</code> 参数，它就默认在思考。</p>
+<p>你想像以前那样 <code>thinking: {"type": "disabled"}</code> 关掉？直接报 400。</p>
+<p>控制深浅只能靠 <code>effort</code>：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Fable 5：不要再传 thinking 的开关，用 effort 控深浅</span>
+<span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="s2">"claude-fable-5"</span><span class="p">,</span>
+    <span class="n">max_tokens</span><span class="o">=</span><span class="mi">64000</span><span class="p">,</span>
+    <span class="n">output_config</span><span class="o">=</span><span class="p">{</span><span class="s2">"effort"</span><span class="p">:</span> <span class="s2">"high"</span><span class="p">},</span>  <span class="c1"># low / medium / high / xhigh / max</span>
+    <span class="n">messages</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>我的建议和之前一样：</p>
+<ul>
+<li>常规任务：<code>high</code> 起步</li>
+<li>编程、Agent 长任务：<code>xhigh</code></li>
+<li>真的很难、又不在乎慢和贵：才上 <code>max</code></li>
+</ul>
+<p>别无脑拉满。Fable 5 本身底子高，低一档往往就够，还省钱。</p>
+<p><strong>第二，原始思考过程拿不到了。</strong></p>
+<p>Fable 5 永远不会把原始的思维链返回给你。</p>
+<p>你能拿到的，是 <code>thinking.display</code> 控制的两种形态：<code>"summarized"</code> 给你一段可读的摘要，<code>"omitted"</code>（默认）则是空的。</p>
+<p>如果你之前靠读模型的思考内容做产品展示，这里要改。</p>
+<p><strong>第三，模型会"拒答"，你的代码要接得住。</strong></p>
+<p>这是 Fable 5 最容易踩坑的地方。</p>
+<p>它带了安全分类器，某些请求会被拒。被拒的时候，<strong>返回的是 HTTP 200，不是报错</strong>，但 <code>stop_reason</code> 是 <code>"refusal"</code>。</p>
+<p>意思是：如果你的代码上来就读 <code>response.content[0]</code>，碰到拒答会直接崩。</p>
+<p>正确姿势是先判断 <code>stop_reason</code>：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">"claude-fable-5"</span><span class="p">,</span> <span class="n">max_tokens</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">messages</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">])</span>
+<span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">stop_reason</span> <span class="o">==</span> <span class="s2">"refusal"</span><span class="p">:</span>
+    <span class="n">handle_refusal</span><span class="p">()</span>   <span class="c1"># 出口前拒答：content 是空的，不计费</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+</code></pre></div>
+
+<p>被拒之后想换个模型重试，官方给了三条路：服务端的 <code>fallbacks</code> 参数、SDK 的客户端中间件、自己手搓。配合 fallback credit，重试时还能把切模型的缓存成本退回来，不至于双倍付钱。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/20260611143412_refusal_fallback.png" /></p>
+<p><strong>第四，数据留存有要求。</strong></p>
+<p>Fable 5 要求 30 天数据留存，<strong>不支持零留存（ZDR）</strong>。</p>
+<p>如果你们组织是零留存配置，那 Fable 5 的请求会直接 400。接入前先确认这条，不然会以为是请求写错了，白排查半天。</p>
+<h2 id="四-还有个-mythos-5-别搞混">四、还有个 Mythos 5，别搞混</h2>
+<p>发布里还提了一个 Claude Mythos 5。</p>
+<p>简单说：<strong>Mythos 5 和 Fable 5 能力、价格、规格完全一样，区别是 Mythos 5 没有那套安全分类器。</strong></p>
+<p>但它不是谁都能用，只在 Project Glasswing 里向通过审核的客户限量开放。</p>
+<p>普通录友够不着，用 Fable 5 就行，能力是一样的。</p>
+<h2 id="五-和opus-4-8到底怎么选">五、和Opus 4.8到底怎么选</h2>
+<p>这才是大多数人真正关心的问题。</p>
+<p>卡哥的判断还是那条老规矩，只是这次门槛更高了：</p>
+<p><strong>便宜模型跑量，顶级模型攻坚，Fable 5 攻的是"硬骨头里的硬骨头"。</strong></p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>普通问答、文章初稿、代码解释</td>
+<td>Opus 4.8 / Sonnet 4.6</td>
+<td>够用，便宜得多</td>
+</tr>
+<tr>
+<td>多文件改动、常规 bug 修复、PR 审查</td>
+<td>Claude Opus 4.8</td>
+<td>性价比甜区，绝大多数开发任务它就够</td>
+</tr>
+<tr>
+<td>超长链路 Agent、一次成型复杂系统、偶发深层 bug</td>
+<td>Claude Fable 5</td>
+<td>耐力和连续性最强，难任务里更稳</td>
+</tr>
+<tr>
+<td>大仓库迁移、安全审计、跨模块重构</td>
+<td>Fable 5 + 子 Agent 并行</td>
+<td>任务能拆、能并行、能自我验证</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/20260611143412_model_choice.png" /></p>
+<p>注意，Opus 4.8 没有被淘汰。</p>
+<p>对绝大多数开发任务，<strong>Opus 4.8 仍然是默认选择</strong>，性价比明显更好。</p>
+<p>只有当一个任务满足这几条，才值得把它升到 Fable 5：</p>
+<ul>
+<li>失败成本很高，错了代价大</li>
+<li>上下文极复杂，需要持续判断</li>
+<li>链路特别长，要扛很久</li>
+<li>普通模型反复试都搞不定</li>
+</ul>
+<p>满足不了这几条，用 Fable 5 就是在烧钱。</p>
+<h2 id="写在最后">写在最后</h2>
+<p>Fable 5 是 Anthropic 目前最强的公开模型，这一点没有水分。</p>
+<p>但"最强"不等于"该上"。</p>
+<p>它定价翻倍、tokenizer 多算 30%、接入还得改 refusal 和思考参数。</p>
+<p>这些成本，只有真正的硬任务才扛得起。</p>
+<p>所以卡哥的建议很简单：</p>
+<p><strong>Opus 4.8 继续当主力，把 Fable 5 留给那几个你一直没搞定的难题。</strong></p>
+<p>先拿小任务试水，别一上来就让它扫整个代码库。</p>
+<p>自己测，按难度选。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="claude-fable-5-7-2.html"><span class="k">← 上一篇</span><span class="v">Claude Fable 5重新开放：很强，也真的很贵，国内如何用上Opus4.8 和Fable5？</span></a><a class="nx" href="claude-invisible-text-watermark.html"><span class="k">下一篇 →</span><span class="v">Claude宣布给文字打上隐形水印：复制粘贴也会跟着走，Claude Code、API和C2PA内容凭证全面解析</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#claude-fable-5发布-最强模型来了-但先别急着把opus-4-8换掉">Claude Fable 5发布：最强模型来了，但先别急着把Opus 4.8换掉</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/claude-fable-5.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

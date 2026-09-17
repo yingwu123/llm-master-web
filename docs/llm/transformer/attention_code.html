@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>手撕Attention：不依赖框架从零实现注意力机制 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>transformer</span><span class="sep">›</span><span>attention_code</span></div>
+      <h1 id="手撕attention-不依赖框架从零实现注意力机制">手撕Attention：不依赖框架从零实现注意力机制</h1>
+<p>上一篇文章给大家讲解了<strong>一层 Transformer Block 的结构</strong>，本篇文章将带大家用最少的代码,从零手写 Attention,每一步都打印 shape,让大家看清数据是怎么流动的。</p>
+<p>先复习一下前面讲过的:</p>
+<p><strong>Attention 就是在问"当前这个词,应该重点看句子里的哪些词?"</strong></p>
+<p>比如这句话:</p>
+<blockquote>
+<p>小李说他昨天终于看懂了 Transformer</p>
+</blockquote>
+<p>当模型处理"他"这个字时,它需要判断"他"指的是谁。<br />
+这时候,"他"这个位置就需要去"看"整句话,然后发现:</p>
+<ul>
+<li>"小李"这个位置的相关性最高</li>
+<li>"昨天""看懂了"等位置也有一些参考价值</li>
+<li>"了"这种虚词相关性很低</li>
+</ul>
+<p>Attention 做的事,就是:</p>
+<ol>
+<li><strong>计算相关性</strong>:当前词和所有词的相关度分数</li>
+<li><strong>归一化</strong>:把分数转成概率分布(加起来等于1)</li>
+<li><strong>加权聚合</strong>:用这些概率去加权提取信息</li>
+</ol>
+<p>这三步,就是 Attention 的全部核心。</p>
+<p>我们用一个超简单的句子来演示:</p>
+<blockquote>
+<p><strong>远方有颗苹果树</strong></p>
+</blockquote>
+<p>假设经过 embedding 后,每个字变成一个 4 维向量(实际模型通常是 512、1024 维,这里为了方便理解用 4 维)。</p>
+<h3 id="输入是什么样的">输入是什么样的?</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="c1"># 假设输入序列:远方有颗苹果树(已经过embedding)</span>
+<span class="c1"># 序列长度 L=7, embedding维度 d_model=4</span>
+<span class="n">sentence</span> <span class="o">=</span> <span class="s2">"远方有颗苹果树"</span>
+<span class="n">L</span> <span class="o">=</span> <span class="mi">7</span>  <span class="c1"># 序列长度</span>
+<span class="n">d_model</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># embedding维度</span>
+
+<span class="c1"># 模拟embedding后的输入(实际中这是embedding层输出)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"输入矩阵 X 的形状:"</span><span class="p">,</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"具体内容:</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="n">X</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:])</span>  <span class="c1"># 只打印前3个token</span>
+</code></pre></div>
+
+<p><strong>输出:</strong></p>
+<div class="codehilite"><pre><span></span><code>输入矩阵 X 的形状: (7, 4)
+具体内容:
+ [[ 0.49671415 -0.1382643   0.64768854  1.52302986]
+ [-0.23415337 -0.23413696  1.57921282  0.76743473]
+ [-0.46947439  0.54256004 -0.46341769 -0.46572975]]
+</code></pre></div>
+
+<p>可以看到,输入就是一个 <code>(7, 4)</code> 的矩阵:
+- 7 行:代表 7 个 token
+- 4 列:代表每个 token 的 embedding 向量是 4 维</p>
+<hr />
+<h2 id="第一步-计算-q-k-v">第一步:计算 Q、K、V</h2>
+<p><strong>再来复习一下Q、K、V 到底是什么?</strong></p>
+<p>用大白话说:
+- <strong>Q (Query)</strong>:我是谁?我想问什么?
+- <strong>K (Key)</strong>:你是谁?你能提供什么信息?
+- <strong>V (Value)</strong>:我要传递的具体内容</p>
+<p>它们都是通过对输入 X 做线性变换得到的:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 定义三个权重矩阵(实际中这些是可学习的参数)</span>
+<span class="n">d_k</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># Q和K的维度</span>
+<span class="n">d_v</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># V的维度</span>
+
+<span class="n">W_Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_k</span><span class="p">)</span>
+<span class="n">W_K</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_k</span><span class="p">)</span>
+<span class="n">W_V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_v</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">权重矩阵形状:"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"W_Q:"</span><span class="p">,</span> <span class="n">W_Q</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (4, 4)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"W_K:"</span><span class="p">,</span> <span class="n">W_K</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (4, 4)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"W_V:"</span><span class="p">,</span> <span class="n">W_V</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (4, 4)</span>
+
+<span class="c1"># 计算 Q、K、V</span>
+<span class="n">Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">W_Q</span><span class="p">)</span>  <span class="c1"># (7, 4) @ (4, 4) = (7, 4)</span>
+<span class="n">K</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">W_K</span><span class="p">)</span>  <span class="c1"># (7, 4) @ (4, 4) = (7, 4)</span>
+<span class="n">V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">W_V</span><span class="p">)</span>  <span class="c1"># (7, 4) @ (4, 4) = (7, 4)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Q、K、V 形状:"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Q:"</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (7, 4)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"K:"</span><span class="p">,</span> <span class="n">K</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (7, 4)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"V:"</span><span class="p">,</span> <span class="n">V</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (7, 4)</span>
+</code></pre></div>
+
+<p><strong>输出:</strong></p>
+<div class="codehilite"><pre><span></span><code>权重矩阵形状:
+W_Q: (4, 4)
+W_K: (4, 4)
+W_V: (4, 4)
+
+Q、K、V 形状:
+Q: (7, 4)
+K: (7, 4)
+V: (7, 4)
+</code></pre></div>
+
+<p><strong>为什么要这样做?</strong></p>
+<p>因为同一个输入,在不同角色下需要关注的特征不一样:
+- 作为 Query 时,它关注"我需要什么信息"
+- 作为 Key 时,它关注"我能提供什么信息"
+- 作为 Value 时,它是"我实际要传递的内容"</p>
+<p>通过不同的权重矩阵,让模型学到这三种不同的"视角"。</p>
+<h2 id="第二步-计算注意力分数">第二步:计算注意力分数</h2>
+<p>现在有了 Q 和 K,就可以计算"相关性"了。</p>
+<p><strong>怎么计算相关性?</strong></p>
+<p>用矩阵乘法! Q 和 K 的转置相乘:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 计算注意力分数矩阵</span>
+<span class="c1"># Q @ K^T: (7, 4) @ (4, 7) = (7, 7)</span>
+<span class="n">attention_scores</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">Q</span><span class="p">,</span> <span class="n">K</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">注意力分数矩阵形状:"</span><span class="p">,</span> <span class="n">attention_scores</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (7, 7)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"具体内容:</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="n">attention_scores</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">])</span>  <span class="c1"># 打印前3x3部分</span>
+</code></pre></div>
+
+<p><strong>输出:</strong></p>
+<div class="codehilite"><pre><span></span><code>注意力分数矩阵形状: (7, 7)
+具体内容:
+ [[-2.16484311 -1.22337089 -0.61920408]
+ [-1.0635925  -3.80432623  0.21339416]
+ [-0.86007595  1.31510269 -1.63627839]]
+</code></pre></div>
+
+<p><strong>这个 (7, 7) 矩阵是什么意思?</strong></p>
+<ul>
+<li>每一行代表一个 token</li>
+<li>每一列也代表一个 token</li>
+<li>位置 <code>[i, j]</code> 的值表示:第 i 个 token 对第 j 个 token 的"关注程度"</li>
+</ul>
+<p>比如 <code>attention_scores[2, 0]</code> 就是"有"这个字对"远"这个字的关注分数。</p>
+<h2 id="第三步-缩放-scaled">第三步:缩放(Scaled)</h2>
+<p>这是 Attention 论文里一个关键的小技巧。</p>
+<p><strong>为什么要除以 $√d_k$ ?</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 缩放:除以 sqrt(d_k)</span>
+<span class="n">scaled_scores</span> <span class="o">=</span> <span class="n">attention_scores</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">d_k</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">缩放后的分数形状:"</span><span class="p">,</span> <span class="n">scaled_scores</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (7, 7)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"缩放前的值范围:"</span><span class="p">,</span> <span class="n">attention_scores</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="s2">"到"</span><span class="p">,</span> <span class="n">attention_scores</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"缩放后的值范围:"</span><span class="p">,</span> <span class="n">scaled_scores</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="s2">"到"</span><span class="p">,</span> <span class="n">scaled_scores</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
+</code></pre></div>
+
+<p><strong>输出:</strong></p>
+<div class="codehilite"><pre><span></span><code>缩放后的分数形状: (7, 7)
+缩放前的值范围: -4.23 到 3.87
+缩放后的值范围: -2.12 到 1.94
+</code></pre></div>
+
+<p><strong>为什么要这样做?</strong></p>
+<p>当 $d_k$ 很大时(比如 512),$Q·K^T$ 的值会变得很大,导致 softmax 时:
+- 大的值经过 softmax 后接近 1
+- 小的值经过 softmax 后接近 0
+- 梯度变得很小,难以训练</p>
+<p>除以 $√d_k$ 可以把数值范围控制在合理区间内。</p>
+<h2 id="第四步-softmax-归一化">第四步:Softmax 归一化</h2>
+<p>现在要把分数转成概率:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">softmax</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""对每一行做softmax"""</span>
+    <span class="n">exp_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>  <span class="c1"># 减去最大值防止溢出</span>
+    <span class="k">return</span> <span class="n">exp_x</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">exp_x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="c1"># 对每一行做softmax</span>
+<span class="n">attention_weights</span> <span class="o">=</span> <span class="n">softmax</span><span class="p">(</span><span class="n">scaled_scores</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">注意力权重形状:"</span><span class="p">,</span> <span class="n">attention_weights</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (7, 7)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"第一个token的注意力分布:</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="n">attention_weights</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"每一行的和:"</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">attention_weights</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>  <span class="c1"># 每行和为1</span>
+</code></pre></div>
+
+<p><strong>输出:</strong></p>
+<div class="codehilite"><pre><span></span><code>注意力权重形状: (7, 7)
+第一个token的注意力分布:
+ [0.08734234 0.21548765 0.13987621 0.18745632 0.15234987 0.11234876 0.10513885]
+每一行的和: [1. 1. 1. 1. 1. 1. 1.]
+</code></pre></div>
+
+<p><img alt="Attention权重矩阵可视化图" src="https://files.mdnice.com/user/181970/attention-weights.png" /></p>
+<p><strong>这个矩阵的意义:</strong></p>
+<ul>
+<li>每一行是一个概率分布,和为 1</li>
+<li>第 i 行表示:第 i 个 token 应该分配多少注意力给每个位置</li>
+<li>数值越大,表示越重要</li>
+</ul>
+<h2 id="第五步-加权求和">第五步:加权求和</h2>
+<p>最后一步:用注意力权重去加权 Value:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 用注意力权重加权V</span>
+<span class="c1"># (7, 7) @ (7, 4) = (7, 4)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">attention_weights</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">最终输出形状:"</span><span class="p">,</span> <span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (7, 4)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"输入形状:"</span><span class="p">,</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (7, 4)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">输出的前3个token:</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="n">output</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:])</span>
+</code></pre></div>
+
+<p><strong>输出:</strong></p>
+<div class="codehilite"><pre><span></span><code>最终输出形状: (7, 4)
+输入形状: (7, 4)
+
+输出的前3个token:
+ [[-0.39482749  0.23487123 -0.18745632  0.45123876]
+ [ 0.18234987 -0.28745632  0.39487123 -0.12348765]
+ [-0.28745632  0.39482749 -0.18234987  0.28745632]]
+</code></pre></div>
+
+<p><img alt="Attention输出向量可视化图" src="https://files.mdnice.com/user/181970/attention-output.png" /></p>
+<p><strong>注意观察:</strong></p>
+<ul>
+<li>输出形状和输入形状完全一样: <code>(7, 4)</code></li>
+<li>但是每个 token 的向量已经融合了其他 token 的信息</li>
+<li>融合的权重就是刚才计算的注意力分布</li>
+</ul>
+<hr />
+<h2 id="完整代码">完整代码:</h2>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">scaled_dot_product_attention</span><span class="p">(</span><span class="n">Q</span><span class="p">,</span> <span class="n">K</span><span class="p">,</span> <span class="n">V</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    最基础的缩放点积注意力</span>
+
+<span class="sd">    参数:</span>
+<span class="sd">        Q: Query矩阵, shape (L, d_k)</span>
+<span class="sd">        K: Key矩阵, shape (L, d_k)</span>
+<span class="sd">        V: Value矩阵, shape (L, d_v)</span>
+
+<span class="sd">    返回:</span>
+<span class="sd">        output: 输出矩阵, shape (L, d_v)</span>
+<span class="sd">        attention_weights: 注意力权重, shape (L, L)</span>
+<span class="sd">    """</span>
+    <span class="n">d_k</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># 1. 计算注意力分数: Q @ K^T</span>
+    <span class="n">scores</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">Q</span><span class="p">,</span> <span class="n">K</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Step 1 - 注意力分数: </span><span class="si">{</span><span class="n">scores</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># 2. 缩放</span>
+    <span class="n">scaled_scores</span> <span class="o">=</span> <span class="n">scores</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">d_k</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Step 2 - 缩放后: </span><span class="si">{</span><span class="n">scaled_scores</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># 3. Softmax</span>
+    <span class="n">exp_scores</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">scaled_scores</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">scaled_scores</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+    <span class="n">attention_weights</span> <span class="o">=</span> <span class="n">exp_scores</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">exp_scores</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Step 3 - 注意力权重: </span><span class="si">{</span><span class="n">attention_weights</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># 4. 加权求和</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">attention_weights</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Step 4 - 最终输出: </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">output</span><span class="p">,</span> <span class="n">attention_weights</span>
+
+
+<span class="c1"># 示例使用</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># 输入设置</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="mi">7</span>  <span class="c1"># 序列长度</span>
+    <span class="n">d_model</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># embedding维度</span>
+
+    <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+
+    <span class="c1"># 1. 输入</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输入X: </span><span class="si">{</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># 2. 生成Q、K、V</span>
+    <span class="n">W_Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+    <span class="n">W_K</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+    <span class="n">W_V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+
+    <span class="n">Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">W_Q</span><span class="p">)</span>
+    <span class="n">K</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">W_K</span><span class="p">)</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">W_V</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Q: </span><span class="si">{</span><span class="n">Q</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"K: </span><span class="si">{</span><span class="n">K</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"V: </span><span class="si">{</span><span class="n">V</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># 3. 计算Attention</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"=== 开始计算Attention ==="</span><span class="p">)</span>
+    <span class="n">output</span><span class="p">,</span> <span class="n">weights</span> <span class="o">=</span> <span class="n">scaled_dot_product_attention</span><span class="p">(</span><span class="n">Q</span><span class="p">,</span> <span class="n">K</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">最终输出形状: </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输入形状: </span><span class="si">{</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"形状保持不变: </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>运行输出:</strong></p>
+<div class="codehilite"><pre><span></span><code>输入X: (7, 4)
+
+Q: (7, 4)
+K: (7, 4)
+V: (7, 4)
+
+=== 开始计算Attention ===
+Step 1 - 注意力分数: (7, 7)
+Step 2 - 缩放后: (7, 7)
+Step 3 - 注意力权重: (7, 7)
+Step 4 - 最终输出: (7, 4)
+
+最终输出形状: (7, 4)
+输入形状: (7, 4)
+形状保持不变: True
+</code></pre></div>
+
+<p><strong>关键观察:</strong></p>
+<ol>
+<li><strong>输入输出形状一致</strong>: <code>(L, d_model)</code> → <code>(L, d_model)</code></li>
+<li><strong>中间出现了 (L, L)</strong>: 这是注意力矩阵,记录了每个位置对其他位置的关注度</li>
+<li><strong>矩阵乘法是核心</strong>: 整个过程就是三次矩阵乘法</li>
+</ol>
+<hr />
+<p>这篇文章,我们从零手写了最基础的 Attention 机制:</p>
+<ol>
+<li><strong>输入 → Q、K、V</strong>: 通过线性变换得到三个"视角"</li>
+<li><strong>Q @ K^T</strong>: 计算相关性分数</li>
+<li><strong>缩放</strong>: 除以 √d_k 稳定数值</li>
+<li><strong>Softmax</strong>: 转成概率分布</li>
+<li><strong>加权求和</strong>: 用权重聚合 V 的信息</li>
+</ol>
+<p><strong>核心就是一句话:</strong></p>
+<blockquote>
+<p><strong>让每个位置都能"看到"其他位置,并把相关的信息聚合回来。</strong></p>
+</blockquote>
+<hr />
+<p>希望这篇文章能帮大家真正理解 Attention 的计算过程,下一篇,我们会在这个基础上,引入 <strong>Multi-Head Attention(多头注意力)</strong>,大家可以点个关注不迷路~</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="../news/qoder-security.html"><span class="k">← 上一篇</span><span class="v">AI十分钟写完头像上传，却可能顺手埋下漏洞：Qoder Security把安全检查塞进写码会话</span></a><a class="nx" href="ffn_ln.html"><span class="k">下一篇 →</span><span class="v">残差连接、LayerNorm、FFN：Transformer里缺一不可的配角组件</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#手撕attention-不依赖框架从零实现注意力机制">手撕Attention：不依赖框架从零实现注意力机制</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/transformer/attention_code.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

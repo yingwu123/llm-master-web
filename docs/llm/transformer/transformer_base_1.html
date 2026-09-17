@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>为什么所有大模型都绕不开Transformer？RNN和CNN的短板在哪 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>transformer</span><span class="sep">›</span><span>transformer_base_1</span></div>
+      <h1 id="为什么所有大模型都绕不开-transformer">为什么所有大模型都绕不开 Transformer？</h1>
+<p>很多人刚开始学大模型时，都会有一个疑问：</p>
+<p><strong>为什么现在一提大模型，几乎就一定会提到 Transformer？</strong><br />
+为什么不是 RNN？为什么不是 CNN？<br />
+BERT、GPT、T5、Llama 这些名字看起来完全不同的模型，为什么最后都能追溯到 Transformer？</p>
+<p>如果你也有这种感觉，其实很正常。</p>
+<p>因为大模型这条主线，表面上看是在不断冒出新名字，实际上底层很多变化，都是围绕 <strong>Transformer 这套骨架</strong> 在做增强、裁剪和改造。</p>
+<p>这篇文章，我们就只回答一个问题：</p>
+<blockquote>
+<p><strong>为什么今天的大模型，几乎都绕不开 Transformer？</strong></p>
+</blockquote>
+<p>你不需要先会公式，也不需要先啃论文。<br />
+先把这条主线理顺，后面你再看 BERT、GPT、T5、Llama，才不会觉得它们像四种完全不同的东西。  </p>
+<hr />
+<h2 id="一-transformer-到底是什么">一、Transformer 到底是什么？</h2>
+<p>先给大家一个大白话说法：</p>
+<p><strong>Transformer 本质上就是一个巨大的函数，输入为多个x，输出为一个y。</strong></p>
+<p>它最核心的特点就是：</p>
+<ol>
+<li><strong>它让序列里每个位置都能直接关注其他位置</strong></li>
+<li><strong>它可以并行训练</strong></li>
+<li><strong>它更容易被扩展到超大数据、超大参数、超大算力</strong></li>
+</ol>
+<p>这里的“序列”，你可以先简单理解成一句话里的 token 序列。</p>
+<p>比如一句话：</p>
+<blockquote>
+<p>我昨天在公司食堂吃饭时，突然想明白了 Transformer 为什么重要</p>
+</blockquote>
+<p>对于传统模型来说，它通常得按顺序一点点往后读。<br />
+但 Transformer 不太一样，它会让“Transformer”这个词，在计算时直接去看“想明白了”“为什么重要”这些位置。</p>
+<p>也就是说，它不是“一个字一个字往后传”，而更像是：</p>
+<blockquote>
+<p><strong>我先把整句话都摆在桌面上，再决定每个词该重点看谁。</strong></p>
+</blockquote>
+<p>这就是它后来能成为大模型底座的关键起点。</p>
+<hr />
+<h2 id="二-为什么-rnn-不适合今天的大模型">二、为什么 RNN 不适合今天的大模型？</h2>
+<p><img alt="RNN处理序列信息的局限示意图" src="https://file1.kamacoder.com/i/algo/efd64033-a7c6-49de-9ca7-9416a9c8bc86.webp" /></p>
+<p>很多初学者会先接触到 RNN、LSTM、GRU，然后自然会问：</p>
+<p><strong>既然 RNN 本来就是处理序列的，那为什么大模型不用它？</strong></p>
+<h3 id="1-rnn-最大的问题-太依赖-按顺序处理">1. RNN 最大的问题：太依赖“按顺序处理”</h3>
+<p>RNN 的思路很直观：</p>
+<ul>
+<li>先读第 1 个 token</li>
+<li>再读第 2 个 token</li>
+<li>...</li>
+<li>一直读到最后</li>
+</ul>
+<p>它每一步都依赖前一步的隐藏状态，所以天然就是<strong>串行</strong>的。
+这在小模型时代还能接受，但一旦你要训练一个几百亿、几千亿参数的大模型，问题就来了：</p>
+<p><strong>串行意味着很难把 GPU/TPU 的并行能力真正发挥。</strong></p>
+<h3 id="2-长距离依赖容易-传着传着就弱了">2. 长距离依赖容易“传着传着就弱了”</h3>
+<p>RNN 还有一个经典问题：  一句话太长时，前面的信息传到后面，容易越来越弱。
+比如这句话：</p>
+<blockquote>
+<p>我前天在上海参加完技术分享之后，晚上和几个做推理优化的朋友聊到凌晨，最后才真正理解，Transformer 解决的核心不是能不能做序列建模，而是能不能高效做大规模序列建模。</p>
+</blockquote>
+<p>如果模型想理解“Transformer”对应的是后面那一大段解释，RNN 得把前面的信息一级一级往后传。链路越长，信息越容易衰减，训练也越容易不稳定。</p>
+<h3 id="rnn-像什么">RNN 像什么？</h3>
+<p>像一个人拿着纸条，必须一条一条按顺序往后传。 前面传错一点，后面可能越来越模糊。</p>
+<p>所以，RNN 在“小而精”的时代很有存在感，但在“大而强”的时代，训练范式已经不占优势了。</p>
+<hr />
+<h2 id="三-为什么-cnn-也没有成为大模型的主流底座">三、为什么 CNN 也没有成为大模型的主流底座？</h2>
+<p><img alt="Transformer并行建模长距离依赖示意图" src="https://file1.kamacoder.com/i/algo/a34ac634-854a-44c9-81bb-a40d66179d59.webp" /></p>
+<p>那有人又会问：</p>
+<p><strong>CNN 不也很强吗？图像领域都统治那么久了，为什么不用 CNN 来做大模型？</strong></p>
+<h3 id="1-cnn-更擅长局部模式-不擅长天然建模全局关系-想看得更远-就要不断加深网络">1. CNN 更擅长局部模式，不擅长天然建模全局关系，想看得更远，就要不断加深网络</h3>
+<p>CNN 的核心是卷积核，它特别擅长提取局部特征。在图像里，这很合理。  因为边缘、纹理、局部结构，本来就很重要。但语言不太一样。
+一句话里真正重要的关系，往往不只在局部邻域里。  比如：</p>
+<blockquote>
+<p>我原本以为他不懂 Transformer，直到他把 Attention 的矩阵维度都手推了一遍。</p>
+</blockquote>
+<p>这里“他不懂”和“直到后面反转”之间，是全局语义关系。  CNN 如果只看局部窗口，想把这种远距离依赖建模好，往往需要堆很多层，或者设计得很复杂。</p>
+<h3 id="cnn-像什么">CNN 像什么？</h3>
+<p>像一个人拿着放大镜，每次只看局部几块区域。  想看全局，就得多看很多轮。</p>
+<p>这样当然也能做，但问题是：</p>
+<p><strong>Transformer 有一种更直接的方式。</strong></p>
+<p>它不是“我多绕几层才看到远处”，而是：</p>
+<blockquote>
+<p><strong>我这一层就允许当前位置直接去看任何位置。</strong></p>
+</blockquote>
+<hr />
+<h2 id="四-transformer-克服了什么短板">四、Transformer 克服了什么短板？</h2>
+<p>既然 RNN 和 CNN 都有明显限制，那 Transformer 到底解决了什么？</p>
+<h3 id="1-它让-长距离依赖-变得更直接">1. 它让“长距离依赖”变得更直接</h3>
+<p>在 Transformer 里，一个 token 不需要把信息一层层传很多步，它可以直接通过注意力机制，去“看”整段序列里和自己最相关的位置。
+比如句子：</p>
+<blockquote>
+<p>小李说他昨天终于看懂了 Transformer，因为他第一次真正理解了 Self-Attention。</p>
+</blockquote>
+<p>这里“他”到底指谁？  模型要判断，很可能需要同时参考“小李”“昨天”“看懂了 Transformer”“理解了 Self-Attention”。</p>
+<p>Transformer 的做法是：</p>
+<ul>
+<li>让“他”这个位置直接去对整句所有位置计算相关性</li>
+<li>最后把更相关的信息聚合回来</li>
+</ul>
+<p>这比“顺着时间一步步传”要直接得多。</p>
+<h3 id="2-它让训练可以并行起来">2. 它让训练可以并行起来</h3>
+<p>RNN 的串行方式会拖慢训练。Transformer 在训练时，可以把一整段 token 一起送进模型，同时做矩阵运算。这也意味着它天然更适合 GPU/TPU 这种擅长并行计算的硬件。</p>
+<p>而今天的大模型，本质上就是：</p>
+<blockquote>
+<p><strong>架构设计 + 海量数据 + 高性能并行训练 + 工程优化</strong></p>
+</blockquote>
+<p>Transformer 之所以成了主流，不只是因为它“原理好”，还因为它特别符合现代计算硬件的优势。</p>
+<h3 id="3-它更容易扩展成-大模型">3. 它更容易扩展成“大模型”</h3>
+<p>一个架构要成为大模型底座，不只要“能用”，还要“能放大”。</p>
+<p>Transformer 在这方面特别适合：</p>
+<ul>
+<li>层数可以加深</li>
+<li>hidden size 可以加大</li>
+<li>训练范式容易标准化</li>
+</ul>
+<h3 id="transformer-像什么">Transformer 像什么？</h3>
+<p>像把整段内容直接铺开在会议桌上，<br />
+然后每个人都可以立刻看全局，再决定自己重点参考谁。</p>
+<p>所以你会发现：</p>
+<blockquote>
+<p><strong>Transformer 不是“会做序列”这么简单，而是“更适合在大规模条件下做好序列”。</strong></p>
+</blockquote>
+<p>这才是它真正赢下大模型时代的原因。而今天大模型最核心的关键词，恰恰就是“规模化”。</p>
+<hr />
+<h2 id="五-为什么-bert-gpt-t5-llama-本质都和-transformer-有关">五、为什么 BERT、GPT、T5、Llama 本质都和 Transformer 有关？</h2>
+<p>这也是很多人最容易混乱的地方。</p>
+<p>它们名字完全不同，为什么都和 Transformer 有关？</p>
+<p>因为：</p>
+<blockquote>
+<p><strong>它们大多不是在重新发明一套完全不同的骨架，而是在 Transformer 这个骨架上，做任务形式、训练目标、结构细节上的变化。</strong></p>
+</blockquote>
+<h3 id="1-bert-transformer-的-理解型-用法">1. BERT：Transformer 的“理解型”用法</h3>
+<p>BERT 更偏向双向编码。<br />
+它会同时看左边和右边上下文，更擅长做理解任务，比如分类、抽取、匹配。</p>
+<h3 id="2-gpt-transformer-的-生成型-用法">2. GPT：Transformer 的“生成型”用法</h3>
+<p>GPT 则更偏向自回归生成。<br />
+它通常只看前文，预测下一个 token。</p>
+<h3 id="3-t5-transformer-的-统一文本到文本-用法">3. T5：Transformer 的“统一文本到文本”用法</h3>
+<p>T5 更强调把很多任务都统一成 text-to-text。  翻译、摘要、问答，都变成“输入文本，输出文本”。</p>
+<h3 id="4-llama-transformer-的-现代大模型工程化升级版">4. Llama：Transformer 的“现代大模型工程化升级版”</h3>
+<p>Llama 看起来像新一代模型，但本质上仍然属于 Transformer 家族。</p>
+<p>它做的更多是：</p>
+<ul>
+<li>改进归一化方式</li>
+<li>改进位置编码</li>
+<li>调整训练细节</li>
+<li>提升训练效率与推理表现</li>
+</ul>
+<p>也就是说，Llama 不是“抛弃 Transformer”，而是：</p>
+<blockquote>
+<p><strong>站在 Transformer 这套骨架上，做更适合现代大模型的优化。</strong></p>
+</blockquote>
+<p>所以BERT、GPT、T5、Llama 绝不是四个互不相干的名词，而是：</p>
+<blockquote>
+<p><strong>它们都是 Transformer 主线上的不同分支。</strong></p>
+</blockquote>
+<hr />
+<h2 id="六-学完这个系列你能收获什么">六、学完这个系列你能收获什么？</h2>
+<p>我们这个系列的写作主线将会从 Transformer 出发，逐步过渡到 BERT / T5 / GPT、MoE、Llama，再到更现代的架构辨析与核心模块手撕。同时为大家奉上常见的面试问法，也就是说，这个系列不会停留在“知道名词”，而是会尽量带你走到：</p>
+<blockquote>
+<p><strong>真的看懂、真的能写、真的能复现、真的能在面试时做到“从容回答”</strong></p>
+</blockquote>
+<p>希望能助力大家进步，多多斩获offer！</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="tiny_transformer_code.html"><span class="k">← 上一篇</span><span class="v">手撕Tiny Transformer：从零拼出一个完整模型</span></a><a class="nx" href="transformer_base_encoder_decoder.html"><span class="k">下一篇 →</span><span class="v">Encoder-only、Decoder-only、Encoder-Decoder三种架构详解与对比</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#为什么所有大模型都绕不开-transformer">为什么所有大模型都绕不开 Transformer？</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/transformer/transformer_base_1.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

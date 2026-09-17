@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>手撕Transformer Block：把Attention、FFN、Norm拼起来 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>transformer</span><span class="sep">›</span><span>transformer_block_code</span></div>
+      <h1 id="手撕transformer-block-把attention-ffn-norm拼起来">手撕Transformer Block：把Attention、FFN、Norm拼起来</h1>
+<p>前面几篇文章，我们已经把 Transformer Block 里的核心零件基本都手撕了一遍：</p>
+<ul>
+<li>Multi-Head Attention：让不同 Token 之间互相交流</li>
+<li>FFN：让每个 Token 独立做非线性加工</li>
+<li>残差连接：把原始输入加回来，防止信息丢失</li>
+<li>LayerNorm：把数值拉回稳定范围</li>
+</ul>
+<p>这一篇，我们不再单独看零件，而是把它们真正拼起来，写出一个<strong>最小版 Transformer Block</strong>。</p>
+<hr />
+<h2 id="一个-block-到底长什么样">一个 Block 到底长什么样？</h2>
+<p>最常见的 Transformer Block 可以写成：</p>
+<div class="codehilite"><pre><span></span><code>输入 x
+  ↓
+Multi-Head Attention
+  ↓
+残差连接 + LayerNorm
+  ↓
+FFN
+  ↓
+残差连接 + LayerNorm
+  ↓
+输出
+</code></pre></div>
+
+<p>也就是：</p>
+<p>$$
+x_1 = \text{LayerNorm}(x + \text{MHA}(x))
+$$</p>
+<p>$$
+x_2 = \text{LayerNorm}(x_1 + \text{FFN}(x_1))
+$$</p>
+<p>这里有一个非常重要的点：</p>
+<blockquote>
+<p><strong>输入是什么形状，输出还是什么形状。</strong></p>
+</blockquote>
+<p>假设输入是：</p>
+<div class="codehilite"><pre><span></span><code>x.shape = (L, d_model)
+</code></pre></div>
+
+<p>其中：</p>
+<ul>
+<li>L 是序列长度，比如“远方有颗苹果树”有 7 个 token</li>
+<li>d_model 是每个 token 的向量维度，比如这里用 8 维演示</li>
+</ul>
+<p>那么经过一个 Transformer Block 后，输出仍然是：</p>
+<div class="codehilite"><pre><span></span><code>output.shape = (L, d_model)
+</code></pre></div>
+
+<p>这也是为什么 Transformer 可以一层一层往上堆。</p>
+<p><img alt="Transformer Block代码结构示意图" src="https://file1.kamacoder.com/i/algo/article14_0425_p1.png" /></p>
+<h2 id="先写-layernorm-和-ffn">先写 LayerNorm 和 FFN</h2>
+<p>我们先把最基础的组件准备好。</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LayerNorm</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eps</span> <span class="o">=</span> <span class="n">eps</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">std</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">x_norm</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">std</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">*</span> <span class="n">x_norm</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span>
+</code></pre></div>
+
+<p>LayerNorm 做的事很简单：对每个 Token 自己的向量做归一化。</p>
+<p>比如输入是 <code>(7, 8)</code>，表示 7 个 token，每个 token 8 维，那么 LayerNorm 会分别对这 7 行做归一化。</p>
+<p>接着写 FFN：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">FeedForward</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">W1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">d_ff</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">W2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_ff</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">gelu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">x</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">tanh</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="mf">0.044715</span> <span class="o">*</span> <span class="n">x</span> <span class="o">**</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">hidden</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b1</span>
+        <span class="n">hidden</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gelu</span><span class="p">(</span><span class="n">hidden</span><span class="p">)</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">hidden</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W2</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b2</span>
+        <span class="k">return</span> <span class="n">output</span>
+</code></pre></div>
+
+<p>FFN 的过程就是：</p>
+<div class="codehilite"><pre><span></span><code>(L, d_model)
+   ↓ 升维
+(L, d_ff)
+   ↓ GELU
+(L, d_ff)
+   ↓ 降维
+(L, d_model)
+</code></pre></div>
+
+<p>还是那句话：<strong>中间怎么变都可以，但最后必须回到 d_model。</strong></p>
+<h2 id="写-multi-head-attention">写 Multi-Head Attention</h2>
+<p>现在写一个最小版多头注意力。</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">MultiHeadAttention</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">num_heads</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">d_model</span> <span class="o">%</span> <span class="n">num_heads</span> <span class="o">==</span> <span class="mi">0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">d_model</span> <span class="o">=</span> <span class="n">d_model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_heads</span> <span class="o">=</span> <span class="n">num_heads</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">d_k</span> <span class="o">=</span> <span class="n">d_model</span> <span class="o">//</span> <span class="n">num_heads</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">W_Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">W_K</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">W_V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">W_O</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">softmax</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">e</span> <span class="o">/</span> <span class="n">e</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">split_heads</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">L</span><span class="p">,</span> <span class="n">d_model</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+        <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_heads</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">d_k</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">L</span><span class="p">,</span> <span class="n">d_model</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="n">Q</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W_Q</span>
+        <span class="n">K</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W_K</span>
+        <span class="n">V</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W_V</span>
+
+        <span class="n">Q</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">split_heads</span><span class="p">(</span><span class="n">Q</span><span class="p">)</span>
+        <span class="n">K</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">split_heads</span><span class="p">(</span><span class="n">K</span><span class="p">)</span>
+        <span class="n">V</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">split_heads</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+
+        <span class="n">head_outputs</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_heads</span><span class="p">):</span>
+            <span class="n">scores</span> <span class="o">=</span> <span class="n">Q</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">@</span> <span class="n">K</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d_k</span><span class="p">)</span>
+            <span class="n">weights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">weights</span> <span class="o">@</span> <span class="n">V</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">head_outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+
+        <span class="n">concat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">head_outputs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">concat</span> <span class="o">=</span> <span class="n">concat</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="n">concat</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W_O</span>
+        <span class="k">return</span> <span class="n">output</span>
+</code></pre></div>
+
+<p>这里最容易绕的还是 shape：</p>
+<div class="codehilite"><pre><span></span><code>输入 x:              (L, d_model)
+Q/K/V:               (L, d_model)
+拆成多个头:          (num_heads, L, d_k)
+每个头输出:          (L, d_k)
+拼接回来:            (L, d_model)
+输出投影后:          (L, d_model)
+</code></pre></div>
+
+<p>可以看到，Attention 虽然中间拆成多个头，但最后依然回到原来的形状。</p>
+<p><img alt="Transformer Block前向传播输出示意图" src="https://file1.kamacoder.com/i/algo/article14_0425_p2.png" /></p>
+<hr />
+<h2 id="定义完整-transformer-block">定义完整 Transformer Block</h2>
+<p>现在核心来了。</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TransformerBlock</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">num_heads</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">attn</span> <span class="o">=</span> <span class="n">MultiHeadAttention</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">num_heads</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ffn</span> <span class="o">=</span> <span class="n">FeedForward</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">norm1</span> <span class="o">=</span> <span class="n">LayerNorm</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">norm2</span> <span class="o">=</span> <span class="n">LayerNorm</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输入 x:              </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="n">attn_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">attn</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Attention 输出:      </span><span class="si">{</span><span class="n">attn_out</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">norm1</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">attn_out</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Add &amp; Norm 之后:     </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="n">ffn_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ffn</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"FFN 输出:            </span><span class="si">{</span><span class="n">ffn_out</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">norm2</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">ffn_out</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Block 最终输出:      </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">x</span>
+</code></pre></div>
+
+<p>这就是一个最小版 Transformer Block。</p>
+<p>注意这里用了 Post-Norm 写法：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">x</span> <span class="o">=</span> <span class="n">norm</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">sublayer</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+</code></pre></div>
+
+<p>也就是先经过子层，再残差相加，最后 LayerNorm。</p>
+<p>现代很多大模型会使用 Pre-Norm：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">sublayer</span><span class="p">(</span><span class="n">norm</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+</code></pre></div>
+
+<p>但为了和原始 Transformer 结构更一致，也为了方便初学者理解，这里先用 Post-Norm。</p>
+<hr />
+<h2 id="跑通一个-toy-example">跑通一个 toy example</h2>
+<p>我们继续用熟悉的句子：</p>
+<blockquote>
+<p>远方有颗苹果树</p>
+</blockquote>
+<p>假设它被切成 7 个 token，每个 token 用 8 维向量表示。</p>
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+
+    <span class="n">L</span> <span class="o">=</span> <span class="mi">7</span>
+    <span class="n">d_model</span> <span class="o">=</span> <span class="mi">8</span>
+    <span class="n">num_heads</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">d_ff</span> <span class="o">=</span> <span class="mi">32</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+
+    <span class="n">block</span> <span class="o">=</span> <span class="n">TransformerBlock</span><span class="p">(</span>
+        <span class="n">d_model</span><span class="o">=</span><span class="n">d_model</span><span class="p">,</span>
+        <span class="n">num_heads</span><span class="o">=</span><span class="n">num_heads</span><span class="p">,</span>
+        <span class="n">d_ff</span><span class="o">=</span><span class="n">d_ff</span>
+    <span class="p">)</span>
+
+    <span class="n">output</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">=== 检查结果 ==="</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"输入形状:"</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"输出形状:"</span><span class="p">,</span> <span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"形状一致:"</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+</code></pre></div>
+
+<p>运行输出大概是：</p>
+<div class="codehilite"><pre><span></span><code>输入 x:              (7, 8)
+Attention 输出:      (7, 8)
+Add &amp; Norm 之后:     (7, 8)
+FFN 输出:            (7, 8)
+Block 最终输出:      (7, 8)
+
+=== 检查结果 ===
+输入形状: (7, 8)
+输出形状: (7, 8)
+形状一致: True
+</code></pre></div>
+
+<p>这说明我们的最小版 Transformer Block 已经跑通了。</p>
+<p>从输入到输出，形状始终保持 <code>(7, 8)</code>。</p>
+<p>但是注意：<strong>形状没变，不代表内容没变。</strong></p>
+<p>经过 Attention 之后，每个 Token 已经融合了其他 Token 的上下文信息。</p>
+<p>经过 FFN 之后，每个 Token 又单独做了一次非线性加工。</p>
+<p>再加上残差连接和 LayerNorm，整个 Block 就既能表达复杂语义，又能保持训练稳定。</p>
+<hr />
+<h2 id="总结">总结</h2>
+<p>一个 Transformer Block 本质上就是：</p>
+<div class="codehilite"><pre><span></span><code>先让 Token 之间交流，
+再让每个 Token 自己思考，
+每一步都用残差保留原信息，
+再用 LayerNorm 稳定数值。
+</code></pre></div>
+
+<p>如果再压缩成代码，就是这两行：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">x</span> <span class="o">=</span> <span class="n">norm1</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">attention</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">norm2</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">ffn</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+</code></pre></div>
+
+<p>这就是 Transformer Block 的核心。</p>
+<p>看起来简单，但大模型就是把这样的 Block 堆几十层、上百层，再配上海量数据和算力训练出来的。</p>
+<p>下一篇文章将继续带大家<strong>从 0 拼一个 Tiny Transformer</strong>，大家可以点个关注不迷路哦~</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="transformer_base_encoder_decoder.html"><span class="k">← 上一篇</span><span class="v">Encoder-only、Decoder-only、Encoder-Decoder三种架构详解与对比</span></a><a class="nx" href="transformer_data_flow.html"><span class="k">下一篇 →</span><span class="v">Transformer数据流动全解析：从输入文本到输出Token每一步做什么</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#手撕transformer-block-把attention-ffn-norm拼起来">手撕Transformer Block：把Attention、FFN、Norm拼起来</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/transformer/transformer_block_code.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

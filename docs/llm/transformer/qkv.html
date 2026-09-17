@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Attention机制详解：Q、K、V是什么，为什么它是Transformer的核心 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>transformer</span><span class="sep">›</span><span>qkv</span></div>
+      <h1 id="attention机制详解-q-k-v是什么-为什么它是transformer的核心">Attention机制详解：Q、K、V是什么，为什么它是Transformer的核心</h1>
+<p>上一阶段给大家接受了Transformer的基础原理， 接下来的几篇文章将重点给大家拆解Transformer的几个核心组件与计算原理。本篇文章先给大家介绍一下Attention机制当作过渡。  </p>
+<h2 id="注意力的直觉解释">注意力的直觉解释</h2>
+<p>Attention本质上在做一件很像人类的事，大家先看这句话：  </p>
+<blockquote>
+<p>小明打了小刚，因为他生气了</p>
+</blockquote>
+<p>这里的“他”指的是谁？小明？小刚？放你看到这句话时，你不会随机回答，你会“先看一眼上下文”，再做出判断——小明。这就是Attention的直觉解释：  </p>
+<blockquote>
+<p>从上下文中，挑出和当前词最相关的部分；也就是说，<strong>每个Token都会关注其他Token，但关注的程度不一样</strong></p>
+</blockquote>
+<h2 id="为什么必须关注不同token">为什么必须关注不同Token？</h2>
+<p>如果没有Attention机制，会发生什么？<br />
+1.每个词独立处理<br />
+2.像RNN一样顺序传递信息<br />
+这都会导致远距离的信息丢失，比如这句话：  </p>
+<blockquote>
+<p>我最近都在学习Transformer，前几天还去图书馆借了相关书籍，今天终于把Transformer学完了，它真的很强大  </p>
+</blockquote>
+<p>“它”指的是谁？相关书籍？图书馆？Transformer？如果模型不能<strong>“看整体”</strong>，就很难捕捉到这样的语义信息  </p>
+<h2 id="query-key-value在attention中扮演的角色">Query，Key，Value在Attention中扮演的角色</h2>
+<p>大家一定也会常常听到Attention中的QKV矩阵，也是很多人搞不懂的地方：<strong>QKV到底是做什么的？</strong> 本篇文章依旧不涉及复杂公式，给大家形象介绍下它们的用途。<br />
+Query（Q）：当前Token会问所有Token一个问题：我应该<strong>“更注意”</strong> 谁？<br />
+比如这句话：</p>
+<blockquote>
+<p><em>远方走来的是一位身穿白裙婀娜多姿面带微笑的少女</em></p>
+</blockquote>
+<p>这句话中，“身穿白裙”“婀娜多姿”“面带微笑”“少”等词对于“女”的语义影响是很大的，而“的”“是”等词就显得没有那么重要，于是Query矩阵就相当于“女”这个Token在发问：<strong>我应该更关注谁？</strong></p>
+<p><img alt="Query Key Value角色关系示意图" src="https://file1.kamacoder.com/i/algo/a5d4c76f-01d3-4755-b481-cb8cfdc1a5ad.webp" /></p>
+<p>Key（K）：这个矩阵相当于在回答Query矩阵的问题，还是以上面这句话为例，“女”这个Token会问：我应该更关注谁？而Key矩阵则是回答：你应该更关注我。于是“身穿白裙”“婀娜多姿”“面带微笑”“少”则是回答“女”的query：<strong>多关注我！</strong></p>
+<p><img alt="Attention根据QK相似度聚合Value示意图" src="https://file1.kamacoder.com/i/algo/42a2c5fd-ca0a-41ba-b101-7fe9679cd5b8.webp" /></p>
+<p>Value（V）：Value 是 Token 携带的<strong>核心特征信息</strong>。当 Query 发现某个 Key 很匹配时，它就会把对应的 Value 提取出来，融入到当前的语义表示中 </p>
+<p>下一篇文章将会给大家讲解Q，K，V与softmax的计算细节，点个关注不迷路～  </p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="pos_encode.html"><span class="k">← 上一篇</span><span class="v">位置编码详解：Transformer为什么必须知道Token顺序，正弦编码原理</span></a><a class="nx" href="qkv_cal.html"><span class="k">下一篇 →</span><span class="v">Attention计算全过程：从QK转置到Softmax加权求和一步步拆解</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#attention机制详解-q-k-v是什么-为什么它是transformer的核心">Attention机制详解：Q、K、V是什么，为什么它是Transformer的核心</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/transformer/qkv.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

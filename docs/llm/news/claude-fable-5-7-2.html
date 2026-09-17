@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude Fable 5重新开放：很强，也真的很贵，国内如何用上Opus4.8 和Fable5？ · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>claude-fable-5-7-2</span></div>
+      <h1 id="终于又能用fable-5了-我体验了一下-发现用不起">终于又能用Fable 5了，我体验了一下，发现用不起</h1>
+<blockquote>
+<p>不少读者问我，如何Claude账号被封，如果用上Claude opus4.8，或者Fable5，充值Claude会员，我在这里单独讲一下：<a href="../../qita/0020.no-claude-account-use-opus-4-8-fable-5.html">没有Claude账号，怎么用上Opus模型</a></p>
+</blockquote>
+<p>话说 Fable 5 终于又能用了。这事不是普通的模型上线、下线、再上线。</p>
+<p>6月9日，Anthropic 发布 Fable 5，当时的定位很猛：<strong>目前公开可用的最强 Claude 模型。</strong></p>
+<p>我前面已经写过一篇：<a href="./claude-fable-5.html">Claude Fable 5发布：最强模型来了，但先别急着把Opus 4.8换掉</a>。那篇主要讲价格、API变化、fallback、adaptive thinking，以及它和 Opus 4.8 怎么选。</p>
+<p>结果没过多久，Fable 5 就被按下暂停键。</p>
+<p>6月中旬，因为美国出口管制和安全风险评估，Fable 5 和 Mythos 5 一度被限制访问。外媒当时的说法是，政府担心这类前沿模型被用于高风险网络攻击，尤其是 Mythos 5 这种更敏感的版本。</p>
+<p>后来 Anthropic 和监管方沟通，补了新的安全措施。到6月30日前后，限制解除。7月1日，Fable 5 又重新开放。所以这次不是简单的“模型恢复供应”，它背后其实有三层意思。</p>
+<p><strong>第一，Fable 5 的能力已经强到监管开始盯了。</strong> 一个普通聊天模型，不至于被这么折腾。</p>
+<p><strong>第二，未来顶级模型的开放，很可能不再是单纯的商业问题。</strong> 不是你付钱就一定能一直用，安全策略、地区、账号环境、接口规则，都可能影响可用性。</p>
+<p><strong>第三，对国内用户来说，Claude 的可用性问题更明显了。</strong> 模型强是一回事，你能不能稳定用上，是另一回事。</p>
+<p>这段时间，录友应该都有感受：<strong>Claude 封号越来越严重了。</strong></p>
+<p>有的人 Claude Code 用着用着账号没了；有的人 Pro 还没捂热，就触发风控；有的人换节点、换浏览器、换时区，最后还是不稳。</p>
+<p>你说它是不是一定不能用？也不是。但对每天真拿 Claude Code 写代码的人来说，最怕的不是贵，最怕的是不稳定。</p>
+<p>项目改到一半，账号没了。上下文跑到一半，登录异常。刚准备让它接着 debug，发现又要重新折腾账号。</p>
+<p>这就很影响工作流。</p>
+<p>所以我前面也说过一个观点：<strong>如果只是想稳定用 Opus、Fable 写代码，靠谱中转站确实是一个现实选择。</strong></p>
+<p>我现在用的是这个：<a href="https://apidock.ai/">APIDock</a>。</p>
+<p>不是说中转站就适合所有人。如果你有稳定的官方账号、海外卡、干净网络环境，那当然可以继续走官方。</p>
+<p>但如果你已经被 Claude 封号折腾过几轮，只是想在 Claude CLI 里继续用 Opus 4.8、Fable 5 干活，那中转站的价值就很直接：</p>
+<ul>
+<li>不用天天研究账号环境</li>
+<li>不用把精力耗在登录风控上</li>
+<li>不用为了用一次模型，先折腾半天付款、节点、时区</li>
+<li>直接拿令牌接入 Claude CLI</li>
+</ul>
+<p>对工程用户来说，稳定本身就是成本。</p>
+<p>解封后的 Fable 5，我第一时间体验了一下。</p>
+<p>生怕 Fable 5 太吞金，我新建了一个空文件夹，启动 Fable 5：</p>
+<p><img alt="在空文件夹中启动Claude Fable 5进行简单测试" src="https://file1.kamacoder.com/i/web/2026-07-02_17-58-17.jpg" /></p>
+<p>为什么不用现有项目？因为 Claude 一启动，就会读取本地 <code>CLAUDE.md</code>，顺便把项目文档扫一遍。</p>
+<p>这可是 Fable 5 啊。</p>
+<p>我得小心用，把 token 用到刀刃上。要不然，我是真用不起。</p>
+<p>如上图，我就发了一句话。token 消耗，计费如图：</p>
+<p><img alt="Claude Fable 5一次简单对话产生的token消耗和账单" src="https://file1.kamacoder.com/i/web/2026-07-02_18-04-36.jpg" /></p>
+<p>0.3 刀就花出去了。</p>
+<p>我用的这个 <a href="https://apidock.ai/">中转站</a>，还只是官网价格的 7 折。如果直接用官网，那就更贵了。</p>
+<p>所以 Fable 5 的第一感受不是“爽”，是“心疼”。但贵归贵，它确实强。</p>
+<p>Fable 5 最厉害的地方，不是普通问答。你让它写一段小脚本、解释一个概念，它当然能做，但这不是它的价值区间。</p>
+<p>它真正厉害的是三件事。</p>
+<p><strong>第一，长链路任务更稳。</strong></p>
+<p>Claude Code 里最难的不是写代码，而是持续推进。读文件、找问题、改代码、跑测试、再修复、再验证，这个链路一长，普通模型很容易中途走偏。Fable 5 的优势就在这里，它更能记住任务目标，也更愿意在复杂上下文里继续保持判断。</p>
+<p><strong>第二，复杂代码库里更敢下钻。</strong></p>
+<p>很多模型看大项目时，会停在表层。读几个文件，猜一个结论，然后开始改。Fable 5 的体感是，它更愿意继续往下查。尤其是多模块调用、隐藏依赖、偶发 bug 这种问题，它比 Opus 更像是在认真追链路。</p>
+<p><strong>第三，难任务里的自我验证更强。</strong></p>
+<p>Agent 写代码最怕什么？不是写错，是写错了还很自信。Fable 5 在高难度任务里更愿意检查自己的判断。它会更频繁地回头看前面的假设，确认是不是证据够了，再继续往下做。</p>
+<p>这点对真实项目很重要。因为真实项目里，很多 bug 不是靠“聪明一下”解决的，而是靠持续排查、持续验证、持续缩小范围。</p>
+<p>这也是为什么我觉得 Fable 5 不是日常模型，它是攻坚模型。平时写文章、问问题、改小 bug，用 Opus 4.8 就够了。如果任务特别难，链路特别长，上下文特别复杂，再上 Fable 5。</p>
+<p>我现在的选择很简单：<strong>Opus 4.8 跑日常，Fable 5 打硬仗。</strong></p>
+<p>比如这些场景，我会考虑 Fable 5：</p>
+<ul>
+<li>大仓库重构</li>
+<li>多模块 bug 排查</li>
+<li>一次性生成复杂功能</li>
+<li>代码审查里找深层风险</li>
+<li>长时间 Claude Code Agent 任务</li>
+</ul>
+<p>但这些场景，我不会轻易上 Fable 5：</p>
+<ul>
+<li>普通问答</li>
+<li>简单脚本</li>
+<li>文案润色</li>
+<li>代码解释</li>
+<li>低风险小改动</li>
+</ul>
+<p>原因很简单。它强，但它也贵。强模型不是拿来炫的，是拿来在关键任务上省失败成本的。</p>
+<p>对国内录友来说，现在问题已经不是“Claude 够不够强”。Claude 当然强，问题是：<strong>你能不能稳定用上。</strong></p>
+<p>如果你官方账号很稳，那继续用官方。</p>
+<p>如果你已经被封号、风控、网络环境折腾得很烦，又想继续用 Opus 和 Fable，那么靠谱中转站就是一个可以考虑的方案。</p>
+<p>别把时间都耗在养号上。我们用 Claude，是为了让它帮我们写代码、改项目、解决问题，不是为了每天研究怎么不被封。</p>
+<p>Fable 5 重新开放，说明顶级模型的竞赛还在继续。但对普通开发者来说，真正重要的不是“最强模型来了”。</p>
+<p>而是：<strong>什么时候用 Opus，什么时候用 Fable，怎么稳定、可控、别太烧钱地用。</strong></p>
+<p>这才是更现实的事。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="claude-fable-5-1.html"><span class="k">← 上一篇</span><span class="v">Claude Fable 5.1发布：缓存价降75%，和Opus 5、GPT-5.6 Sol怎么选</span></a><a class="nx" href="claude-fable-5.html"><span class="k">下一篇 →</span><span class="v">Claude Fable 5发布：最强模型来了，但先别急着把Opus 4.8换掉</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#终于又能用fable-5了-我体验了一下-发现用不起">终于又能用Fable 5了，我体验了一下，发现用不起</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/claude-fable-5-7-2.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

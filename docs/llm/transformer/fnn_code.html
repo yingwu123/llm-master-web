@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>手撕FFN：Transformer前馈网络代码实现 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>transformer</span><span class="sep">›</span><span>fnn_code</span></div>
+      <h1 id="手撕ffn-transformer前馈网络代码实现">手撕FFN：Transformer前馈网络代码实现</h1>
+<p>上一篇文章我们把 Multi-Head Attention 从零手撕了一遍，走完了拆分 → 并行 → 拼接 → 投影的完整五步流程。</p>
+<p>这篇文章我们来手撕 Transformer Block 里的另一个核心组件：<strong>FFN（Feed-Forward Network，前馈神经网络）</strong>。</p>
+<p>还记得前面文章讲过的结论吗？</p>
+<blockquote>
+<p>Self-Attention 让不同 Token 之间"互通信息"，FFN 负责让每个 Token "独立思考"，做非线性的深度加工。</p>
+</blockquote>
+<p>这一篇我们就把 FFN 这个"思考模块"真正用代码实现出来，每一步都打印 shape，看数据是怎么变形的。</p>
+<hr />
+<h2 id="ffn-的结构有多简单">FFN 的结构有多简单？</h2>
+<p>很简单：<strong>两层线性变换，中间夹一个激活函数。</strong></p>
+<p>公式写出来长这样：</p>
+<p>$$
+\text{FFN}(x) = \text{Activation}(x \cdot W_1 + b_1) \cdot W_2 + b_2
+$$</p>
+<p>拆成三步就是：</p>
+<div class="codehilite"><pre><span></span><code>输入 x（d_model 维）
+  ↓ 第一层线性变换 W₁（d_model → d_ff，升维）
+  ↓ 激活函数（ReLU / GELU）
+  ↓ 第二层线性变换 W₂（d_ff → d_model，降维）
+输出（d_model 维）
+</code></pre></div>
+
+<p>注意关键细节：<strong>中间会先升维，再降回原来的维度</strong>。</p>
+<p>以原始 Transformer 论文为例，d_model = 512，中间层 d_ff = 2048，<strong>正好是 4 倍</strong>。我们等下会专门讲为什么要这样设计。</p>
+<p><img alt="FFN第一层线性变换代码输出图" src="https://file1.kamacoder.com/i/algo/article12_421_p1.png" /></p>
+<h2 id="第一步-准备输入">第一步：准备输入</h2>
+<p>FFN 是接在 Attention 之后的，所以它的输入就是 Attention 子层的输出。</p>
+<p>为了方便演示，我们还是用"远方有颗苹果树"这句话，序列长度 L = 7，d_model = 8（实际中是 512，这里缩小便于观察）。</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="c1"># 超参数</span>
+<span class="n">L</span> <span class="o">=</span> <span class="mi">7</span>          <span class="c1"># 序列长度</span>
+<span class="n">d_model</span> <span class="o">=</span> <span class="mi">8</span>    <span class="c1"># embedding 维度</span>
+<span class="n">d_ff</span> <span class="o">=</span> <span class="mi">32</span>      <span class="c1"># FFN 中间层维度（通常是 d_model 的 4 倍）</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+
+<span class="c1"># 模拟 Attention 子层的输出，作为 FFN 的输入</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"FFN 输入: </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 8)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>FFN 输入: (7, 8)
+</code></pre></div>
+
+<p>就是一个普通的 <code>(L, d_model)</code> 矩阵，7 个 Token，每个 8 维。</p>
+<h2 id="第二步-第一层线性变换-升维">第二步：第一层线性变换（升维）</h2>
+<p>把输入从 <code>d_model=8</code> 升到 <code>d_ff=32</code>，需要一个 <code>(8, 32)</code> 的权重矩阵。</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 第一层权重和偏置</span>
+<span class="n">W1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">)</span>  <span class="c1"># (8, 32)</span>
+<span class="n">b1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_ff</span><span class="p">)</span>           <span class="c1"># (32,)</span>
+
+<span class="c1"># 线性变换：x @ W1 + b1</span>
+<span class="n">hidden</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="n">W1</span> <span class="o">+</span> <span class="n">b1</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[升维后] hidden: </span><span class="si">{</span><span class="n">hidden</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 32)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>[升维后] hidden: (7, 32)
+</code></pre></div>
+
+<p>每个 Token 从 8 维膨胀成了 32 维。这一步还只是线性变换，没有引入任何"新东西"——<strong>真正的魔法在下一步。</strong></p>
+<h2 id="第三步-激活函数-引入非线性">第三步：激活函数（引入非线性）</h2>
+<p>这是 FFN 最关键的一步。为什么必须加激活函数？</p>
+<p>如果没有它，两层线性变换叠在一起，本质上还是一个线性变换：</p>
+<p>$$
+(x W_1)W_2 = x(W_1 W_2) = x W'
+$$</p>
+<p>两层线性层 = 一层线性层，白干了。所以必须在中间插一个<strong>非线性函数</strong>，让模型能学到复杂的特征组合。</p>
+<p>常用的有两种：</p>
+<ul>
+<li><strong>ReLU</strong>：原始 Transformer 用的，简单高效</li>
+<li><strong>GELU</strong>：BERT、GPT 用的，表现更平滑</li>
+</ul>
+<p>我们先用 ReLU 演示：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">relu</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+
+<span class="c1"># 应用激活函数</span>
+<span class="n">hidden_activated</span> <span class="o">=</span> <span class="n">relu</span><span class="p">(</span><span class="n">hidden</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[激活后] hidden: </span><span class="si">{</span><span class="n">hidden_activated</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 32)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"激活前负数个数: </span><span class="si">{</span><span class="p">(</span><span class="n">hidden</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"激活后负数个数: </span><span class="si">{</span><span class="p">(</span><span class="n">hidden_activated</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>[激活后] hidden: (7, 32)
+激活前负数个数: 112
+激活后负数个数: 0
+</code></pre></div>
+
+<p>ReLU 做的事很简单：<strong>负数全部变成 0，正数保持不变</strong>。形状没变，但数值分布变了——这就是"非线性"。</p>
+<p>如果想用 GELU，可以这样写：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">gelu</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">x</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">tanh</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="mf">0.044715</span> <span class="o">*</span> <span class="n">x</span><span class="o">**</span><span class="mi">3</span><span class="p">)))</span>
+</code></pre></div>
+
+<p>现代大模型基本都用 GELU 或它的变体（比如 Llama 用的 SwiGLU），但原理都一样：在升维之后引入非线性。</p>
+<h2 id="第四步-第二层线性变换-降维">第四步：第二层线性变换（降维）</h2>
+<p>升维 + 激活之后，再用一个 <code>(32, 8)</code> 的矩阵把维度降回 8：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 第二层权重和偏置</span>
+<span class="n">W2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_ff</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>  <span class="c1"># (32, 8)</span>
+<span class="n">b2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>        <span class="c1"># (8,)</span>
+
+<span class="c1"># 降维</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">hidden_activated</span> <span class="o">@</span> <span class="n">W2</span> <span class="o">+</span> <span class="n">b2</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[降维后] output: </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 8)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输入形状:  </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输出形状:  </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"形状一致:  </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>[降维后] output: (7, 8)
+输入形状:  (7, 8)
+输出形状:  (7, 8)
+形状一致:  True
+</code></pre></div>
+
+<p>输入是 <code>(7, 8)</code>，输出也是 <code>(7, 8)</code>，<strong>形状完全一致</strong>。这也是为什么 FFN 可以嵌在每一层 Transformer Block 里——它不会改变数据的"外形"，只改变内在的"信息含量"。</p>
+<p><img alt="FFN激活函数代码输出图" src="https://file1.kamacoder.com/i/algo/article12_421_p2.png" /></p>
+<h2 id="为什么要扩-4-倍">为什么要扩 4 倍？</h2>
+<p>可以从两个角度理解：</p>
+<p><strong>① 从表达能力的角度</strong></p>
+<p>非线性函数需要在一个"足够宽"的空间里发挥作用。如果中间层太窄，激活函数能捕捉的特征组合就很有限；太宽又会让参数量暴涨、训练变慢。</p>
+<p>实验证明，<strong>4 倍既有足够的表达空间，又不会太贵。</strong></p>
+<p><strong>② 从计算平衡的角度</strong></p>
+<p>在一层 Transformer Block 里，Attention 和 FFN 的参数量大致相当：</p>
+<ul>
+<li>Attention 部分：4 个矩阵（$W_Q, W_K, W_V, W_O$），每个 $d_{model} × d_{model}$，共 $4 × d_{model}^2$</li>
+<li>FFN 部分：2 个矩阵，$d_{model} × d_{ff} + d_{ff} × d_{model} = 2 × d_{model} × d_{ff}$</li>
+</ul>
+<p>当 $d_{ff} = 4 × d_{model}$ 时，FFN 参数量 = $8 × d_{model}^2$，<strong>恰好是 Attention 的 2 倍</strong>。</p>
+<p>这也解释了一个常见的事实：<strong>Transformer 参数量里，FFN 往往占大头</strong>（约三分之二）。模型里真正的"知识存储"，很大一部分就藏在 FFN 的这两个大矩阵里。</p>
+<p><img alt="FFN第二层线性变换代码输出图" src="https://file1.kamacoder.com/i/algo/article12_421_p3.png" /></p>
+<h2 id="完整代码-把四步打包成一个类">完整代码：把四步打包成一个类</h2>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FeedForwardNetwork</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">'relu'</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Feed-Forward Network</span>
+
+<span class="sd">        参数:</span>
+<span class="sd">            d_model: 输入/输出维度</span>
+<span class="sd">            d_ff:    中间层维度（通常 = 4 * d_model）</span>
+<span class="sd">            activation: 激活函数类型 'relu' 或 'gelu'</span>
+<span class="sd">        """</span>
+        <span class="c1"># 两层线性变换的权重</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">W1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">d_ff</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">W2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_ff</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="o">=</span> <span class="n">activation</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_activate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="o">==</span> <span class="s1">'relu'</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="o">==</span> <span class="s1">'gelu'</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">x</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">tanh</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="mf">0.044715</span> <span class="o">*</span> <span class="n">x</span><span class="o">**</span><span class="mi">3</span><span class="p">)</span>
+            <span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># ① 第一层：升维</span>
+        <span class="n">hidden</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b1</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[①升维]    </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> → </span><span class="si">{</span><span class="n">hidden</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="c1"># ② 激活函数：引入非线性</span>
+        <span class="n">hidden</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_activate</span><span class="p">(</span><span class="n">hidden</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[②激活]    shape 不变: </span><span class="si">{</span><span class="n">hidden</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="c1"># ③ 第二层：降维</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">hidden</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W2</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b2</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[③降维]    </span><span class="si">{</span><span class="n">hidden</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> → </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">output</span>
+
+
+<span class="c1"># ——— 运行测试 ———</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+    <span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span> <span class="o">=</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">32</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+    <span class="n">ffn</span> <span class="o">=</span> <span class="n">FeedForwardNetwork</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">'gelu'</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"=== Feed-Forward Network ==="</span><span class="p">)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">ffn</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">输入形状: </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输出形状: </span><span class="si">{</span><span class="n">out</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"形状一致: </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">out</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>运行输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>=== Feed-Forward Network ===
+[①升维]    (7, 8) → (7, 32)
+[②激活]    shape 不变: (7, 32)
+[③降维]    (7, 32) → (7, 8)
+
+输入形状: (7, 8)
+输出形状: (7, 8)
+形状一致: True
+</code></pre></div>
+
+<hr />
+<h2 id="三步流程">三步流程</h2>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>操作</th>
+<th>输入形状</th>
+<th>输出形状</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>① 升维</td>
+<td>$x · W_1 + b_1$</td>
+<td>$(L, d_{model})$</td>
+<td>$(L, d_{ff})$</td>
+</tr>
+<tr>
+<td>② 激活</td>
+<td>ReLU / GELU</td>
+<td>$(L, d_{ff})$</td>
+<td>$(L, d_{ff})$</td>
+</tr>
+<tr>
+<td>③ 降维</td>
+<td>$h · W_2 + b_2$</td>
+<td>$(L, d_{ff})$</td>
+<td>$(L, d_{model})$</td>
+</tr>
+</tbody>
+</table>
+<p>整体流程：<strong>小 → 大 → 小</strong>，先把信息"展开"到高维空间里让激活函数加工，再"压缩"回原维度传给下一层。</p>
+<p>FFN 看起来只是两层全连接，但它在 Transformer 里做的事绝不简单：</p>
+<ol>
+<li><strong>升维 + 激活 + 降维</strong>：在高维空间里用非线性提取特征，再压缩回原维度</li>
+<li><strong>引入非线性</strong>：弥补 Self-Attention"只会线性组合"的短板</li>
+<li><strong>独立加工每个 Token</strong>：Attention 负责横向交流，FFN 负责纵向深化</li>
+<li><strong>承载大部分参数</strong>：FFN 参数量约为 Attention 的 2 倍，是模型"记忆"的主要载体</li>
+</ol>
+<p>一句话总结：</p>
+<blockquote>
+<p><strong>Attention 让 Token 互相看见，FFN 让每个 Token 真正"消化"看到的信息。</strong></p>
+</blockquote>
+<p>到这里，Transformer Block 的两个核心子模块——<strong>Multi-Head Attention 和 FFN</strong>——我们都手撕完了。</p>
+<p>下一篇文章，我们会把 <strong>残差连接 + LayerNorm</strong> 也一起手撕出来，然后把这些零件拼成一个完整的 Transformer Encoder Block，大家可以点个关注不迷路～</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="ffn_ln.html"><span class="k">← 上一篇</span><span class="v">残差连接、LayerNorm、FFN：Transformer里缺一不可的配角组件</span></a><a class="nx" href="layernorm_residual_code.html"><span class="k">下一篇 →</span><span class="v">手撕LayerNorm与残差连接：别让基础组件被忽略</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#手撕ffn-transformer前馈网络代码实现">手撕FFN：Transformer前馈网络代码实现</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/transformer/fnn_code.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

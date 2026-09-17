@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Transformer数据流动全解析：从输入文本到输出Token每一步做什么 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>transformer</span><span class="sep">›</span><span>transformer_data_flow</span></div>
+      <h1 id="transformer数据流动全解析-从输入文本到输出token每一步做什么">Transformer数据流动全解析：从输入文本到输出Token每一步做什么</h1>
+<p>上一篇文章给大家介绍了Transformer的三种架构，在给大家介绍复杂的公式前，这篇文章会先带大家搞懂数据在Transformer中是如何流动的，希望大家多多关注向量维度的变化，关于计算细节会在接下来的文章中给大家详细讲解。</p>
+<h2 id="word-embedding">Word Embedding</h2>
+<p>先给大家介绍一下Word Embedding
+（如果已经对Word Embedding有所了解，可以跳过此部分）
+计算机并不不理解“苹果”是什么，只理解数字。Word Embedding就是充当一名翻译官，把人类的自然语言翻译成计算机能理解、运算的数字。它将词映射到一个高维的语义空间中，变成高维向量：</p>
+<div class="codehilite"><pre><span></span><code>苹果 -&gt; [1.2, 3, 4 ………, n] 
+常见维度有512，1024
+</code></pre></div>
+
+<p>相似的词比如“小猫”“小狗”在这个空间中的距离就会比较近，这种“距离”，就能让计算机像人一样捕捉词之间的关系</p>
+<hr />
+<p>下面开始正文</p>
+<p>假设输入序列为：  </p>
+<blockquote>
+<p><strong>远方有颗苹果树</strong>  </p>
+</blockquote>
+<h2 id="step1-先进行分词">step1.先进行分词</h2>
+<p>（假设词表为512维，则每个Token为1*512维的向量， 假设输入序列长L）<br />
+得到【远，方，有，颗，苹，果，树】（分词结果可能由于embedding模型不同而不同, 则$$L=7$$）</p>
+<p><img alt="Transformer输入序列分词示意图" src="https://file1.kamacoder.com/i/web/2026-04-15_11-21-38.jpg" /></p>
+<h2 id="step2-输入文本经过embedding变成高维向量-加上位置编码">step2. 输入文本经过embedding变成高维向量，加上位置编码</h2>
+<p>简单介绍下位置编码： <br />
+* 位置编码：让模型学习到不同位置得Token可能会具有不同的语义信息，比如  </p>
+<blockquote>
+<p>“你打我” 和 “我打你” 这两句话中相同的“你”“我”，位置不同，语义也不同  </p>
+</blockquote>
+<h2 id="step3-进入自注意力子层">step3.进入自注意力子层</h2>
+<p>此时矩阵为$7 \times 512$：<br />
+ step3.1 多头自注意力计算<br />
+step3.2 残差连接（加上自身）<br />
+ step3.3 层归一化（配公式）  </p>
+<h2 id="step4-进入前馈神经网络子层">step4. 进入前馈神经网络子层</h2>
+<p>前面都在做线性变换,为了能让模型理解更深层次的信息, 在这一层会引入非线性变换</p>
+<p>step4.1 升维（假设我们要升成2048维，则乘一个$512*2048$维的向量，得到$7 \times 2048$的矩阵）<br />
+step4.2 经过激活函数<br />
+step4.3 降维（乘一个$2048\times512$维的向量，降回原矩阵大小，$7\times512$）<br />
+step4.4 残差连接<br />
+经过若干层堆叠，最后输出的矩阵仍然是$7 \times 512$维</p>
+<p>最后一步，我们需要把这 512 维映射回“词表大小”（比如 50257 维，则表示该此表有50257个词）。就像是在 5 万多个备选词里做“多选题”，看哪个词的得分最高，分数最高的，就是所预测的下一个Token，作为输出的Token，将该 Token拼接到句子末尾，就完成了一次预测。继续下一次的计算，如此循环，就是我们所看到大模型一个字一个字生成时，背后的计算原理。</p>
+<p>下一阶段会为大家拆解Transformer的核心计算组件，从公式到计算原理会为大家一一介绍清楚，点个关注不迷路~</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="transformer_block_code.html"><span class="k">← 上一篇</span><span class="v">手撕Transformer Block：把Attention、FFN、Norm拼起来</span></a><a class="nx" href="transformer_structure.html"><span class="k">下一篇 →</span><span class="v">一层Transformer Block长什么样？自注意力、FFN、残差、LayerNorm拼起来</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#transformer数据流动全解析-从输入文本到输出token每一步做什么">Transformer数据流动全解析：从输入文本到输出Token每一步做什么</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/transformer/transformer_data_flow.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>一层Transformer Block长什么样？自注意力、FFN、残差、LayerNorm拼起来 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>transformer</span><span class="sep">›</span><span>transformer_structure</span></div>
+      <h1 id="一层transformer-block长什么样-自注意力-ffn-残差-layernorm拼起来">一层Transformer Block长什么样？自注意力、FFN、残差、LayerNorm拼起来</h1>
+<p>上一篇文章带大家看了数据在 Transformer 里的流动过程。这一篇我们把焦点放在最关键的地方：</p>
+<p><strong>一层 Transformer Block 到底长什么样？</strong></p>
+<p>你可以把 Transformer 想象成一栋楼，每一层楼就是一个 Block。无论楼有多高，每一层的结构都是相同的。搞清楚"一层楼"长什么样，整栋楼就通了。</p>
+<p>一个 Transformer Block，由两个子层组成：</p>
+<ul>
+<li><strong>自注意力子层</strong>（Self-Attention Sublayer）</li>
+<li><strong>前馈神经网络子层</strong>（FFN Sublayer）</li>
+</ul>
+<p>每个子层外面，都包裹着两件固定的"外套"：<strong>残差连接</strong> 和 <strong>层归一化</strong>。
+<img alt="Transformer Block整体结构示意图" src="https://file1.kamacoder.com/i/algo/IMG_0415_1805.WEBP" /></p>
+<hr />
+<h2 id="一-自注意力子层">一、自注意力子层</h2>
+<h3 id="先回顾一下自注意力机制">先回顾一下自注意力机制</h3>
+<p>上=前几篇文章提到，Transformer 最核心的能力之一，是让每个 token 都能"直接看到"整个序列里其他位置。</p>
+<p>自注意力机制（Self-Attention）就是完成这件事的核心模块。</p>
+<p>还是用这句话举例：</p>
+<blockquote>
+<p><strong>远方有颗苹果树</strong></p>
+</blockquote>
+<p>当模型在计算"苹果"这个词的表示时，自注意力机制会让它去衡量：
+- "苹果"和"树"有多相关？
+- "苹果"和"远方"有多相关？
+- "苹果"和"有"有多相关？</p>
+<p>最后把所有位置的信息按相关程度<strong>加权聚合</strong>，得到"苹果"这个词更丰富的表示。</p>
+<h3 id="多头注意力-多角度看问题">多头注意力：多角度看问题</h3>
+<p>实际上，Transformer 不只用一组注意力，而是同时用<strong>多组</strong>，这就是"多头注意力"（Multi-Head Attention）。</p>
+<p>为什么要多头？
+一个词和其他词的关系，往往不止一种维度。比如"苹果"和"树"的关系，可能既有"苹果是树上长的"这层语义，又有"苹果和树位置相邻"这层结构信息。</p>
+<p>单头注意力每次只能学一种关系模式。多头注意力，则相当于同时派出多个"分析员"，每个人从不同角度去看词与词的关系，最后把所有分析结果拼起来。</p>
+<blockquote>
+<p>多头注意力 = 多个注意力头并行计算 + 结果拼接 + 线性变换</p>
+</blockquote>
+<p>假设有 8 个注意力头，每个头负责不同的语义维度，最后把 8 个结果拼在一起，再做一次线性映射，输出和输入维度保持一致。
+<img alt="Transformer Block前向过程示意图" src="https://file1.kamacoder.com/i/algo/IMG_0415_1806.WEBP" /></p>
+<hr />
+<h2 id="二-残差连接-把原来的自己加回来">二、残差连接：把原来的自己加回来</h2>
+<p>自注意力算完之后，不是直接把结果往下传，而是要先做一个操作：</p>
+<p><strong>把输出和输入相加。</strong></p>
+<p>用公式表示就是：</p>
+<p>$$\text{输出} = \text{Self-Attention}(x) + x$$</p>
+<p>这就是<strong>残差连接</strong>（Residual Connection）为什么要这样做？</p>
+<p>这样做有两个好处：</p>
+<ol>
+<li><strong>防止信息丢失</strong>：哪怕注意力层没学到什么有用的东西，至少原始输入还保留着，不会越传越"面目全非"。</li>
+<li><strong>解决深层网络训练难题</strong>：网络层数很深时，梯度容易消失。残差连接提供了一条"快速通道"，让梯度可以直接流回较早的层，训练更稳定。</li>
+</ol>
+<blockquote>
+<p><strong>残差连接 = 原始输入 + 子层输出</strong></p>
+</blockquote>
+<hr />
+<h2 id="三-层归一化-把数值拉回合理范围">三、层归一化：把数值拉回合理范围</h2>
+<p>残差连接之后，紧接着是<strong>层归一化</strong>（Layer Normalization，简称 LayerNorm）。</p>
+<p>归一化的直觉是：经过多次矩阵运算，数值可能跑得很大或很小，分布变得很不稳定。LayerNorm 的作用，是把每一层的输出<strong>重新拉回到均值为 0、方差为 1 附近的分布</strong>，让后续计算更稳定。</p>
+<p>把残差连接和层归一化合起来，这一步完整写出来是：</p>
+<p>$$x' = \text{LayerNorm}(x + \text{Self-Attention}(x))$$</p>
+<p>注意：现代很多大模型（比如 Llama）改成了 <strong>Pre-LayerNorm</strong>，也就是先归一化再送入子层，效果往往更稳定，我们后续文章会详细讲。</p>
+<hr />
+<h2 id="四-前馈神经网络子层-引入非线性理解">四、前馈神经网络子层：引入非线性理解</h2>
+<p>自注意力子层完成后，数据进入第二个子层：<strong>前馈神经网络</strong>（Feed-Forward Network，FFN）。</p>
+<p>上一篇文章提到，自注意力本质上是在做<strong>线性变换</strong>，也就是对序列中的各个位置进行加权组合。</p>
+<p>但只有线性变换，模型的"理解能力"其实是有上限的——很多复杂的语义模式，线性变换捕捉不了。</p>
+<p>FFN 的存在，就是为了引入<strong>非线性</strong>，让模型能学到更深层次的语义信息。</p>
+<p>FFN 的结构很简单，三步走：</p>
+<p><strong>第一步：升维</strong></p>
+<p>把维度从 512 升到 2048（通常是 4 倍），乘一个大矩阵。</p>
+<p>$$h = W_1 x + b_1 \quad (512 \to 2048)$$</p>
+<p><strong>第二步：激活函数</strong></p>
+<p>引入非线性，常用 ReLU 或 GELU。</p>
+<p>$$h = \text{GELU}(h)$$</p>
+<p><strong>第三步：降维</strong></p>
+<p>再乘一个矩阵，把维度从 2048 降回 512。</p>
+<p>$$\text{输出} = W_2 h + b_2 \quad (2048 \to 512)$$</p>
+<blockquote>
+<p><strong>FFN = 先升维 → 激活 → 再降维</strong></p>
+</blockquote>
+<p>这个"先升维再降维"的设计，让模型能够去捕捉非线性特征，然后再压缩回来继续传递。</p>
+<p>FFN 结束后，同样要做一次残差连接 + 层归一化：</p>
+<p>$$x'' = \text{LayerNorm}(x' + \text{FFN}(x'))$$</p>
+<hr />
+<h2 id="五-一层-block-的完整前向过程">五、一层 Block 的完整前向过程</h2>
+<p>现在把所有步骤串起来，一层 Transformer Block 的前向过程如下：</p>
+<p><strong>输入</strong>：矩阵 $x$，形状为 $[L \times d]$（L 为序列长度，d 为向量维度）</p>
+<p><strong>第一步：自注意力子层</strong></p>
+<p>$$x' = \text{LayerNorm}(x + \text{MultiHead-Attention}(x))$$</p>
+<p><strong>第二步：前馈神经网络子层</strong></p>
+<p>$$x'' = \text{LayerNorm}(x' + \text{FFN}(x'))$$</p>
+<p><strong>输出</strong>：矩阵 $x''$，形状仍为 $[L \times d]$</p>
+<p>注意关键点：<strong>输入和输出的维度完全一致</strong>。这意味着可以把很多层 Block 串联起来，一层接一层，最终形成深层网络。这也是 Transformer 能轻松"堆深"的原因之一。</p>
+<hr />
+<h2 id="本阶段小结">本阶段小结</h2>
+<p>一层 Transformer Block，本质上就是两个子层的叠加：</p>
+<ul>
+<li><strong>自注意力子层</strong>：让 token 之间互相"交流"，聚合全局信息</li>
+<li><strong>前馈神经网络子层</strong>：对每个 token 独立做深层非线性变换</li>
+</ul>
+<p>两个子层都由相同的外壳包裹：</p>
+<blockquote>
+<p><strong>子层输出 → 残差连接 → 层归一化</strong></p>
+</blockquote>
+<p>这套组合，简洁、稳定、可扩展，是 Transformer 能被堆到几十上百层的根本原因。</p>
+<p>下一篇文章我们将开启一个新阶段：从理解到手撕 Transformer，争取带大家开始真正“从零实现”,可以点下关注不迷路~</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="transformer_data_flow.html"><span class="k">← 上一篇</span><span class="v">Transformer数据流动全解析：从输入文本到输出Token每一步做什么</span></a><span style="flex:1"></span></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#一层transformer-block长什么样-自注意力-ffn-残差-layernorm拼起来">一层Transformer Block长什么样？自注意力、FFN、残差、LayerNorm拼起来</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/transformer/transformer_structure.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

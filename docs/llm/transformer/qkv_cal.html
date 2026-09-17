@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Attention计算全过程：从QK转置到Softmax加权求和一步步拆解 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>transformer</span><span class="sep">›</span><span>qkv_cal</span></div>
+      <h1 id="attention计算全过程-从qk转置到softmax加权求和一步步拆解">Attention计算全过程：从QK转置到Softmax加权求和一步步拆解</h1>
+<p>上一篇文章给大家介绍了 Q、K、V 的直觉含义，这篇文章我们来把它"算一遍"。
+不用担心，全程只有加减乘除和一个 Softmax，我们将会用一个简单的例子一步步来计算。</p>
+<p>往期指路👉🏻</p>
+<hr />
+<p>上一篇我们说：Query 在问"我该注意谁"，Key 在回答"注意我"，Value 是真正的信息。
+但这些话说起来很直觉，<strong>计算机到底是怎么算出"注意多少"的呢？</strong></p>
+<p>答案就藏在这个公式里：</p>
+<p>$$
+\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
+$$</p>
+<p>看起来有点吓人，但我们一步一步来，你会发现它其实非常合理。</p>
+<hr />
+<h2 id="举一个最小的例子">举一个最小的例子</h2>
+<p>假设输入序列是：</p>
+<blockquote>
+<p><strong>我 爱 你</strong></p>
+</blockquote>
+<p>每个 Token 经过 Embedding 之后变成一个 2 维向量（真实场景里通常是 512 或 1024 维，这里用 2 维方便手算供大家理解）：</p>
+<table>
+<thead>
+<tr>
+<th>Token</th>
+<th>向量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>我</td>
+<td>[1, 0]</td>
+</tr>
+<tr>
+<td>爱</td>
+<td>[0, 1]</td>
+</tr>
+<tr>
+<td>你</td>
+<td>[1, 1]</td>
+</tr>
+</tbody>
+</table>
+<p>把三行拼在一起，就得到输入矩阵 $X_{3 \times 2}$。</p>
+<p>为了简化计算，我们假设 $W_Q = W_K = W_V = 单位矩阵$，所以 <strong>Q = K = V</strong>。
+（真实训练中这三个矩阵是不同的，是学习得来的，这里先理解流程）</p>
+<hr />
+<h2 id="第一步-计算-qk-top-谁和谁更相关">第一步：计算 $QK^\top$（谁和谁更相关？）</h2>
+<p>有了 Q 和 K，我们要计算<strong>每对 Token 之间的相关程度</strong>。</p>
+<p>直觉是这样的：两个向量越"相似"，它们的<strong>内积</strong>（点积）就越大。</p>
+<p>$$
+\text{score}(i, j) = q_i \cdot k_j^\top
+$$</p>
+<p>把所有 Token 两两都算一遍，就是矩阵乘法 <strong>Q × Kᵀ</strong>。
+Q 是 $3 \times 2$，Kᵀ 是 $2 \times 3$，结果是 <strong>$3 \times 3$ 的分数矩阵</strong>，每一格表示"<strong>行 Token 对列 Token 的关注程度</strong>"。</p>
+<p>手算一下：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>我</th>
+<th>爱</th>
+<th>你</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>我</strong></td>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+</tr>
+<tr>
+<td><strong>爱</strong></td>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td><strong>你</strong></td>
+<td>1</td>
+<td>1</td>
+<td><strong>2</strong></td>
+</tr>
+</tbody>
+</table>
+<p>注意右下角那个 <strong>2</strong>，代表"你"和自己的相似度最高——很合理，一个 Token 和自己当然最像。
+讲到这里大家也应该明白了为什么要转置 K： </p>
+<blockquote>
+<p>Q 和 K 都是 $n \times d$ 的矩阵，形状一样没法直接相乘。
+把 K 转置成 $d \times n$，才能得到 $n \times n$ 的分数矩阵，每一格刚好对应一对 Token。</p>
+</blockquote>
+<hr />
+<h2 id="第二步-缩放-为什么要除以-sqrt-d_k">第二步：缩放（为什么要除以 $\sqrt{d_k}$？）</h2>
+<p>上一步得到的分数，可能会非常大——尤其是当向量维度 $d_k$ 很高的时候。</p>
+<p>来看个例子，假设两个 64 维的向量，每个分量都是随机数，它们的内积期望值大概是 <strong>64 倍</strong>于 1 维的情况。这会导致什么？</p>
+<blockquote>
+<p>梯度就几乎消失了，模型根本学不动。</p>
+</blockquote>
+<p>解决方式很简单——除以 $\sqrt{d_k}$：</p>
+<p>$$
+\text{scaled score} = \frac{QK^\top}{\sqrt{d_k}}
+$$</p>
+<p>我们的例子里 $d_k = 2$，$\sqrt{2} \approx 1.41$，缩放后：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>我</th>
+<th>爱</th>
+<th>你</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>我</strong></td>
+<td>0.71</td>
+<td>0</td>
+<td>0.71</td>
+</tr>
+<tr>
+<td><strong>爱</strong></td>
+<td>0</td>
+<td>0.71</td>
+<td>0.71</td>
+</tr>
+<tr>
+<td><strong>你</strong></td>
+<td>0.71</td>
+<td>0.71</td>
+<td><strong>1.41</strong></td>
+</tr>
+</tbody>
+</table>
+<p>分数被"压平"了一些，Softmax 就不会那么极端。</p>
+<hr />
+<h2 id="第三步-softmax-把分数变成权重">第三步：Softmax（把分数变成权重）</h2>
+<p>现在的分数还是普通数字，有正有负，我们需要把它们变成<strong>概率</strong>——非负，且每行加起来等于 1。</p>
+<p>这正是 Softmax 做的事：</p>
+<p>$$
+\text{softmax}(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}}
+$$</p>
+<p><strong>对每一行单独做 Softmax</strong>，以"我"这一行为例：</p>
+<p>分数：[0.71, 0, 0.71]</p>
+<p>$$
+e^{0.71} \approx 2.03, \quad e^0 = 1.00, \quad e^{0.71} \approx 2.03
+$$</p>
+<p>总和 = 5.06，归一化后：</p>
+<p>$$
+[2.03/5.06,\ 1.00/5.06,\ 2.03/5.06] \approx [0.40,\ 0.20,\ 0.40]
+$$</p>
+<p>三行全部算完，得到<strong>注意力权重矩阵 A</strong>：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>我</th>
+<th>爱</th>
+<th>你</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>我</strong></td>
+<td>0.40</td>
+<td>0.20</td>
+<td>0.40</td>
+</tr>
+<tr>
+<td><strong>爱</strong></td>
+<td>0.20</td>
+<td>0.40</td>
+<td>0.40</td>
+</tr>
+<tr>
+<td><strong>你</strong></td>
+<td>0.27</td>
+<td>0.27</td>
+<td><strong>0.46</strong></td>
+</tr>
+</tbody>
+</table>
+<p>可以验证，每行加起来都等于 1 ✅</p>
+<p>"你"关注自己的权重是 0.46，明显高于关注另外两个词（各 0.27），
+这说明 Attention 自动判断出：在当前这句话里，"你"最应该关注自己携带的信息。</p>
+<hr />
+<h2 id="第四步-加权求和-用权重-取-出信息">第四步：加权求和（用权重"取"出信息）</h2>
+<p>最后一步，用注意力权重矩阵 A 对 V 做加权求和：</p>
+<p>$$
+\text{Output} = A \cdot V
+$$</p>
+<p>A 是 $3 \times 3$，V 是 $3 \times 2$，输出是 <strong>$3 \times 2$</strong>，和输入 X 同形。</p>
+<p>以"你"为例，它的权重行是 [0.27, 0.27, 0.46]，V 矩阵的三行分别是：</p>
+<ul>
+<li>v₁（我）= [1, 0]</li>
+<li>v₂（爱）= [0, 1]</li>
+<li>v₃（你）= [1, 1]</li>
+</ul>
+<p>$$
+\text{out}_\text{你} = 0.27 \times [1,0] + 0.27 \times [0,1] + 0.46 \times [1,1] = [0.73,\ 0.73]
+$$</p>
+<p>"你"的输出向量 [0.73, 0.73] 是三个 Token 信息的<strong>加权混合</strong>，但对自身的权重更大。</p>
+<p>这就是 Attention 的本质：<strong>每个 Token 的输出，都是全局信息的一次加权聚合</strong>，权重由相似度决定。</p>
+<hr />
+<h2 id="串起整个流程">串起整个流程</h2>
+<p>$$
+\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
+$$</p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>操作</th>
+<th>目的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>①</td>
+<td>$Q \times K^\top$</td>
+<td>计算每对 Token 的相似度</td>
+</tr>
+<tr>
+<td>②</td>
+<td>$\div \sqrt{d_k}$</td>
+<td>防止分数过大导致梯度消失</td>
+</tr>
+<tr>
+<td>③</td>
+<td>Softmax</td>
+<td>把分数变成概率权重，行和为 1</td>
+</tr>
+<tr>
+<td>④</td>
+<td>× V</td>
+<td>按权重加权求和，聚合上下文信息</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p>下一篇文章我们会进入 <strong>Multi-Head Attention</strong>，看看多个注意力头并行运转时，会带来什么效果，点个关注不迷路～</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="qkv.html"><span class="k">← 上一篇</span><span class="v">Attention机制详解：Q、K、V是什么，为什么它是Transformer的核心</span></a><a class="nx" href="tiny_transformer_code.html"><span class="k">下一篇 →</span><span class="v">手撕Tiny Transformer：从零拼出一个完整模型</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#attention计算全过程-从qk转置到softmax加权求和一步步拆解">Attention计算全过程：从QK转置到Softmax加权求和一步步拆解</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/transformer/qkv_cal.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

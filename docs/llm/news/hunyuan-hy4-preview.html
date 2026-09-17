@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>混元Hy4 preview发布：770B开源、1M上下文、首度参与训练自己，和GLM-5.3、Kimi K3、DeepSeek V4怎么选 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>hunyuan-hy4-preview</span></div>
+      <h1 id="混元hy4-preview发布-770b开源-1m上下文-腾讯这次先把模型塞进真实工作流">混元Hy4 preview发布：770B开源、1M上下文，腾讯这次先把模型塞进真实工作流</h1>
+<p>前面我们刚写完 <a href="./glm-5-3.html">GLM-5.3</a>：同一个基座靠后训练，把长程 Coding 继续往上推。</p>
+<p>8 月 28 日，腾讯混元也交卷了：<strong>Hy4 preview 已经放出权重，而且不是只讲聊天能力，直接把重点写成“真实生产力”。</strong></p>
+<p>软件工程、跨文件办公、游戏原型、科研推理，这些都是它要打的场景。</p>
+<p>先把结论放前面：<strong>Hy4 preview 很值得试，但别因为“770B、1M、开源”三个词就把它当成所有项目的默认答案。</strong> 它现在是 preview，官方自己也承认复杂任务会想得偏久、会过度验证；适合拿真实任务测，不适合只看一张柱状图下结论。</p>
+<p>下面这张是腾讯 8 月 28 日发布页的首屏截图，发布时间和“开源、生产力场景”的定位都在这里。</p>
+<p><img alt="腾讯Hy4官方发布页" src="https://file1.kamacoder.com/i/web/20260829162514.png" /></p>
+<h2 id="一-先把发布信息说清楚">一、先把发布信息说清楚</h2>
+<p>截至本文发布，Hy4 preview 的关键信息如下：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>信息</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>发布与开源</td>
+<td>2026 年 8 月 28 日发布，权重已在 Hugging Face、ModelScope、GitCode、CNB 等平台开放</td>
+</tr>
+<tr>
+<td>模型架构</td>
+<td>MoE，总参数 770B，单 Token 激活 49B</td>
+</tr>
+<tr>
+<td>上下文</td>
+<td>1M Token</td>
+</tr>
+<tr>
+<td>许可证</td>
+<td>Apache License 2.0，可用于商业场景，但仍要遵守许可证和平台规则</td>
+</tr>
+<tr>
+<td>体验入口</td>
+<td>WorkBuddy、CodeBuddy、元宝、ima；也可用腾讯云 TokenHub、OpenRouter API</td>
+</tr>
+<tr>
+<td>首发活动</td>
+<td>WorkBuddy / CodeBuddy 限时两周免费体验</td>
+</tr>
+<tr>
+<td>API 参考价</td>
+<td>输入 6 元/百万 Token、输出 18 元/百万 Token、缓存命中 0.3 元/百万 Token</td>
+</tr>
+</tbody>
+</table>
+<p>上面每一项不是二手转述：开源、产品入口、免费体验和美元计价可以在 <a href="https://www.tencent.com/zh-cn/tencent-releases-and-open-sources-tencent-hy4-preview/">腾讯官方发布页</a> 核对；模型链接、许可证、推理参数和部署命令则在 <a href="https://github.com/Tencent-Hunyuan/Hy4-preview">官方 GitHub 仓库</a> 里。</p>
+<p>这里有一个容易被标题带偏的点。</p>
+<p><strong>“770B”不是一次请求就要完整激活 770B 参数。</strong> Hy4 是混合专家模型（MoE）：官方说明它有 256 个路由专家和 1 个共享专家，每个 Token 会选中其中 8 个路由专家再加共享专家，所以激活参数是 49B。</p>
+<p>这不等于本地部署就轻松。推理时仍要存下大体量权重、KV Cache 和并发资源。官方 vLLM 示例为 FP8 版本配置了 8 路张量并行；想私有化的录友，先算显存、机器和吞吐，不要只拿“49B 激活”当采购依据。</p>
+<h2 id="二-它不是只把模型做大-而是盯着-把活干完">二、它不是只把模型做大，而是盯着“把活干完”</h2>
+<p>腾讯给 Hy4 的定位是“为生产力而生”。这个词听着像发布会话术，拆开看其实对应四类很具体的任务：</p>
+<ul>
+<li><strong>软件工程</strong>：理解代码、规划、调试、验证长程开发任务，连前端视觉和交互也被单独提到。</li>
+<li><strong>办公和分析</strong>：从多份杂乱材料里做分析，再交付文档、表格、演示稿。</li>
+<li><strong>游戏开发</strong>：一句需求起一个可玩的原型，并能围绕游戏引擎多轮迭代。</li>
+<li><strong>科学研究</strong>：AI 研发、分子动力学、凝聚态物理、基础数学等复杂问题的理解和求解。</li>
+</ul>
+<p>官方发布页还给出了多项基准图。截图里的蓝柱子是 Hy4；但要注意，这些结果和基准设置由官方发布，<strong>能说明模型覆盖面广，不能替代你自己仓库里的成功率测试。</strong></p>
+<p><img alt="Hy4官方能力评测" src="https://file1.kamacoder.com/i/web/20260829162515.png" /></p>
+<p>更值得关注的是它的训练闭环。</p>
+<p>Hy4 preview 首次参与了训练方法、数据策略、评估体系和底层算子的自动优化：模型提出方案，跑实验，把代码、日志和结果带回下一轮探索。官方称，它还会分析推理系统瓶颈，在算子融合、通信优化等方向迭代，端到端吞吐相对基线提升 31.8%。</p>
+<p>别把这句话理解成“模型已经自动把自己训练成更强模型”。准确说，<strong>它进入了有人设计边界、可运行实验和反馈回流的研发循环。</strong> 模型能给出候选方案、执行和归因，但目标定义、环境控制、评价标准仍然是研发团队搭好的。这个方向真正有价值的地方，是把 Agent 从“写一次代码”往“持续做实验并验收结果”推进。</p>
+<h2 id="三-2-99-分领先了-但这不是第三方冠军宣言">三、2.99 分领先了，但这不是第三方冠军宣言</h2>
+<p>发布资料中最容易传播的一组数字，是 163 名腾讯内部专家、203 个工程任务的盲测：</p>
+<table>
+<thead>
+<tr>
+<th>对比</th>
+<th style="text-align: right;">Hy4 preview</th>
+<th style="text-align: right;">对方</th>
+<th>该怎么读</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>对 GLM-5.3</td>
+<td style="text-align: right;">2.99 / 4.00</td>
+<td style="text-align: right;">2.92 / 4.00</td>
+<td>Hy4 略高，差距 0.07 分</td>
+</tr>
+<tr>
+<td>对 Kimi K3</td>
+<td style="text-align: right;">2.99 / 4.00</td>
+<td style="text-align: right;">2.94 / 4.00</td>
+<td>Hy4 略高，差距 0.05 分</td>
+</tr>
+</tbody>
+</table>
+<p>数据出自腾讯官方，评测是内部组织的盲测，不是公开、独立、可完全复现的排行榜。官方仓库还给出胜平负：对 GLM-5.3 为 46.8% 胜 / 12.8% 平 / 40.4% 负；对 Kimi K3 为 51.2% 胜 / 7.9% 平 / 40.9% 负。</p>
+<p>所以我的解读很克制：<strong>它足以证明 Hy4 已经能坐上第一梯队的牌桌，但不够证明“所有任务都全面胜过 GLM 或 Kimi”。</strong> 两场对比的胜负都没有拉开到碾压，提示词、工具权限、上下文材料、评委标准，都会改变结果。</p>
+<p>这也是为什么我更看重真实长任务。InfoQ 的独立上手里，Hy4 能完成复杂的采购调研、四端产品和季度复盘，但也出现了报价口径不一致、简单算术出错、交付脚本路径写死等“最后一公里”问题。<a href="https://www.infoq.cn/article/SxrNXURUimQf4hL83ybj">这份实测</a> 的结论很像多数开发者会遇到的现实：它可以当能干的执行者，关键结论和交付验收仍要有人把关。</p>
+<h2 id="四-preview-不只是后缀-官方把短板写出来了">四、preview 不只是后缀，官方把短板写出来了</h2>
+<p>很多模型发布喜欢只写能力清单，Hy4 的官方仓库特意放了 <code>Known Limitations</code>：</p>
+<ul>
+<li>复杂任务的推理时间有时比需要的更长。</li>
+<li>有过度验证自己工作的倾向。</li>
+<li>预训练和后训练还有提升空间，所以先用 preview 收集真实反馈。</li>
+</ul>
+<p>这三个字很关键。</p>
+<p><strong>“更会检查”不总是好事。</strong> 对高失败成本的改代码、数学、复杂排障，多检查几轮可能换来成功率；对批量分类、格式转换、能自动校验的流水线，过长推理会直接变成延迟和账单。</p>
+<p>官方 API 默认是 <code>high</code> 推理强度，想要直接回答可传 <code>reasoning_effort: "no_think"</code>。最实用的测试方式不是问它“你强不强”，而是拿同一批真实任务分别测高推理和无思考模式，记录：</p>
+<ol>
+<li>一次完成率；</li>
+<li>总 Token 与耗时；</li>
+<li>人工接管次数；</li>
+<li>自动化测试、构建、数据校验的最终通过率。</li>
+</ol>
+<p>这四项会比“某个榜第几名”更接近你的成本。</p>
+<h2 id="五-开源真正改变的是选择空间">五、开源真正改变的是选择空间</h2>
+<p>闭源模型再强，如果代码、数据或模型权重不能离开内网，它仍然可能不在候选名单里。</p>
+<p>Hy4 preview 用 Apache-2.0 发布，并同时提供 FP8 权重、vLLM / SGLang 的部署指引、OpenAI 兼容 API、工具调用和推理解析配置。这意味着它比“仅能网页聊天”的模型多了三条路：</p>
+<ul>
+<li>内网或专有云部署，数据边界由团队自己控制；</li>
+<li>用自己的工具链、审计和 Agent 框架接入；</li>
+<li>根据业务做量化、微调或二次工程优化。</li>
+</ul>
+<p>但开源不是零成本。</p>
+<p>模型尺寸、GPU、服务稳定性、权重版本、监控、内容安全和升级维护，都会从云厂商账单变成你自己的工程账单。<strong>私有化是“可控性”换“运维责任”，不是免费 API。</strong></p>
+<p>如果只是先验证任务适配性，优先用 WorkBuddy / CodeBuddy 或 API 跑小规模 A/B；只有数据边界或稳定吞吐是真需求，再进入部署评估。</p>
+<h2 id="六-和-glm-5-3-kimi-k3-deepseek-v4-怎么选">六、和 GLM-5.3、Kimi K3、DeepSeek V4 怎么选</h2>
+<p>不站队，还是算三笔账：失败成本、数据边界、任务规模。</p>
+<table>
+<thead>
+<tr>
+<th>你的处境</th>
+<th>建议优先试谁</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>代码、资料不能出内网，且有运维能力</td>
+<td>Hy4 preview</td>
+<td>权重已开源，Apache-2.0，部署和工具调用文档齐全</td>
+</tr>
+<tr>
+<td>中长程 Coding、Agent 任务，要看公开的后训练打法</td>
+<td><a href="./glm-5-3.html">GLM-5.3</a> 与 Hy4 同题 A/B</td>
+<td>GLM-5.3 强调长程 Coding 后训练；Hy4 强调真实生产力和开源，别用别人的柱状图替代自己的仓库</td>
+</tr>
+<tr>
+<td>前端交互、视觉理解或多模态工作流</td>
+<td><a href="./kimi-k3.html">Kimi K3</a> / 有视觉能力的模型</td>
+<td>Hy4 此次主打的是文本生产力模型，任务输入不止文字时先确认能力边界</td>
+</tr>
+<tr>
+<td>批量、可自动验收、价格高度敏感</td>
+<td><a href="./deepseek-v4.html">DeepSeek V4</a></td>
+<td>能便宜地跑量，优先看总成本和自动验收；不必每一步都上最大模型</td>
+</tr>
+<tr>
+<td>失败一次代价极高的核心工程</td>
+<td>顶级闭源模型 + 人工复核</td>
+<td>成功率、工具稳定性、审计流程比“是否开源”更优先；Hy4 可以作为第二个审稿人或候选方案</td>
+</tr>
+</tbody>
+</table>
+<p>Hy4 最大的优势，不是替所有人做统一答案，而是把“开源、长上下文、生产力 Agent”一起放进了可选项。</p>
+<p>已经在用国产模型的录友，可以先用两个任务试：一个是带测试的真实代码修改，一个是多文件分析后产出文档。不要给标准答案，保留你平常会遇到的脏数据、冲突需求和失败命令。</p>
+<p><strong>模型选型不是看谁发布得更响，是看谁在你的约束里交付得更稳。</strong></p>
+<h2 id="资料来源">资料来源</h2>
+<ul>
+<li>
+<p>腾讯官方发布公告：https://www.tencent.com/zh-cn/tencent-releases-and-open-sources-tencent-hy4-preview/</p>
+</li>
+<li>
+<p>Tencent-Hunyuan/Hy4-preview 官方仓库：https://github.com/Tencent-Hunyuan/Hy4-preview</p>
+</li>
+<li>
+<p>Hy4 preview Hugging Face 模型卡：https://huggingface.co/tencent/Hy4-preview</p>
+</li>
+<li>
+<p>InfoQ：WorkBuddy 实测与局限：https://www.infoq.cn/article/SxrNXURUimQf4hL83ybj</p>
+</li>
+</ul>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="gpt-6-pro-rollout.html"><span class="k">← 上一篇</span><span class="v">GPT-6 Astra开始开放，Pro用户优先灰度，Plus用户再等等</span></a><a class="nx" href="kimi-k2-7-code.html"><span class="k">下一篇 →</span><span class="v">Kimi K2.7-Code发布并开源：1万亿参数MoE、256K上下文、思考token砍掉30%，和Claude Opus 4.8、GLM-5.2、DeepSeek V4怎么选</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#混元hy4-preview发布-770b开源-1m上下文-腾讯这次先把模型塞进真实工作流">混元Hy4 preview发布：770B开源、1M上下文，腾讯这次先把模型塞进真实工作流</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/hunyuan-hy4-preview.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>大模型 API 到底怎么计费？一个汉字几个 token？GLM-5.1、GPT-5.4、Opus 4.7 算给你看 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>intro</span><span class="sep">›</span><span>llm_pricing</span></div>
+      <h1 id="大模型-api-到底怎么计费-一个汉字几个-token-glm-5-1-gpt-5-4-opus-4-7-算给你看">大模型 API 到底怎么计费？一个汉字几个 token？GLM-5.1、GPT-5.4、Opus 4.7 算给你看</h1>
+<p>很多录友开始用大模型 API 了，一看定价页面就懵了：</p>
+<p>下面是GLM5-1的api定价：</p>
+<p><img alt="大模型API价格表截图" src="https://file1.kamacoder.com/i/web/2026-04-21_10-50-59.jpg" /></p>
+<p><strong>输入单价、输出单价、上下文长度、缓存存储、缓存命中</strong>——每个词都认识，组合在一起就是看不懂。</p>
+<p>更基本的问题：<strong>一个汉字到底占几个 token？我发一段 500 字的中文，究竟花了多少钱？GLM-5.1、GPT-5.4、Opus 4.7 到底谁便宜？</strong></p>
+<p>这篇文章就用三个主流模型的实际定价，把大模型计费从 token 到账单，一步一步算给你看。</p>
+<hr />
+<h2 id="目录">目录</h2>
+<ol>
+<li><a href="#1-token-是什么一个汉字几个-token">Token 是什么？一个汉字几个 token？</a></li>
+<li><a href="#2-glm-51-的定价结构拆解">GLM-5.1 的定价结构拆解</a></li>
+<li><a href="#3-输入和输出为什么价格不一样">输入和输出为什么价格不一样？</a></li>
+<li><a href="#4-上下文长度为什么影响价格">上下文长度为什么影响价格？</a></li>
+<li><a href="#5-缓存是什么能省多少钱">缓存是什么？能省多少钱？</a></li>
+<li><a href="#6-完整算一遍从请求到账单">完整算一遍：从请求到账单</a></li>
+<li><a href="#7-glm-51-vs-gpt-54-vs-opus-47-价格对比">GLM-5.1 vs GPT-5.4 vs Opus 4.7 价格对比</a></li>
+<li><a href="#8-三个模型的隐性成本标价里看不到">三个模型的隐性成本，标价里看不到</a></li>
+<li><a href="#9-真实场景算一遍到底谁便宜">真实场景算一遍：到底谁便宜？</a></li>
+<li><a href="#10-怎么选给你一个决策公式">到底怎么选？</a></li>
+</ol>
+<hr />
+<h2 id="1-token-是什么-一个汉字几个-token">1. Token 是什么？一个汉字几个 token？</h2>
+<p><strong>Token 是大模型计费的基本单位。</strong> 你不是按"字"付费，也不是按"行"付费，而是按 token 付费。</p>
+<p>那 token 和汉字是什么关系？</p>
+<h3 id="英文的-token">英文的 token</h3>
+<p>英文比较直观：<strong>大约 1 个英文单词 = 1 个 token</strong>。</p>
+<div class="codehilite"><pre><span></span><code>"Hello world"        → 2 tokens
+"I love programming" → 3 tokens
+</code></pre></div>
+
+<p>短单词可能 1 个单词 = 1 token，长单词可能被拆成 2 个 token。比如 "unbelievable" 可能被拆成 "un" + "believ" + "able" = 3 tokens。</p>
+<h3 id="中文的-token">中文的 token</h3>
+<p>中文不是按"字"切分的，是按词频和组合切分的。<strong>常见字通常 1 个字 = 1 个 token，生僻字或特殊组合可能 1 个字 = 2-3 个 token。</strong></p>
+<p>实际测试结果（以 GLM/GPT 系列的 tokenizer 为例）：</p>
+<table>
+<thead>
+<tr>
+<th>内容</th>
+<th>字数</th>
+<th>Token 数</th>
+<th>比例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"你好世界"</td>
+<td>4 字</td>
+<td>~4 tokens</td>
+<td>~1 token/字</td>
+</tr>
+<tr>
+<td>"今天天气不错，适合出去散步"</td>
+<td>12 字（含标点）</td>
+<td>~12 tokens</td>
+<td>~1 token/字</td>
+</tr>
+<tr>
+<td>"RAG系统中的混合检索策略"</td>
+<td>12 字</td>
+<td>~14 tokens</td>
+<td>~1.2 token/字（中英混合）</td>
+</tr>
+<tr>
+<td>"中华人民共和国国务院"</td>
+<td>9 字</td>
+<td>~5 tokens</td>
+<td>专有名词可能合并</td>
+</tr>
+</tbody>
+</table>
+<h3 id="标点符号占几个-token">标点符号占几个 token？</h3>
+<p><strong>1 个标点 = 1 个 token</strong>，和汉字一样。</p>
+<div class="codehilite"><pre><span></span><code>"，" → 1 token
+"。" → 1 token
+"！" → 1 token
+</code></pre></div>
+
+<p>但如果是连续标点或特殊符号，可能不一样：</p>
+<div class="codehilite"><pre><span></span><code>"..."  → 1 token（三个点被合并）
+"。。。"→ 3 tokens（中文句号逐个计算）
+</code></pre></div>
+
+<h3 id="代码的-token">代码的 token</h3>
+<p>代码的 token 化比较特殊，缩进、括号、关键字都算：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">hello</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"hi"</span><span class="p">)</span>
+</code></pre></div>
+
+<p>这段代码大约 10-12 tokens：<code>def</code>、<code>hello</code>、<code>(</code>、<code>)</code>、<code>:</code>、<code>print</code>、<code>(</code>、<code>"</code>、<code>hi</code>、<code>"</code>、<code>)</code>……每个符号和关键字都算。</p>
+<h3 id="快速估算公式">快速估算公式</h3>
+<p><strong>中文场景：1 个汉字 ≈ 1-1.5 个 token</strong></p>
+<p>日常文本按 1:1 估算就够用，中英混合或专业术语多的文本按 1:1.5 估算更准。</p>
+<p><strong>总之，大家可以这么记：1000 个汉字大概 1000-1500 个 token。</strong></p>
+<hr />
+<h2 id="2-glm-5-1-的定价结构拆解">2. GLM-5.1 的定价结构拆解</h2>
+<p>我们以 <a href="https://www.bigmodel.cn/invite?icode=h5645fTH07PKdN0cj%2FTnKmczbXFgPRGIalpycrEwJ28%3D">GLM-5.1</a> 为例，给大家拆解一下，各个指标以及费用（下面在和 gpt、opus做对比）</p>
+<p><img alt="大模型API价格表截图" src="https://file1.kamacoder.com/i/web/2026-04-21_10-50-59.jpg" /></p>
+<h3 id="输入单价-每百万-tokens">输入单价（每百万 tokens）</h3>
+<table>
+<thead>
+<tr>
+<th>上下文长度</th>
+<th>价格</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0 ~ 32K tokens</td>
+<td>¥6</td>
+</tr>
+<tr>
+<td>32K tokens 及以上</td>
+<td>¥8</td>
+</tr>
+</tbody>
+</table>
+<h3 id="输出单价-每百万-tokens">输出单价（每百万 tokens）</h3>
+<table>
+<thead>
+<tr>
+<th>上下文长度</th>
+<th>价格</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0 ~ 32K tokens</td>
+<td>¥24</td>
+</tr>
+<tr>
+<td>32K tokens 及以上</td>
+<td>¥28</td>
+</tr>
+</tbody>
+</table>
+<h3 id="缓存相关">缓存相关</h3>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>价格</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>缓存存储（每百万 tokens / 小时）</td>
+<td>限时免费</td>
+</tr>
+<tr>
+<td>缓存命中（0~32K）</td>
+<td>¥1.3 / 百万tokens</td>
+</tr>
+<tr>
+<td>缓存命中（32K+）</td>
+<td>¥2 / 百万tokens</td>
+</tr>
+</tbody>
+</table>
+<p>看到这个表，你可能有两个疑问：<strong>为什么输入和输出价格差这么多？为什么上下文越长越贵？</strong> 下面逐个讲。</p>
+<hr />
+<h2 id="3-输入和输出为什么价格不一样">3. 输入和输出为什么价格不一样？</h2>
+<p><a href="https://www.bigmodel.cn/invite?icode=h5645fTH07PKdN0cj%2FTnKmczbXFgPRGIalpycrEwJ28%3D">GLM-5.1</a> 的输出价格是输入的 <strong>4 倍</strong>。这不是智谱故意坑你，是输出确实比输入费算力。</p>
+<p><strong>输入是"读"</strong>——模型把你的 prompt 过一遍，计算出每一层的表示，这就完了。相当于看一篇文章，看完了就有印象了。</p>
+<p><strong>输出是"写"</strong>——模型每生成一个 token，都要把整个上下文重新算一遍（从第一个字到最后生成的字），才能决定下一个字是什么。生成 1000 个输出 token，相当于把整个输入重新算了 1000 遍。</p>
+<div class="codehilite"><pre><span></span><code>输入 1000 tokens：算 1 遍
+输出 1000 tokens：算 1000 遍
+</code></pre></div>
+
+<p>所以输出贵 4 倍，不是 1000 倍，是因为有 KV Cache 优化——模型把输入部分算过的结果缓存起来了，不用从头重算，但输出部分还是要逐 token 生成，计算量依然远大于输入。</p>
+<p><strong>面试可能会问</strong>：为什么输出比输入贵？——答案就是上面说的，输出是自回归生成，每步都要重新计算，输入只需要前向传播一次。</p>
+<hr />
+<h2 id="4-上下文长度为什么影响价格">4. 上下文长度为什么影响价格？</h2>
+<p>32K 以下输入单价 ¥6，32K 以上 ¥8，涨了 33%。为什么？</p>
+<p><strong>Transformer 的注意力机制，计算量和序列长度的平方成正比。</strong></p>
+<div class="codehilite"><pre><span></span><code>输入 1K tokens → 计算量 ∝ 1K² = 100万
+输入 32K tokens → 计算量 ∝ 32K² = 10.24亿
+输入 128K tokens → 计算量 ∝ 128K² = 1638.4亿
+</code></pre></div>
+
+<p>从 1K 到 32K，计算量不是 32 倍，是 <strong>1024 倍</strong>。</p>
+<p>所以长上下文的单价更高，是在覆盖额外的计算成本。这不是智谱一家这么干，所有大模型厂商的长上下文定价都比短上下文贵，原因都一样。</p>
+<hr />
+<h2 id="5-缓存是什么-能省多少钱">5. 缓存是什么？能省多少钱？</h2>
+<p>缓存是 <a href="https://www.bigmodel.cn/invite?icode=h5645fTH07PKdN0cj%2FTnKmczbXFgPRGIalpycrEwJ28%3D">GLM-5.1</a> 定价表里最容易让人懵的部分。什么叫"缓存存储"？什么叫"缓存命中"？</p>
+<h3 id="什么时候用得上缓存">什么时候用得上缓存？</h3>
+<p><strong>RAG 系统</strong>是最典型的场景。</p>
+<p>RAG 系统每次请求的 prompt 长这样：</p>
+<div class="codehilite"><pre><span></span><code>[系统提示词] + [检索到的文档] + [用户问题]
+</code></pre></div>
+
+<p>其中系统提示词每次都一样，检索到的文档大部分时候也差不多（同一个知识库，文档更新不频繁）。唯一变的就是用户的提问。</p>
+<p>如果不缓存，每次请求都要把整个 prompt 从头算一遍，系统提示词和文档部分明明每次都一样，却重复计算，白花钱。</p>
+<h3 id="缓存存储-把算过的结果存下来">缓存存储 = 把算过的结果存下来</h3>
+<p><strong>缓存存储</strong>就是把模型对输入的计算结果（KV Cache）存到磁盘上，下次请求如果输入前面部分一样，直接复用，不用重新算。</p>
+<p>当前限时免费，存储本身不花钱。</p>
+<h3 id="缓存命中-复用了存下来的结果">缓存命中 = 复用了存下来的结果</h3>
+<p><strong>缓存命中</strong>就是新请求的输入前缀和之前缓存的完全一致，这部分 token 按更低的价格计费：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>正常输入价格</th>
+<th>缓存命中价格</th>
+<th>省了多少</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>短上下文（&lt;32K）</td>
+<td>¥6 / 百万tokens</td>
+<td>¥1.3 / 百万tokens</td>
+<td><strong>78%</strong></td>
+</tr>
+<tr>
+<td>长上下文（≥32K）</td>
+<td>¥8 / 百万tokens</td>
+<td>¥2 / 百万tokens</td>
+<td><strong>75%</strong></td>
+</tr>
+</tbody>
+</table>
+<p>省 3/4 的钱，效果非常明显。</p>
+<h3 id="举个例子">举个例子</h3>
+<!-- drawio: cache_hit_flow.drawio -->
+<p><img alt="缓存命中流程对比" src="https://file1.kamacoder.com/i/web/20260421172826.png" /></p>
+<p>你做了一个 RAG 系统，每次请求的 prompt 组成：</p>
+<div class="codehilite"><pre><span></span><code>系统提示词：1000 tokens（每次一样）
+检索文档：8000 tokens（大部分时候一样）
+用户问题：200 tokens（每次不同）
+模型输出：1000 tokens
+</code></pre></div>
+
+<p><strong>不用缓存：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入费用 = (1000 + 8000 + 200) ÷ 1,000,000 × ¥6 = ¥0.0552
+输出费用 = 1000 ÷ 1,000,000 × ¥24 = ¥0.024
+总费用 = ¥0.0792
+</code></pre></div>
+
+<p><strong>用缓存（9000 tokens 命中）：</strong></p>
+<div class="codehilite"><pre><span></span><code>缓存命中费用 = 9000 ÷ 1,000,000 × ¥1.3 = ¥0.0117
+正常输入费用 = 200 ÷ 1,000,000 × ¥6 = ¥0.0012
+输出费用 = 1000 ÷ 1,000,000 × ¥24 = ¥0.024
+总费用 = ¥0.0369
+</code></pre></div>
+
+<p><strong>省了 53%</strong>。请求量越大省得越多，一天 10 万次请求的话，一个月能省几千块。</p>
+<hr />
+<h2 id="6-完整算一遍-从请求到账单">6. 完整算一遍：从请求到账单</h2>
+<p>来算三个真实场景，把所有概念串起来。</p>
+<h3 id="场景一-短对话-无缓存">场景一：短对话，无缓存</h3>
+<p>你问 <a href="https://www.bigmodel.cn/invite?icode=h5645fTH07PKdN0cj%2FTnKmczbXFgPRGIalpycrEwJ28%3D">GLM-5.1</a>："用 Python 写一个快排"，模型输出了 300 字代码。</p>
+<div class="codehilite"><pre><span></span><code>输入：约 20 tokens（"用 Python 写一个快排" + 系统提示词）
+输出：约 500 tokens（代码 + 解释）
+上下文总长：520 tokens &lt; 32K，按低档价算
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code>输入费用 = 20 ÷ 1,000,000 × ¥6 = ¥0.00012
+输出费用 = 500 ÷ 1,000,000 × ¥24 = ¥0.012
+总费用 = ¥0.01212 ≈ 1.2 分钱
+</code></pre></div>
+
+<p><strong>结论：短对话非常便宜，几分钱的事。</strong></p>
+<h3 id="场景二-长文档问答-无缓存">场景二：长文档问答，无缓存</h3>
+<p>你往 prompt 里塞了一篇 3 万字的 PDF 文档（约 4 万 tokens），问"总结第三章的核心观点"，模型输出了 800 字。</p>
+<div class="codehilite"><pre><span></span><code>输入：约 40,000 tokens（文档 + 问题）
+输出：约 1,200 tokens（800 字回答）
+上下文总长：41,200 tokens ≥ 32K，按高档价算
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code>输入费用 = 40000 ÷ 1,000,000 × ¥8 = ¥0.32
+输出费用 = 1200 ÷ 1,000,000 × ¥28 = ¥0.0336
+总费用 = ¥0.3536 ≈ 3 毛 5
+</code></pre></div>
+
+<p><strong>结论：长文档单次 3 毛多，看着不贵，但一天问 1000 次？那就是 350 块。</strong></p>
+<h3 id="场景三-rag-系统-开缓存">场景三：RAG 系统，开缓存</h3>
+<p>你的 RAG 系统每次请求带 1 万 tokens 的系统提示词和检索文档，缓存命中 9000 tokens，用户问题 1000 tokens，模型输出 1500 tokens。</p>
+<div class="codehilite"><pre><span></span><code>缓存命中：9000 tokens（按缓存命中价）
+正常输入：1000 tokens（按正常输入价）
+输出：1500 tokens
+上下文总长：11,500 tokens &lt; 32K，按低档价算
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code>缓存命中费用 = 9000 ÷ 1,000,000 × ¥1.3 = ¥0.0117
+正常输入费用 = 1000 ÷ 1,000,000 × ¥6 = ¥0.006
+输出费用 = 1500 ÷ 1,000,000 × ¥24 = ¥0.036
+总费用 = ¥0.0537 ≈ 5.4 分钱
+</code></pre></div>
+
+<p>对比不开缓存：</p>
+<div class="codehilite"><pre><span></span><code>输入费用 = 10000 ÷ 1,000,000 × ¥6 = ¥0.06
+输出费用 = 1500 ÷ 1,000,000 × ¥24 = ¥0.036
+总费用 = ¥0.096 ≈ 9.6 分钱
+</code></pre></div>
+
+<p><strong>开缓存省了 44%。</strong></p>
+<hr />
+<h2 id="7-glm-5-1-vs-gpt-5-4-vs-opus-4-7-价格对比">7. GLM-5.1 vs GPT-5.4 vs Opus 4.7 价格对比</h2>
+<p>前面用 <a href="https://www.bigmodel.cn/invite?icode=h5645fTH07PKdN0cj%2FTnKmczbXFgPRGIalpycrEwJ28%3D">GLM-5.1</a> 讲了计费原理，现在把三大主流模型放一起比。为了直观，统一换算成美元（¥1 ≈ $0.14）。</p>
+<p>大家可以先看一下官网价格：</p>
+<p><img alt="claude opus" src="https://file1.kamacoder.com/i/web/2026-04-21_11-26-25.jpg" /></p>
+<p><img alt="GPT" src="https://file1.kamacoder.com/i/web/2026-04-21_11-26-40.jpg" /></p>
+<p>GPT API官网：https://developers.openai.com/api/docs/models/gpt-5.4 </p>
+<p>Claude opus API官网：https://platform.claude.com/docs/en/about-claude/models/overview</p>
+<h3 id="基础单价对比">基础单价对比</h3>
+<!-- drawio: model_price_compare.drawio -->
+<p><img alt="三大模型单价对比" src="https://file1.kamacoder.com/i/web/20260421172828.png" /></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>GLM-5.1</th>
+<th>GPT-5.4</th>
+<th>Opus 4.7</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入（短上下文）</td>
+<td>~$0.83/MTok</td>
+<td>$1.25/MTok</td>
+<td>$5/MTok</td>
+</tr>
+<tr>
+<td>输入（长上下文）</td>
+<td>~$1.11/MTok</td>
+<td>$2.5/MTok</td>
+<td>$5/MTok</td>
+</tr>
+<tr>
+<td>输出（短上下文）</td>
+<td>~$3.43/MTok</td>
+<td>$10/MTok</td>
+<td>$25/MTok</td>
+</tr>
+<tr>
+<td>输出（长上下文）</td>
+<td>~$4.00/MTok</td>
+<td>$15/MTok</td>
+<td>$25/MTok</td>
+</tr>
+<tr>
+<td>长上下文分界点</td>
+<td>32K</td>
+<td>272K</td>
+<td>无分档</td>
+</tr>
+<tr>
+<td>缓存命中价</td>
+<td>~$0.18/MTok</td>
+<td>~$0.25/MTok</td>
+<td>~$0.5/MTok</td>
+</tr>
+</tbody>
+</table>
+<p><strong>小总结一下：</strong>：</p>
+<ul>
+<li><strong>GLM-5.1 最便宜</strong>——输入单价是 Opus 的 1/6，输出是 1/7</li>
+<li><strong>GPT-5.4 居中</strong>——比 GLM 贵，但比 Opus 便宜不少</li>
+<li><strong>Opus 4.7 最贵</strong>——但价格稳定，没有分档跳价</li>
+</ul>
+<p>但只看单价会误判，因为每个模型都有<strong>标价里看不到的隐性成本</strong>。</p>
+<hr />
+<h2 id="8-三个模型的隐性成本-标价里看不到">8. 三个模型的隐性成本，标价里看不到</h2>
+<h3 id="gpt-5-4-的坑-272k-跳价机制">GPT-5.4 的坑：272K 跳价机制</h3>
+<!-- drawio: gpt_jump_pricing.drawio -->
+<p><img alt="GPT-5.4跳价悬崖图" src="https://file1.kamacoder.com/i/web/20260421172830.png" /></p>
+<p>GPT-5.4 的 272K 分界点不是"超过部分按高价算"，而是<strong>整条请求都按高价算</strong>。</p>
+<div class="codehilite"><pre><span></span><code>你发了一条 280K tokens 的请求：
+
+你以为：272K × 便宜价 + 8K × 贵价
+实际上：280K 全部按贵价算！
+</code></pre></div>
+
+<p>这意味着：一条 271K 的请求和一条 273K 的请求，<strong>成本可能差一倍</strong>。如果你做 Agent 系统，上下文很容易滚过 272K，成本突然暴涨。</p>
+<h3 id="opus-4-7-的坑-tokenizer-膨胀">Opus 4.7 的坑：Tokenizer 膨胀</h3>
+<p>同样的文本，不同模型的 tokenizer 分词结果不一样。<strong>Opus 的 tokenizer 对中文和代码的切分更碎，同样的内容会产生更多 token。</strong></p>
+<p>实际测试中，同一段文本在 Opus 上比 GLM 多 20%-35% 的 token。也就是说：</p>
+<div class="codehilite"><pre><span></span><code>一段 10 万字的中文：
+GLM-5.1：约 10 万 tokens
+Opus 4.7：约 12-13.5 万 tokens
+</code></pre></div>
+
+<p>token 数多了 20%-35%，实际费用比标价贵 20%-35%。<strong>标价 $5/MTok，实际等效 $6-6.75/MTok。</strong></p>
+<h3 id="opus-4-7-的坑-thinking-tokens">Opus 4.7 的坑：Thinking Tokens</h3>
+<p>Opus 4.7 有"思考"功能，推理过程中会产生大量 thinking tokens。这些 token <strong>你在输出里看不到，但一样要收费</strong>。</p>
+<p>一个复杂问题，Opus 可能在内部"想"了 5000 tokens，然后给你输出 500 tokens 的回答。你看到的是 500 tokens，但账单上是 5500 tokens。</p>
+<p><strong>这个成本很容易被忽略</strong>——如果你只算"模型给我输出了多少字"，会觉得 Opus 怎么这么贵，其实大头在 thinking tokens 上。</p>
+<h3 id="glm-5-1-的坑-能力边界">GLM-5.1 的坑：能力边界</h3>
+<p>GLM 最大的隐性成本不是计费机制，而是<strong>能力不够时的重试成本</strong>。</p>
+<p>复杂推理、长链路代码生成这些场景，GLM 一次做对的概率比 Opus 低。做不对就得重试，重试一次成本翻倍。<strong>如果 Opus 一次成功、GLM 需要三次才成功，那 GLM 的实际成本就不是 Opus 的 1/7，而是 3/7</strong>。</p>
+<hr />
+<h2 id="9-真实场景算一遍-到底谁便宜">9. 真实场景算一遍：到底谁便宜？</h2>
+<h3 id="场景一-短对话-输入-1k-输出-500-tokens">场景一：短对话（输入 1K，输出 500 tokens）</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>GLM-5.1</th>
+<th>GPT-5.4</th>
+<th>Opus 4.7</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入费用</td>
+<td>$0.00083</td>
+<td>$0.00125</td>
+<td>$0.005</td>
+</tr>
+<tr>
+<td>输出费用</td>
+<td>$0.00172</td>
+<td>$0.005</td>
+<td>$0.0125</td>
+</tr>
+<tr>
+<td><strong>总计</strong></td>
+<td><strong>$0.0026</strong></td>
+<td><strong>$0.0063</strong></td>
+<td><strong>$0.0175</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>GLM 便宜一个数量级。</strong> 短对话场景，选 GLM。</p>
+<h3 id="场景二-长文档问答-输入-50k-输出-2k-tokens">场景二：长文档问答（输入 50K，输出 2K tokens）</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>GLM-5.1</th>
+<th>GPT-5.4</th>
+<th>Opus 4.7</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入费用</td>
+<td>$0.056</td>
+<td>$0.0625</td>
+<td>$0.25</td>
+</tr>
+<tr>
+<td>输出费用</td>
+<td>$0.008</td>
+<td>$0.02</td>
+<td>$0.05</td>
+</tr>
+<tr>
+<td><strong>总计</strong></td>
+<td><strong>$0.064</strong></td>
+<td><strong>$0.083</strong></td>
+<td><strong>$0.30</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong><a href="https://www.bigmodel.cn/invite?icode=h5645fTH07PKdN0cj%2FTnKmczbXFgPRGIalpycrEwJ28%3D">GLM</a> 依然最便宜，GPT 紧随其后，Opus 是 GLM 的 5 倍。</strong></p>
+<p>但别忘了 Opus 的 tokenizer 膨胀：50K tokens 在 Opus 上实际可能是 60-67K tokens，费用会到 $0.35-0.39。</p>
+<h3 id="场景三-agent-复杂任务-多轮-累计-300k-tokens-输出-10k-tokens">场景三：Agent 复杂任务（多轮，累计 300K tokens，输出 10K tokens）</h3>
+<p>这个场景 GPT-5.4 会触发 272K 跳价：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>GLM-5.1</th>
+<th>GPT-5.4（跳价后）</th>
+<th>Opus 4.7</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入费用</td>
+<td>$0.33</td>
+<td>$0.75</td>
+<td>$1.5</td>
+</tr>
+<tr>
+<td>输出费用</td>
+<td>$0.04</td>
+<td>$0.15</td>
+<td>$0.25</td>
+</tr>
+<tr>
+<td><strong>总计</strong></td>
+<td><strong>$0.37</strong></td>
+<td><strong>$0.90</strong></td>
+<td><strong>$1.75</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>加上 tokenizer 膨胀和 thinking tokens，Opus 实际可能到 $2-2.5。</strong></p>
+<p>但注意：这个场景下，<strong>成功率才是最大的成本变量</strong>。如果 GLM 成功率 60%，需要平均 1.7 次才成功，实际成本 $0.63；Opus 成功率 95%，几乎一次过，成本 $2.0。Opus 还是贵，但差距缩小了。</p>
+<hr />
+<h2 id="10-我们怎么选">10. 我们怎么选？</h2>
+<p>别只看单价，<strong>真正成本 = token 数 × 单价 ÷ 成功率</strong>。</p>
+<h3 id="按场景选">按场景选</h3>
+<p><strong>短对话、简单问答、分类任务</strong> → <strong><a href="https://www.bigmodel.cn/invite?icode=h5645fTH07PKdN0cj%2FTnKmczbXFgPRGIalpycrEwJ28%3D">GLM-5.1</a></strong></p>
+<p>单价最低，中文能力够用，这类简单任务不需要顶级模型。</p>
+<p><strong>中等复杂度、需要稳定性</strong> → <strong>GPT-5.4</strong></p>
+<p>单价居中，能力比 GLM 强，但要注意 272K 跳价坑。如果你的请求不会超过 272K，GPT 是性价比之选。</p>
+<p><strong>复杂推理、Agent 系统、代码生成</strong> → <strong>Opus 4.7</strong></p>
+<p>单价最贵，但能力最强，一次做对的概率最高。Agent 场景下，<strong>成功率比单价重要得多</strong>——做错重试的成本远比单价贵更伤。</p>
+<h3 id="混合使用才是最优解">混合使用才是最优解</h3>
+<p>实际生产环境，没人只用一个模型：</p>
+<div class="codehilite"><pre><span></span><code>简单问题 → [GLM-5.1](https://www.bigmodel.cn/invite?icode=h5645fTH07PKdN0cj%2FTnKmczbXFgPRGIalpycrEwJ28%3D)（便宜）
+中等问题 → GPT-5.4（平衡）
+复杂问题 → Opus 4.7（靠谱）
+</code></pre></div>
+
+<p>这就是"模型路由"——先判断问题难度，再分派给合适的模型。简单问题用便宜的，复杂问题才上贵的，总体成本最低。</p>
+<h3 id="总结">总结</h3>
+<p><strong>GPT-5.4 看起来便宜，Opus 4.7 用起来稳定，<a href="https://www.bigmodel.cn/invite?icode=h5645fTH07PKdN0cj%2FTnKmczbXFgPRGIalpycrEwJ28%3D">GLM-5.1</a> 算起来最省。</strong> 别被标价骗了，真正成本要看场景、看成功率、看隐性费用。</p>
+<hr />
+<h2 id="写在最后">写在最后</h2>
+<p><strong>按 token 计费，输入便宜输出贵，长上下文 比 短上下文贵。</strong></p>
+<p>但真正决定你花多少钱的，不只是标价——跳价机制、tokenizer 膨胀、thinking tokens、成功率，这些隐性成本可能比单价差得更远。</p>
+<p>很多录友不敢用 API，怕花钱。其实算一算就知道了——普通对话一次几分钱，长文档问答一次几毛钱，只有大规模线上服务才需要关注成本优化。</p>
+<p>很多录友问我："卡哥你平时怎么用大模型的？一个月花多少钱？"</p>
+<p>我现在的主力工具是 <strong>Claude Agent + CLI + GLM-5.1</strong>，说白了就是 Opus 干难的活，GLM 干简单的活（其实GLM也还行）。</p>
+<h3 id="claude-cli-只显示总-token-数-怎么算钱">Claude CLI 只显示总 token 数，怎么算钱？</h3>
+<p>用 Claude CLI 的录友应该都发现了——它只给你看这次交互总共花了多少 tokens，不拆分输入和输出。</p>
+<p>没法精确算？不用精确算，<strong>用一个混合单价估算就够了</strong>。</p>
+<p>Claude Code 的典型交互，token 构成大概是：</p>
+<div class="codehilite"><pre><span></span><code>总 tokens ≈ 输入 60% + 输出 40%（含 thinking tokens）
+</code></pre></div>
+
+<p>混合单价算一下：</p>
+<p><strong>Opus 4.7：0.6 × 输入价 + 0.4 × 输出价 = 0.6 × ¥0.036/千 + 0.4 × ¥0.18/千 ≈ ¥0.09/千 tokens</strong></p>
+<p><strong>GLM-5.1：0.75 × 输入价 + 0.25 × 输出价 = 0.75 × ¥0.006/千 + 0.25 × ¥0.024/千 ≈ ¥0.01/千 tokens</strong></p>
+<h3 id="两个数记住就行">两个数记住就行</h3>
+<ul>
+<li><strong>Opus：1K 总 tokens ≈ 1 毛钱</strong></li>
+<li><strong>GLM：1K 总 tokens ≈ 1 分钱</strong></li>
+</ul>
+<p>差 10 倍。</p>
+<h3 id="实际算一下">实际算一下</h3>
+<p>我用 Claude Code 做一次代码修改，大约 30K tokens：</p>
+<div class="codehilite"><pre><span></span><code>Opus 费用 ≈ 30 × ¥0.09 = ¥2.7
+</code></pre></div>
+
+<p>同样的任务走 <a href="https://www.bigmodel.cn/invite?icode=h5645fTH07PKdN0cj%2FTnKmczbXFgPRGIalpycrEwJ28%3D">GLM-5.1</a>：</p>
+<div class="codehilite"><pre><span></span><code>GLM 费用 ≈ 30 × ¥0.01 = ¥0.3
+</code></pre></div>
+
+<p>一次差两块多，一天用个几十次，一个月就差几千块。</p>
+<p><strong>但 Opus 贵有贵的道理</strong>——复杂代码修改、多文件重构这种活，GLM 容易改错，改错了还得重来，重试两三次成本就上来了。Opus 一次搞定，看着贵，其实省时间也省钱。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="llm_learning_roadmap.html"><span class="k">← 上一篇</span><span class="v">2026最全大模型学习路线：从零入门到上手项目，该按什么顺序学</span></a><a class="nx" href="model_distillation.html"><span class="k">下一篇 →</span><span class="v">大模型蒸馏到底是什么？硬蒸、软蒸、蒸馏其他厂商模型，一篇讲明白</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#大模型-api-到底怎么计费-一个汉字几个-token-glm-5-1-gpt-5-4-opus-4-7-算给你看">大模型 API 到底怎么计费？一个汉字几个 token？GLM-5.1、GPT-5.4、Opus 4.7 算给你看</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/intro/llm_pricing.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loop Engineering 实战：14 步路线图，从判断要不要做到上线后守住 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><a href="../../../docs/llm/claude/README.html">claude</a><span class="sep">›</span><span>loop_engineering_guide</span></div>
+      <h1 id="loop-engineering-实战-14-步路线图-从判断要不要做到上线后守住">Loop Engineering 实战：14 步路线图，从判断要不要做到上线后守住</h1>
+<p>录友们好，继续聊 Claude Code。</p>
+<p>上一篇 <a href="./dynamic_workflows.html">动态工作流详解</a> 我们讲了 Claude 怎么自己现写 harness、把任务拆给一队 Claude 去干。这一篇往实战方向走：<strong>你自己搭一套 Loop Engineering，从零到上线，完整的 14 步路线图。</strong></p>
+<p>这份路线图综合自 Anthropic 的工程文档、Addy Osmani 那篇全网 220w 人看过的 loop 工程长文，以及最近几篇带实测数据的研究。</p>
+<h2 id="loop-不是免费的-先问四个问题">Loop 不是免费的，先问四个问题</h2>
+<p>Loop 很诱人，但它不是免费午餐。<strong>它烧 token、要花时间搭、出了问题你还得去 debug 一个你没亲眼看它跑的系统。</strong></p>
+<p>动手之前，先把这四个问题想清楚：</p>
+<!-- drawio源文件: ./drawio/loop_engineering_guide_01_decision.drawio -->
+
+<p><img alt="判断是否需要 Loop" src="https://file1.kamacoder.com/i/web/20260708113429_loop_decision.jpg" /></p>
+<p><strong>任务是重复的吗？</strong> Loop 的搭建成本要靠多次运行摊回来。一次性的活儿，写个好 prompt 更快。</p>
+<p><strong>有自动检查机制吗？</strong> 测试、类型检查、linter，随便哪个都行。<strong>没有自动检查，你就得自己逐行读 diff</strong>，loop 就并没有帮你节省时间。</p>
+<p><strong>Token 预算够吗？</strong> Loop 会反复读上下文、重试、试探，不管有没有产出都在烧 token。</p>
+<p><strong>Agent 能跑自己写的代码吗？</strong> 需要有日志、能复现、看得到哪里崩。</p>
+<p>还有个附加题，<strong>比上面四个都重要</strong>：<strong>你打算 review 它产出的代码吗？</strong> 不打算，就别建 loop。</p>
+<p><strong>谁适合上手：</strong> 有强测试套件的团队，干 CI 失败分类、依赖升级、lint-and-fix 这类任务。</p>
+<p><strong>谁不适合：</strong> 消费级套餐的个人开发者（token 预算不够烧）、测试覆盖不够的代码库（没闸门）、瓶颈在 review 而不在打字速度的团队。</p>
+<h2 id="loop-的五个核心构件">Loop 的五个核心构件</h2>
+<p>@0xCodez 把 loop 拆成五个构件，好在每个都能单独用、单独试。</p>
+<!-- drawio源文件: ./drawio/loop_engineering_guide_02_components.drawio -->
+
+<p><img alt="Loop 的五个核心构件" src="https://file1.kamacoder.com/i/web/20260708113435_loop_components.jpg" /></p>
+<p><strong>Automations——loop 的心跳。</strong> 按节奏触发，跑完一轮，停下。<strong>关键是停止条件要写死，别让它无限跑。</strong></p>
+<p><strong>Worktrees——并行不打架。</strong> 多个 Agent 同时干活，最怕改同一个文件。Git worktree 给每个 Agent 一份独立工作区，互不干扰。但 worktree 有 200-500ms 的 setup 开销，只在真需要并行修改文件时才用。</p>
+<p><strong>Skills——把背景写下来。</strong> 项目用什么框架、有什么约定、踩过什么坑，写成一个 skill 存着，Agent 每轮直接读。这块我们在 <a href="./claude_skills.html">Claude Skills 实战</a> 里讲得很透了。</p>
+<p><strong>Connectors——连上真实工具链。</strong> 通过 MCP 接上 GitHub、Linear/Jira、Slack、Sentry，loop 才算真正接入你的工作流。关于 MCP 协议本身，可以看 <a href="../app/mcp_protocol.html">MCP 协议详解</a>。</p>
+<p><strong>Sub-agents——写的和验的分开。</strong> 写代码的模型给自己打分太宽容。换一个带不同指令的第二个 Agent 来验收，能抓到第一个自我说服过去的问题。</p>
+<h2 id="14-步完整路线图">14 步完整路线图</h2>
+<!-- drawio源文件: ./drawio/loop_engineering_guide_03_roadmap.drawio -->
+
+<p><img alt="14 步完整路线图" src="https://file1.kamacoder.com/i/web/20260708113442_loop_roadmap.jpg" /></p>
+<h3 id="第一段-先想清楚要不要做-5-步">第一段：先想清楚要不要做（5 步）</h3>
+<ol>
+<li><strong>确认这活是重复的</strong> - 一次性任务用好 Prompt 更划算</li>
+<li><strong>确认有自动检查机制</strong> - 测试、类型检查、linter，至少一个</li>
+<li><strong>确认 token 预算够</strong> - loop 不产出也照样烧钱</li>
+<li><strong>确认 Agent 能自己验证</strong> - 有日志、能复现、看得到哪崩了</li>
+<li><strong>确认你真打算 review</strong> - 不打算，就别建</li>
+</ol>
+<h3 id="第二段-搭一个最小能跑的-loop-8-步">第二段：搭一个最小能跑的 loop（8 步）</h3>
+<ol start="6">
+<li><strong>先让一次手动运行稳定下来</strong> - 顺序别跳，先手动跑一遍确认每一步都通</li>
+<li><strong>把项目背景沉淀成一个 Skill</strong> - 省得每轮从零解释</li>
+<li><strong>加一个状态文件</strong> - 记下做完了什么、下一步干啥，这是 loop 的记忆</li>
+<li><strong>设一道硬闸门</strong> - 测试/构建过不了就自动拒，这是你能放心走开的唯一保障</li>
+<li><strong>配一个 Automation</strong> - 按节奏触发，用停止条件控制什么时候停</li>
+<li><strong>多 Agent 并行就上 Worktree</strong> - 别让它们改同一个文件打架</li>
+<li><strong>接上 Connectors</strong> - 让 loop 能开 PR、更新 ticket、发 Slack</li>
+<li><strong>拆出 Sub-agents</strong> - 写代码的和验收的分开，验收的那个要专挑刺</li>
+</ol>
+<h3 id="第三段-上线之后守住-1-步-但最难">第三段：上线之后守住（1 步，但最难）</h3>
+<ol start="14">
+<li><strong>盯住每个被接受的改动成本，定期复审权限、读 diff、别让 loop 碰架构</strong></li>
+</ol>
+<p><strong>盯一个指标：每个被接受的改动的成本。</strong> 如果接受率低于 50%，这 loop 就在亏本。</p>
+<p><strong>定期复审权限。</strong> 今天加一个写权限，明天再加一个，每 30 天复审一次，砍掉不需要的。</p>
+<p><strong>读 diff。</strong> 别因为「loop 产出的」就不读了。抽查闸门，确保它真的在按你的规则工作。</p>
+<p><strong>别让 loop 碰架构。</strong> loop 能干的是重复劳动、机械校验、低风险的小改动。架构决策、重构、核心逻辑，必须人来做。</p>
+<h2 id="上线后的三种翻车方式">上线后的三种翻车方式</h2>
+<!-- drawio源文件: ./drawio/loop_engineering_guide_04_pitfalls.drawio -->
+
+<p><img alt="Loop 的三种翻车方式" src="https://file1.kamacoder.com/i/web/20260708113449_loop_pitfalls.jpg" /></p>
+<p><strong>假装干完了。</strong> 工程师 Geoffrey Huntley 管这叫 Ralph Wiggum 循环：Agent 提前发「完成」信号，活干一半就退。原因只有一个：<strong>没有硬闸门。</strong> 解法：回到第 9 步，设一道硬闸门。</p>
+<p><strong>理解债务。</strong> loop 越快交付你没写过的代码，<strong>「仓库里有什么」和「你理解什么」的差距就越大。</strong> 有一天，你得 debug 一个团队里没人读过的系统。解法：读 diff，抽查。</p>
+<p><strong>认知投降。</strong> 你慢慢不再自己判断，loop 返回啥就收啥。<strong>这是最隐蔽、也最致命的一种翻车。</strong> 解法：守住第 14 步，盯指标、读 diff、不让 loop 碰架构。</p>
+<h2 id="安全红线">安全红线</h2>
+<p><strong>无人值守的 loop，就是无人值守的攻击面。</strong></p>
+<ul>
+<li><strong>生成代码未审就上线</strong> - 闸门里得加 SAST、依赖审计、密钥扫描</li>
+<li><strong>Skill 是注入入口</strong> - 社区 17022 个 skill 里有 520 个会泄露凭证，自动安装前先读源码</li>
+<li><strong>凭证泄露进日志</strong> - 生产 loop 关掉 verbose 日志</li>
+<li><strong>权限蔓延</strong> - 今天加一个写权限，明天再加一个，每 30 天复审一次</li>
+</ul>
+<p><strong>无人值守不等于无人负责。</strong> loop 出了安全问题，背锅的还是你。</p>
+<h2 id="写在最后">写在最后</h2>
+<p>两年来，与编码 Agent 协作的杠杆一直在提示词上。而现在，<strong>工作流成了真正的护城河。</strong></p>
+<p>loop engineering 不是银弹，它有成本、有门槛、有风险。但对于那些重复、能机器校验、有强测试套件的任务，它能把「十二个小时的活，干成二十分钟」。</p>
+<p>录友们与其纠结理论，不如挑一个你每天都在重复、有测试覆盖、能自动验证的活——CI 失败分类、依赖升级、lint-and-fix——按这 14 步走一遍。</p>
+<h2 id="参考链接">参考链接</h2>
+<ul>
+<li>Anthropic 工程文档（Managed Agents 与 Dynamic Workflows）：https://claude.com/blog</li>
+<li>Addy Osmani 关于 loop 工程的长文：https://addyosmani.com/blog/</li>
+</ul>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="dynamic_workflows.html"><span class="k">← 上一篇</span><span class="v">Claude Code 动态工作流详解：让 Claude 自己现写一套 harness，把一个任务拆给一队 Claude 去干</span></a><a class="nx" href="managed_agents.html"><span class="k">下一篇 →</span><span class="v">Claude Managed Agents详解：把Agent的「大脑」和「双手」拆开，从原型到上线只要几天</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#loop-engineering-实战-14-步路线图-从判断要不要做到上线后守住">Loop Engineering 实战：14 步路线图，从判断要不要做到上线后守住</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/claude/loop_engineering_guide.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

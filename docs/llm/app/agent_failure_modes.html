@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent为什么容易翻车？死循环、误调用、上下文污染、权限越界怎么兜底 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>app</span><span class="sep">›</span><span>agent_failure_modes</span></div>
+      <h1 id="agent为什么容易翻车">Agent为什么容易翻车？</h1>
+<p><a href="https://programmercarl.com/other/project_kamaClaude.html">
+  <img src="https://file1.kamacoder.com/i/web/2026-06-16_14-36-54.jpg" style="width:100%;cursor:pointer;" alt="KamaClaude">
+</a></p>
+<p>前几篇我们把 Agent 的核心能力一路讲下来了。</p>
+<p><a href="./agent_intro.html">Agent 到底是什么</a>，讲的是 Agent 和普通问答的区别。</p>
+<p><a href="./agent_vs_workflow.html">Agent vs Workflow</a>，讲的是不要什么场景都硬上 Agent。</p>
+<p><a href="./agent_tool_design.html">工具设计决定 Agent 上限</a>，讲的是工具描述、参数、返回值和权限边界。</p>
+<p><a href="./mcp_protocol.html">MCP 协议</a>，讲的是工具和上下文怎么标准化接入 AI 应用。</p>
+<p>到这里，很多录友会以为：</p>
+<p>“只要 Agent 会规划，会调用工具，工具设计也不错，那系统是不是就稳了？”</p>
+<p>还真不一定。</p>
+<p>Agent 最麻烦的地方就在这里：</p>
+<p><strong>它越能自主行动，就越可能自主翻车。</strong></p>
+<p>普通问答错了，最多回答不准。</p>
+<p>Workflow 错了，通常能定位到某个固定节点。</p>
+<p>Agent 错了，经常是整个执行过程都跑偏：</p>
+<ul>
+<li>一直重复调用同一个工具</li>
+<li>明明缺参数，还硬编</li>
+<li>查着查着忘了原始目标</li>
+<li>工具返回失败，还继续瞎猜</li>
+<li>本来只是咨询，结果直接执行了动作</li>
+<li>上下文里混入错误信息，后面每一步都被带偏</li>
+</ul>
+<p>所以这篇不讲“Agent 很强”。</p>
+<p>我们专门讲它为什么容易翻车，以及工程上怎么兜底。</p>
+<p>先记住一句话：</p>
+<p><strong>Agent 翻车不是偶然 bug，而是自由度带来的必然风险。</strong></p>
+<p><img alt="Agent翻车的根因：自由度越高，越需要工程边界" src="https://file1.kamacoder.com/i/web/20260526193353_agent_failure_01_core_tradeoff_compressed.png" /></p>
+<h2 id="一-agent-为什么比普通应用更容易不稳定">一、Agent 为什么比普通应用更容易不稳定</h2>
+<p>传统程序的执行路径，大多是开发者提前写好的。</p>
+<p>比如订单退款流程：</p>
+<ol>
+<li>查订单。</li>
+<li>判断是否可退。</li>
+<li>创建退款单。</li>
+<li>用户确认。</li>
+<li>提交退款。</li>
+</ol>
+<p>每一步都能写进代码。</p>
+<p>出了问题，也能看日志定位。</p>
+<p>Agent 不一样。</p>
+<p>Agent 的核心价值，是根据中间结果动态决定下一步。</p>
+<p>这也是它不稳定的来源。</p>
+<p>比如用户说：</p>
+<p>“帮我分析支付接口昨天晚上为什么变慢。”</p>
+<p>Agent 可能先查监控。</p>
+<p>发现 22:10 开始变慢。</p>
+<p>再查发布记录。</p>
+<p>发现 22:05 有发布。</p>
+<p>再查日志。</p>
+<p>发现第三方支付回调超时。</p>
+<p>这条路径看起来很合理。</p>
+<p>但它也可能走成这样：</p>
+<p>先查监控，没查到。</p>
+<p>再查日志，关键词写错。</p>
+<p>再查数据库，发现无关慢查询。</p>
+<p>再查发布记录，时间范围写大。</p>
+<p>最后总结说“可能是数据库压力升高”。</p>
+<p>这就是 Agent 的问题。</p>
+<p>它不是按固定流程走。</p>
+<p>它是边走边判断。</p>
+<p><strong>边走边判断，就意味着每一步都可能判断错。</strong></p>
+<p>所以 Agent 的可靠性，不只取决于模型聪不聪明。</p>
+<p>还取决于：</p>
+<ul>
+<li>每一步有没有状态记录</li>
+<li>工具有没有清晰边界</li>
+<li>失败能不能恢复</li>
+<li>有没有停止条件</li>
+<li>有没有人工确认</li>
+<li>有没有审计和回放</li>
+</ul>
+<p>如果这些都没有，Agent 就像一个很有想法但没有刹车的人。</p>
+<p>跑得快。</p>
+<p>也容易冲出去。</p>
+<h2 id="二-死循环-agent-一直做-但就是不交付">二、死循环：Agent 一直做，但就是不交付</h2>
+<p>Agent 最常见的翻车之一，就是死循环。</p>
+<p>不是程序意义上的 while true。</p>
+<p>而是它一直在“努力”，但任务没有推进。</p>
+<p>比如：</p>
+<p>用户问：</p>
+<p>“帮我查一下订单为什么还没发货。”</p>
+<p>Agent 调用订单查询工具。</p>
+<p>工具返回：</p>
+<p>“缺少订单ID。”</p>
+<p>正常做法应该是追问用户：</p>
+<p>“请提供订单号。”</p>
+<p>但有些 Agent 会继续尝试：</p>
+<p>查用户手机号。</p>
+<p>查最近订单。</p>
+<p>再查订单详情。</p>
+<p>还是缺订单ID。</p>
+<p>再查最近订单。</p>
+<p>再查订单详情。</p>
+<p>最后绕了好几圈。</p>
+<p>这就是死循环。</p>
+<h3 id="为什么会死循环">为什么会死循环</h3>
+<p>死循环通常不是模型“傻”。</p>
+<p>而是系统缺了三个东西。</p>
+<p><strong>第一，缺停止条件。</strong></p>
+<p>Agent 不知道什么时候应该停。</p>
+<p>它以为继续调用工具就能解决问题。</p>
+<p><strong>第二，缺失败记忆。</strong></p>
+<p>同一个工具已经失败过，它没有记住。</p>
+<p>于是反复重试。</p>
+<p><strong>第三，缺任务完成判断。</strong></p>
+<p>它不知道当前信息已经不足以继续推进，应该转向追问用户。</p>
+<p><img alt="死循环不是一直运行，而是没有停止条件和失败记忆" src="https://file1.kamacoder.com/i/web/20260526193354_agent_failure_02_loop_reason_compressed.png" /></p>
+<h3 id="怎么兜底">怎么兜底</h3>
+<p>死循环的兜底很直接。</p>
+<p><strong>第一，限制最大步数。</strong></p>
+<p>比如一个客服 Agent 最多调用 5 次工具。</p>
+<p>一个故障排查 Agent 最多跑 15 步。</p>
+<p>超过步数，就必须总结当前进展和缺失信息。</p>
+<p><strong>第二，记录失败工具。</strong></p>
+<p>如果同一个工具用同一组关键参数失败过，不要无限重试。</p>
+<p>应该改变策略：</p>
+<ul>
+<li>缺参数，就追问用户</li>
+<li>工具超时，就有限重试</li>
+<li>无数据，就换查询范围</li>
+<li>权限不足，就停止说明</li>
+</ul>
+<p><strong>第三，设计停止条件。</strong></p>
+<p>比如：</p>
+<ul>
+<li>已经拿到足够证据</li>
+<li>缺少关键输入</li>
+<li>工具连续失败</li>
+<li>达到最大步数</li>
+<li>进入高风险动作前</li>
+</ul>
+<p>这几个条件一触发，Agent 就不能继续自由探索。</p>
+<p>它要么交付阶段性结果。</p>
+<p>要么请求用户补充。</p>
+<p>要么进入人工确认。</p>
+<h2 id="三-误调用-工具选错-后面全错">三、误调用：工具选错，后面全错</h2>
+<p>第二类翻车，是误调用。</p>
+<p>Agent 调错工具，或者用错参数。</p>
+<p>这个问题在真实项目里非常常见。</p>
+<p>比如用户问：</p>
+<p>“我这个订单能不能退款？”</p>
+<p>正确路径应该是：</p>
+<p>先查订单状态。</p>
+<p>再调用退款规则检查工具。</p>
+<p>最后告诉用户是否可退。</p>
+<p>但 Agent 可能直接调用退款提交工具。</p>
+<p>这就危险了。</p>
+<p>再比如用户问：</p>
+<p>“接口 <code>/api/pay</code> 昨天晚上变慢了吗？”</p>
+<p>正确应该查监控工具。</p>
+<p>结果 Agent 去查业务数据库。</p>
+<p>查到一堆订单数据后，开始胡乱解释。</p>
+<h3 id="为什么会误调用">为什么会误调用</h3>
+<p>误调用常见有四个原因。</p>
+<p><strong>第一，工具描述太像。</strong></p>
+<p>比如：</p>
+<ul>
+<li><code>get_order_info</code></li>
+<li><code>query_order</code></li>
+<li><code>search_order</code></li>
+<li><code>order_detail</code></li>
+</ul>
+<p>模型分不清哪个该用。</p>
+<p><strong>第二，读写工具没分开。</strong></p>
+<p>查询退款规则和提交退款申请混在一个工具里。</p>
+<p>风险很大。</p>
+<p><strong>第三，参数 Schema 太松。</strong></p>
+<p>模型把“昨天晚上”直接塞进时间字段。</p>
+<p>或者把手机号当订单号。</p>
+<p><strong>第四，工具返回值没有明确状态。</strong></p>
+<p>Agent 拿到一段自然语言后，还要自己猜下一步。</p>
+<p>猜错了，就会继续错。</p>
+<p><img alt="误调用的根因：工具边界不清，Agent 就会把咨询当执行" src="https://file1.kamacoder.com/i/web/20260526193355_agent_failure_03_wrong_tool_compressed.png" /></p>
+<h3 id="怎么兜底_1">怎么兜底</h3>
+<p>误调用的兜底，核心是把工具边界写进系统。</p>
+<p><strong>查询工具和动作工具分开。</strong></p>
+<p>比如：</p>
+<ul>
+<li><code>check_refund_policy</code></li>
+<li><code>create_refund_draft</code></li>
+<li><code>submit_refund_after_confirm</code></li>
+</ul>
+<p>不要写一个模糊的 <code>handle_refund</code>。</p>
+<p><strong>高风险动作必须二次确认。</strong></p>
+<p>只要涉及钱、权限、通知、生产环境、删除、修改，都不要让 Agent 单独决定。</p>
+<p>它最多先生成草稿。</p>
+<p>用户确认后再执行。</p>
+<p><strong>工具调用前做规则校验。</strong></p>
+<p>比如：</p>
+<ul>
+<li>订单号格式不对，不调用</li>
+<li>时间范围超过 24 小时，不调用</li>
+<li>缺少用户确认，不允许提交</li>
+<li>当前用户无权限，不允许执行</li>
+</ul>
+<p>不要把所有判断都交给模型。</p>
+<p>模型负责决策。</p>
+<p>系统负责守门。</p>
+<p>这句话很重要。</p>
+<h2 id="四-多步任务中断-中间失败后不会恢复">四、多步任务中断：中间失败后不会恢复</h2>
+<p>Agent 做简单任务还好。</p>
+<p>一旦进入多步任务，问题就多了。</p>
+<p>比如让 Agent：</p>
+<p>“帮我分析这个仓库的技术债，并按优先级给修复建议。”</p>
+<p>它可能要做这些步骤：</p>
+<ol>
+<li>看目录结构。</li>
+<li>找核心模块。</li>
+<li>搜复杂函数。</li>
+<li>看测试覆盖。</li>
+<li>找重复代码。</li>
+<li>总结优先级。</li>
+</ol>
+<p>中间任何一步失败，Agent 都可能断。</p>
+<p>比如搜索工具超时。</p>
+<p>它可能直接说“仓库没有明显技术债”。</p>
+<p>比如某个目录无权限。</p>
+<p>它可能忽略这个目录，继续总结。</p>
+<p>比如读取文件失败。</p>
+<p>它可能脑补文件内容。</p>
+<p>这就是多步中断。</p>
+<h3 id="为什么多步任务容易中断">为什么多步任务容易中断</h3>
+<p>根因是 Agent 缺少任务状态。</p>
+<p>它只知道刚才工具返回了什么。</p>
+<p>但不知道整个任务目前做到哪一步。</p>
+<p>哪些子任务完成了。</p>
+<p>哪些子任务失败了。</p>
+<p>哪些证据已经拿到。</p>
+<p>哪些结论还不能下。</p>
+<p>所以它很容易出现两种问题。</p>
+<p><strong>一种是提前交付。</strong></p>
+<p>只完成了 30%，就开始总结。</p>
+<p><strong>另一种是丢失上下文。</strong></p>
+<p>前面查到的证据，后面忘了。</p>
+<p><img alt="多步任务中断：没有任务状态，Agent 会提前交付或丢证据" src="https://file1.kamacoder.com/i/web/20260526193357_agent_failure_04_task_state_compressed.png" /></p>
+<h3 id="怎么兜底_2">怎么兜底</h3>
+<p>多步任务要用任务状态管理。</p>
+<p>不要只让模型在脑子里记。</p>
+<p>可以维护一个简单的任务状态：</p>
+<ul>
+<li>当前目标是什么</li>
+<li>已完成哪些步骤</li>
+<li>每一步证据是什么</li>
+<li>哪些步骤失败了</li>
+<li>失败是否可恢复</li>
+<li>还缺什么信息</li>
+<li>当前是否可以交付</li>
+</ul>
+<p>这听起来像 Workflow。</p>
+<p>但不是把 Agent 变成固定流程。</p>
+<p>而是给 Agent 一个外部任务板。</p>
+<p>它可以动态决策。</p>
+<p>但每一步都要写入状态。</p>
+<p>如果失败，要标记失败原因。</p>
+<p>如果证据不足，要标记缺口。</p>
+<p>最后交付前，要检查状态是否满足目标。</p>
+<p>这就是把 Agent 从“边走边忘”拉回“边走边记录”。</p>
+<h2 id="五-上下文污染-错信息混进去-后面全被带偏">五、上下文污染：错信息混进去，后面全被带偏</h2>
+<p>上下文污染，是 Agent 里非常隐蔽的问题。</p>
+<p>它不像工具调用失败那么明显。</p>
+<p>但杀伤力很大。</p>
+<p>什么叫上下文污染？</p>
+<p>就是错误信息、过期信息、无关信息、未验证假设，被放进上下文后，影响后续判断。</p>
+<p>比如 Agent 查日志时，工具返回了一段无关错误：</p>
+<p>“数据库连接池等待时间升高。”</p>
+<p>但这段日志其实来自另一个服务。</p>
+<p>Agent 没检查服务名，就把它当成根因。</p>
+<p>后面每一步都围绕数据库查。</p>
+<p>最后得出一个错误结论：</p>
+<p>“支付接口变慢主要是数据库连接池不足。”</p>
+<p>这就是上下文污染。</p>
+<p>再比如：</p>
+<p>用户前面说“可能是缓存问题”。</p>
+<p>这只是用户猜测。</p>
+<p>Agent 却把它当成事实。</p>
+<p>后面一直查缓存。</p>
+<p>最后忽略了真正的发布问题。</p>
+<h3 id="上下文污染来自哪里">上下文污染来自哪里</h3>
+<p>常见来源有四个。</p>
+<p><strong>第一，用户猜测。</strong></p>
+<p>用户说“我觉得可能是 xx”，这不是证据。</p>
+<p><strong>第二，工具返回的噪音。</strong></p>
+<p>日志、搜索结果、RAG 片段里经常有无关信息。</p>
+<p><strong>第三，过期上下文。</strong></p>
+<p>前面得到的结论，在后面可能已经被推翻。</p>
+<p><strong>第四，模型自己的中间假设。</strong></p>
+<p>模型说“可能是数据库问题”，如果不标记为假设，很容易被后面当事实。</p>
+<p><img alt="上下文污染：假设、噪音和过期信息混进事实区" src="https://file1.kamacoder.com/i/web/20260526193358_agent_failure_05_context_pollution_compressed.png" /></p>
+<h3 id="怎么兜底_3">怎么兜底</h3>
+<p>上下文管理要分层。</p>
+<p>不要把所有东西都丢进同一个上下文。</p>
+<p>至少分成三类：</p>
+<p><strong>事实。</strong></p>
+<p>来自工具、数据库、日志、监控，而且能追溯来源。</p>
+<p><strong>假设。</strong></p>
+<p>模型推测、用户猜测、待验证的原因。</p>
+<p><strong>废弃信息。</strong></p>
+<p>已经被验证无关、过期或错误的信息。</p>
+<p>Agent 最后输出结论时，必须基于事实。</p>
+<p>假设只能作为待验证方向。</p>
+<p>废弃信息不能继续参与推理。</p>
+<p>这就是为什么很多成熟 Agent 系统会做状态记录、证据引用、trace 回放。</p>
+<p>不是为了好看。</p>
+<p>是为了防止上下文变成一锅粥。</p>
+<h2 id="六-权限越界-最危险的翻车">六、权限越界：最危险的翻车</h2>
+<p>前面几类翻车，大多影响答案质量。</p>
+<p>权限越界，影响的是安全。</p>
+<p>这类问题最危险。</p>
+<p>比如：</p>
+<p>用户只是问：</p>
+<p>“这个订单能不能取消？”</p>
+<p>Agent 直接调用取消订单工具。</p>
+<p>用户只是说：</p>
+<p>“帮我看看这封邮件怎么回。”</p>
+<p>Agent 直接发出去了。</p>
+<p>用户只是说：</p>
+<p>“这个配置是不是有问题？”</p>
+<p>Agent 直接改了生产配置。</p>
+<p>这不是体验问题。</p>
+<p>这是事故。</p>
+<h3 id="为什么会权限越界">为什么会权限越界</h3>
+<p>权限越界通常来自三件事。</p>
+<p><strong>第一，工具权限太大。</strong></p>
+<p>一个工具既能查，又能改。</p>
+<p><strong>第二，缺少确认环节。</strong></p>
+<p>Agent 从“建议”直接跳到“执行”。</p>
+<p><strong>第三，Host 没有做权限守门。</strong></p>
+<p>系统默认相信模型判断。</p>
+<p>这就很危险。</p>
+<p><img alt="权限越界：从建议到执行，中间必须有确认和审计" src="https://file1.kamacoder.com/i/web/20260526193359_agent_failure_06_permission_boundary_compressed.png" /></p>
+<h3 id="怎么兜底_4">怎么兜底</h3>
+<p>高风险动作要分级。</p>
+<p>可以简单分三类。</p>
+<p><strong>低风险：只读查询。</strong></p>
+<p>比如查文档、查订单状态、查监控指标。</p>
+<p>通常可以让 Agent 直接调用。</p>
+<p><strong>中风险：生成草稿。</strong></p>
+<p>比如写邮件草稿、创建退款申请草稿、生成配置修改方案。</p>
+<p>可以让 Agent 做，但不能直接提交。</p>
+<p><strong>高风险：改变外部世界。</strong></p>
+<p>比如发邮件、退款、删除数据、改生产配置、执行命令。</p>
+<p>必须用户确认。</p>
+<p>还要有审计记录。</p>
+<p>这和 MCP 文章里讲的安全边界是一致的。</p>
+<p>Host 要管权限。</p>
+<p>工具要暴露有限能力。</p>
+<p>动作要分草稿和执行。</p>
+<p>不要指望模型自己永远克制。</p>
+<h2 id="七-错误不可恢复-失败后只会硬编">七、错误不可恢复：失败后只会硬编</h2>
+<p>Agent 翻车还有一个很常见的场景：</p>
+<p>工具失败了。</p>
+<p>但 Agent 不知道怎么处理。</p>
+<p>于是它开始编。</p>
+<p>比如工具返回：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"系统异常"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这对 Agent 没什么帮助。</p>
+<p>它不知道：</p>
+<ul>
+<li>是缺参数？</li>
+<li>是权限不足？</li>
+<li>是工具超时？</li>
+<li>是数据不存在？</li>
+<li>是业务规则不允许？</li>
+<li>能不能重试？</li>
+<li>应该追问用户吗？</li>
+</ul>
+<p>如果错误信息不可恢复，Agent 很容易说：</p>
+<p>“根据查询结果，订单正在处理中。”</p>
+<p>但其实它根本没查到。</p>
+<h3 id="怎么兜底_5">怎么兜底</h3>
+<p>错误返回要结构化。</p>
+<p>至少包含：</p>
+<ul>
+<li><code>error_code</code></li>
+<li><code>recoverable</code></li>
+<li><code>recommended_action</code></li>
+<li><code>retry_after</code></li>
+<li><code>missing_fields</code></li>
+<li><code>permission_required</code></li>
+</ul>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"error_code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MISSING_ORDER_ID"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"recoverable"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"recommended_action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ask_user_for_order_id"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"missing_fields"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"order_id"</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这样 Agent 就知道下一步不是继续查。</p>
+<p>而是追问用户。</p>
+<p>再比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"error_code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PERMISSION_DENIED"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"recoverable"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"recommended_action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"stop_and_explain"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"permission_required"</span><span class="p">:</span><span class="w"> </span><span class="s2">"refund:submit"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这时 Agent 就应该停止。</p>
+<p>不是换个工具继续试。</p>
+<p><img alt="错误恢复：失败不是一句系统异常，而是给 Agent 下一步动作" src="https://file1.kamacoder.com/i/web/20260526193400_agent_failure_07_error_recovery_compressed.png" /></p>
+<h2 id="八-agent-兜底不是一个开关-而是一套护栏">八、Agent 兜底不是一个开关，而是一套护栏</h2>
+<p>很多人问：</p>
+<p>“怎么防止 Agent 翻车？”</p>
+<p>不要期待一个万能开关。</p>
+<p>真正的兜底是一套护栏。</p>
+<p>至少包括六层。</p>
+<p><strong>第一，任务边界。</strong></p>
+<p>明确 Agent 能做什么，不能做什么。</p>
+<p><strong>第二，工具边界。</strong></p>
+<p>工具描述、参数、返回值、错误码都要清楚。</p>
+<p><strong>第三，执行边界。</strong></p>
+<p>最大步数、超时、重试次数、停止条件。</p>
+<p><strong>第四，状态管理。</strong></p>
+<p>记录目标、步骤、证据、失败、缺口。</p>
+<p><strong>第五，权限控制。</strong></p>
+<p>高风险动作二次确认、权限校验、审计记录。</p>
+<p><strong>第六，交付检查。</strong></p>
+<p>最终回答前检查：目标是否完成？证据是否足够？有没有未验证假设？</p>
+<p><img alt="Agent兜底不是一个开关，而是多层护栏" src="https://file1.kamacoder.com/i/web/20260526193401_agent_failure_08_guardrails_compressed.png" /></p>
+<p>这里要特别强调一点。</p>
+<p>护栏不是为了限制 Agent 的能力。</p>
+<p>而是为了让它能进入生产环境。</p>
+<p>没有护栏的 Agent，Demo 里看起来很聪明。</p>
+<p>一到真实业务就容易出事。</p>
+<p>能不能做生产级 Agent，差别就在这里。</p>
+<h2 id="九-面试时怎么回答-agent-翻车问题">九、面试时怎么回答 Agent 翻车问题</h2>
+<p>Agent 面试里，面试官很喜欢问这类问题。</p>
+<p>因为它能看出你是真做过，还是只会讲概念。</p>
+<p><strong>面试官问：Agent 为什么容易翻车？</strong></p>
+<p>可以这样答：</p>
+<p>“Agent 的核心是动态决策，它不是固定 Workflow，每一步都会根据中间结果决定下一步。所以它的自由度更高，也更容易出现死循环、工具误调用、上下文污染、多步任务中断和权限越界。工程上不能只靠模型自觉，需要用步数限制、状态记录、工具边界、错误恢复、权限确认和审计来兜底。”</p>
+<p><strong>面试官问：怎么防止 Agent 死循环？</strong></p>
+<p>可以这样答：</p>
+<p>“我会设置最大步数、最大重试次数和停止条件，并记录失败工具和关键参数。如果同一个工具因为同样原因失败，就不能无限重试，要根据错误码选择追问用户、缩小范围、换工具或停止说明。”</p>
+<p><strong>面试官问：怎么防止 Agent 调错工具？</strong></p>
+<p>可以这样答：</p>
+<p>“工具设计上要把查询类和动作类分开，工具描述写清适用场景和不适用场景，参数 Schema 收紧类型、枚举和必填字段。执行前还要做规则校验，高风险动作只能先生成草稿，用户确认后才能调用正式执行工具。”</p>
+<p><strong>面试官问：Agent 上下文污染怎么处理？</strong></p>
+<p>可以这样答：</p>
+<p>“上下文不能混成一锅粥。我会把事实、假设和废弃信息分开管理。工具返回的可追溯结果才能进入事实区，模型推测和用户猜测只能作为假设，已经被证伪或过期的信息要标记废弃。最终回答必须基于事实和证据。”</p>
+<p><strong>面试官问：怎么让 Agent 更适合生产环境？</strong></p>
+<p>可以这样答：</p>
+<p>“生产环境要把 Agent 放在工程护栏里。包括任务边界、工具边界、执行限制、状态管理、权限控制、人工确认、审计日志和交付前检查。Agent 可以动态决策，但系统必须负责守门和回放。”</p>
+<p>这套回答很实用。</p>
+<p>因为它不是背 ReAct。</p>
+<p>它讲的是工程可靠性。</p>
+<h2 id="十-agent-翻车不可怕-没兜底才可怕">十、Agent 翻车不可怕，没兜底才可怕</h2>
+<p>Agent 会翻车，这件事不用回避。</p>
+<p>只要它能自主决策、能调用工具、能多步执行，就一定有不确定性。</p>
+<p>真正的问题不是“能不能完全不翻车”。</p>
+<p>而是：</p>
+<p><strong>翻车前能不能拦住。</strong></p>
+<p><strong>翻车时能不能止损。</strong></p>
+<p><strong>翻车后能不能复盘。</strong></p>
+<p>如果没有步数限制，它会死循环。</p>
+<p>如果没有工具边界，它会误调用。</p>
+<p>如果没有状态管理，它会中途断。</p>
+<p>如果没有上下文分层，它会被错误信息带偏。</p>
+<p>如果没有权限控制，它会越界执行。</p>
+<p>如果没有错误恢复，它会失败后硬编。</p>
+<p>所以做 Agent，不要只问“它能不能自己做事”。</p>
+<p>还要问：</p>
+<p><strong>它做错的时候，系统怎么兜底？</strong></p>
+<p>能答出这个问题，才算真正开始懂 Agent 工程。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="agent_evaluation.html"><span class="k">← 上一篇</span><span class="v">Agent怎么评估？AI Agent任务完成率、步骤效率、错误恢复率和可靠性度量</span></a><a class="nx" href="agent_intro.html"><span class="k">下一篇 →</span><span class="v">Agent到底是什么？和普通大模型问答、ChatBot、Workflow有什么区别</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#agent为什么容易翻车">Agent为什么容易翻车？</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/app/agent_failure_modes.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

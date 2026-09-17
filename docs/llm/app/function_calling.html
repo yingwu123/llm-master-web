@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Function Calling详解：大模型怎么调用工具，为什么是Agent的基础 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>app</span><span class="sep">›</span><span>function_calling</span></div>
+      <h1 id="function-calling详解-大模型怎么调用工具-为什么是agent的基础">Function Calling详解：大模型怎么调用工具，为什么是Agent的基础</h1>
+<p><a href="https://programmercarl.com/other/project_kamaClaude.html">
+  <img src="https://file1.kamacoder.com/i/web/2026-06-16_14-36-54.jpg" style="width:100%;cursor:pointer;" alt="KamaClaude">
+</a></p>
+<p>如果你也打算面试Agent开发岗，那么你至少要知道：Function Calling 是什么？它为什么是 Agent 的前置能力？</p>
+<h2 id="一-什么是-tool-function">一、什么是 Tool / Function？</h2>
+<p>在大模型应用的语境下，<strong>Tool（工具）</strong> 或 <strong>Function（函数）</strong>，本质上是<strong>一段预先定义好的代码逻辑</strong>，大模型本身并不执行它，而是<strong>告诉应用程序该执行哪段代码</strong>。</p>
+<p>Function Calling即调用外部函数。</p>
+<p>我们知道大模型是在一个巨大的静态数据集上训练的。知识、能力、精确性都有局限性。如deepseekR1在2025年发布时，其训练数据截止于2023年12月，单从数据来看，再聪明的模型肯定不知道未来发生了什么。</p>
+<p>Function Calling就是给这个聪明的“大脑”配备了“手”和“脚”，让它能够与外部世界互动，从而克服上述局限性。</p>
+<h2 id="二-和普通问答有什么区别">二、和普通问答有什么区别？</h2>
+<p>普通问答与 Function Calling 有本质区别。简单来讲，普通问答是“说”，Function Calling是“做”。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">普通问答 (Chat Completion)</th>
+<th style="text-align: left;">Function Calling (Tool Use)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>输出内容</strong></td>
+<td style="text-align: left;">纯自然语言文本</td>
+<td style="text-align: left;"><strong>结构化数据</strong> (JSON/Object)，明确指定函数名和参数</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>知识来源</strong></td>
+<td style="text-align: left;">仅依赖训练数据 (截止训练日)</td>
+<td style="text-align: left;"><strong>实时外部数据</strong> (通过工具获取)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>准确性</strong></td>
+<td style="text-align: left;">容易幻觉 (瞎编数据)</td>
+<td style="text-align: left;"><strong>高可信度</strong> (基于真实 API 返回)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>执行动作</strong></td>
+<td style="text-align: left;">无法执行动作，只能“说”</td>
+<td style="text-align: left;">可以<strong>触发行动</strong> (下单、发邮件、查库)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>可控性</strong></td>
+<td style="text-align: left;">输出格式难以严格约束</td>
+<td style="text-align: left;">输出格式<strong>严格遵循JSON</strong>，便于程序解析</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>典型场景</strong></td>
+<td style="text-align: left;">闲聊、写作、翻译、总结</td>
+<td style="text-align: left;">查询实时信息、操作业务系统、多步任务规划</td>
+</tr>
+</tbody>
+</table>
+<h2 id="三-模型-调用工具-本质上发生了什么">三、模型“调用工具”本质上发生了什么？</h2>
+<p>Function Calling的工作流程可以大概分为4步骤：</p>
+<p><img alt="Function Calling工作流程" src="https://file1.kamacoder.com/i/web/20260512163402_fc01.png" /></p>
+<p><strong>第一步：开发者定义和提供工具（Functions）</strong></p>
+<p>在最开始，你需要告诉大模型它有哪些“工具”可用。这就像你给一个助手一个工具箱，并告诉他每个工具的作用。</p>
+<p><strong>第二步：大模型响应，返回函数调用指令</strong></p>
+<p>当用户提出一个请求（例如：“北京现在多少度？”），你的应用程序将用户的问题和上述工具列表一起发送给大模型。大模型在处理请求后，会识别出它需要调用一个外部工具来获取信息。它的响应不会是常规的文本回复，而是一个结构化的函数调用参数。</p>
+<p><strong>第三步：应用程序执行函数并再次调用大模型</strong></p>
+<p>这是整个流程中最关键的步骤。你的应用程序代码接收到大模型的响应后，需要完成检查响应、解析指令、执行函数、再次调用大模型等工作。</p>
+<p><strong>最后一步</strong>，大模型接收到所有这些信息后，会利用函数执行的结果，生成一个自然流畅的最终回复给用户：“北京今天天气晴朗，气温25摄氏度。”</p>
+<h3 id="上例流程解析">上例流程解析</h3>
+<ol>
+<li><strong>意图识别与参数提取</strong>：模型在第一轮交互中并没有回答天气，而是输出了一段<strong>结构化数据（通常是 JSON）</strong>，告诉你：“我需要调用 <code>get_current_weather</code> 函数，参数 <code>location</code> 是 <code>北京</code>”。</li>
+<li><strong>控制权交接</strong>：此时，生成的主动权交还给了你的代码。你的程序解析这段 JSON，发现要调用<code>get_current_weather</code>函数，于是在你的服务器环境里执行它。</li>
+<li><strong>结果回填</strong>：你把函数执行的真实结果（<code>{"temp": 25, "condition":"晴"}</code>）以JSON格式再次发给模型。</li>
+<li><strong>最终合成</strong>：模型看到结果后，结合上下文，用自然语言总结出最终答案。</li>
+</ol>
+<h2 id="四-为什么-function-calling-是-agent-的基础">四、为什么 Function Calling 是 Agent 的基础？</h2>
+<p>如果说大模型是“大脑”，那么 Function Calling 就是“神经系统”，连接着大脑和手脚（工具）。没有它，Agent 就只是一个“只会动嘴不会动手”的小笨蛋。</p>
+<h3 id="1-被动回答---主动行动">1. “被动回答”-&gt;“主动行动”</h3>
+<p>没有 Function Calling：你问它“怎么订会议室？”，它会给你写一篇《订会议室指南》。有了 Function Calling后：你问它“帮我订明天下午 3 点的 A 会议室”，它会调用开发者设定好的函数<code>book_room(time="15:00", room="A")</code>，真正完成预订，并返回订单号。</p>
+<p>这就是Agent（智能体）产生的质变——能够感知环境并采取行动以实现目标的实体。</p>
+<h3 id="2-复杂任务规划的前提-react-模式">2. 复杂任务规划的前提 (ReAct 模式)</h3>
+<p>高级Agent往往需要多步推理（Plan &amp; Solve）。例如：“分析上个月销售数据，如果低于目标，就给销售经理发邮件。”这需要模型具备链式调用能力，连续准确地<strong>选择工具</strong>并<strong>提取参数</strong>：</p>
+<ol>
+<li>
+<p>先调用 <code>query_sales_data(month="last")</code>。</p>
+</li>
+<li>
+<p><strong>根据返回结果进行逻辑判断</strong>（模型内部推理）。</p>
+</li>
+<li>
+<p>如果条件满足，再调用 <code>send_email(to="manager", content=...)</code>。</p>
+</li>
+</ol>
+<p>如果Function Calling不准，整个链条就会断裂。</p>
+<h3 id="3-解决-幻觉-与-时效性-的有效方案">3. 解决“幻觉”与“时效性”的有效方案</h3>
+<p>Agent 的核心价值是解决实际问题，而实际问题往往涉及私有数据或实时状态。</p>
+<p>靠微调（Fine-tuning）让模型记住所有库存信息？不可能，数据天天变。靠 Prompt 把几百万行数据塞进去？nonono，上下文有限且昂贵。通过 Function Calling，让模型在需要时按需定向查询。这让 Agent 拥有了“无限的知识库”和“实时的感知力”。</p>
+<h2 id="五-面试官可能怎么问">五、面试官可能怎么问？</h2>
+<p>准备面试时，这几个问题是高频考点：</p>
+<ol>
+<li><strong>“请简述 Function Calling 的工作流程。”</strong></li>
+</ol>
+<p>不要只说“模型调函数”。要强调“模型结构化输出（JSON） -&gt; 程序拦截并执行 -&gt; 结果回传 -&gt; 模型生成最终回复”的流程。</p>
+<ol start="2">
+<li><strong>“如果模型调用了错误的工具，或者参数提取错了，怎么办？”</strong></li>
+</ol>
+<p>提到<strong>重试机制</strong>（让模型根据错误信息重新思考）、<strong>Few-Shot Prompting</strong>（在提示词中给出正确调用的示例）、以及<strong>工具描述的优化</strong>（更清晰的参数定义）等。</p>
+<ol start="3">
+<li><strong>“Function Calling和普通的Prompt指示（如‘请调用 API’）有什么区别？”</strong></li>
+</ol>
+<p>强调<strong>结构化输出</strong>和<strong>可靠性</strong>。普通指示模型可能会编造 API 调用过程，而 Function Calling 强制模型输出符合 Schema 的 JSON，程序可精准解析执行。</p>
+<hr />
+<h2 id="六-总结">六、总结</h2>
+<p>Function Calling是一套<strong>严谨的工程协议</strong>。它让应用开发从<strong>“生成文本”</strong>变成了<strong>“执行业务”</strong>，是构建Agent的绝对基石。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="finetuning_vs_rag.html"><span class="k">← 上一篇</span><span class="v">什么时候微调、什么时候RAG？大模型选型决策框架：数据量、任务类型、更新频率、成本四维判断</span></a><a class="nx" href="how_to_chunking.html"><span class="k">下一篇 →</span><span class="v">RAG切片策略：固定长度、递归字符、语义切分、结构感知四种方式对比</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#function-calling详解-大模型怎么调用工具-为什么是agent的基础">Function Calling详解：大模型怎么调用工具，为什么是Agent的基础</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/app/function_calling.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

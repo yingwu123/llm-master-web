@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude Opus 4.8发布：别被跑分带节奏，真正值得看的是Claude Code工作流 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>claude-opus-4-8</span></div>
+      <h1 id="claude-opus-4-8发布-别被跑分带节奏-真正值得看的是claude-code工作流">Claude Opus 4.8发布：别被跑分带节奏，真正值得看的是Claude Code工作流</h1>
+<blockquote>
+<p>不少读者问我，如何Claude账号被封，如果用上Claude opus4.8，或者Fable5，充值Claude会员，我在这里单独讲一下：<a href="../../qita/0020.no-claude-account-use-opus-4-8-fable-5.html">没有Claude账号，怎么用上Opus模型</a></p>
+</blockquote>
+<p>Anthropic 昨天发布了 Claude Opus 4.8。</p>
+<p>我心思这 <a href="https://mp.weixin.qq.com/s/QJZ34IOWf8vdEiFqugNsMw">4月16日刚发布 4.7</a>，这么快就 4.8了，迭代速度有点快啊！</p>
+<p>官方链接在这里：https://www.anthropic.com/news/claude-opus-4-8</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-05-29_10-54-52.jpg" /></p>
+<p>这次发布很有意思。</p>
+<p>不是因为它强到离谱，而是因为官方和外界的语气反差很大。</p>
+<p>Anthropic 自己对 Opus 4.8 的描述很克制，用的是 <strong>modest</strong>。</p>
+<p>也就是：温和更新。</p>
+<p>但中文圈很多标题已经开始往“炸裂”“碾压”“最强”上靠了。</p>
+<p>卡哥觉得这事需要冷静一点。</p>
+<p><strong>Opus 4.8 是一次有价值的工程更新，但它不是一次颠覆式换代。</strong></p>
+<p>如果你只看发布页大表，很容易被带偏。</p>
+<p>如果你把脚注、Claude Code 的工作流更新、API 变化放在一起看，结论会更清楚：</p>
+<p><strong>Opus 4.8 的重点不是“跑分赢了谁”，而是更适合长时间帮开发者干活。</strong></p>
+<h2 id="一-先别急着转那张跑分表">一、先别急着转那张跑分表</h2>
+<p>这次最容易误读的地方，是 Terminal-Bench 2.1。</p>
+<p>Anthropic 发布页的大表里写的是：</p>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>Terminal-Bench 2.1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Opus 4.8</td>
+<td>74.6%</td>
+</tr>
+<tr>
+<td>GPT-5.5</td>
+<td>78.2%</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-05-29_10-42-42.jpg" /></p>
+<p>你没看错。</p>
+<p>就按这张表本身，GPT-5.5 也是高于 Opus 4.8 的。</p>
+<p>但更关键的是脚注。</p>
+<p>Anthropic 在脚注里补充：GPT-5.5 在 Codex CLI harness 下的公开成绩是 <strong>83.4%</strong>。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-05-29_10-44-13.jpg" /></p>
+<p>这说明什么</p>
+<p>说明同一个模型，同一个 benchmark，只要执行框架、工具链、运行环境变了，结果就可能明显变化。</p>
+<p>78.2% 和 83.4%，差了 5.2 个百分点。</p>
+<p>这个差距已经足够影响传播口径了。</p>
+<p><strong>大表负责传播，脚注负责真相。</strong></p>
+<p>这才是这次 Opus 4.8 发布里最值得提醒的一点。</p>
+<h2 id="二-那opus-4-8到底有没有进步">二、那Opus 4.8到底有没有进步</h2>
+<p>有。</p>
+<p>但不是那种“从 60 分跳到 90 分”的进步。</p>
+<p>它更像是把 Opus 4.7 上几个影响开发体验的问题往前推了一步。</p>
+<p>我把这次更新分成四类：</p>
+<p><strong>第一，控制权更清楚。</strong></p>
+<p>Opus 4.8 加强了 <code>effort</code> 思考强度控制。</p>
+<p>以前用 Opus 4.7，很多录友的感受是：模型有时候想太多，有时候又想得不够。你付了钱，但模型这次到底愿意花多少力气思考，体感上不够可控。</p>
+<p>现在可以通过 effort 明确告诉它：这次任务到底要浅一点，还是深一点。</p>
+<p>API 里大概是这样：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">thinking</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"adaptive"</span><span class="p">}</span>
+<span class="n">output_config</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"effort"</span><span class="p">:</span> <span class="s2">"high"</span><span class="p">}</span>
+</code></pre></div>
+
+<p>我的建议：</p>
+<ul>
+<li>简单解释、普通脚本：不用高 effort</li>
+<li>改代码、排查问题：从 high 开始</li>
+<li>大仓库任务、长链路 Agent：再考虑 xhigh / extra</li>
+</ul>
+<p>不要所有任务都开最高。</p>
+<p>模型不是越努力越好，钱包会先努力不动。</p>
+<p><strong>第二，工具调用更像工程流程。</strong></p>
+<p>Anthropic 在文档里提到，Opus 4.8 目标之一是减少“该调工具却跳过工具调用”的情况。</p>
+<p>这点比很多 benchmark 更重要。</p>
+<p>Agent 写代码最怕什么？</p>
+<p>不是它不会写。</p>
+<p>而是它明明应该读文件，却直接猜。</p>
+<p>明明应该跑测试，却直接总结。</p>
+<p>明明应该查日志，却开始给你讲原理。</p>
+<p>这种模型再聪明，放到工程里也不稳定。</p>
+<p>Opus 4.8 如果能减少这类问题，价值很实在。</p>
+<p><strong>第三，长任务恢复更稳。</strong></p>
+<p>Claude Code 跑长任务时，经常会经历上下文压缩。</p>
+<p>老问题是：压缩前模型还知道自己在干什么，压缩后突然换了脑子。</p>
+<p>前面做过的判断忘了。</p>
+<p>已经排除的方向又重新查一遍。</p>
+<p>改着改着开始绕路。</p>
+<p>Opus 4.8 对 long agent trace 和 compaction 后的连续性做了优化。</p>
+<p>这对普通聊天没什么感觉，但对 Claude Code 用户非常关键。</p>
+<p>因为 Claude Code 的价值，本来就不只是“写一段代码”，而是能持续推进一个工程任务。</p>
+<p><strong>第四，更愿意承认代码里还有问题。</strong></p>
+<p>Anthropic 提到，Opus 4.8 比 Opus 4.7 更不容易把自己写出的代码缺陷放过去不说。</p>
+<p>这句话翻译成开发者语言就是：</p>
+<p><strong>它少了一点“自信地错”。</strong></p>
+<p>这很重要。</p>
+<p>Agent 任务里，模型报错不可怕。</p>
+<p>可怕的是它没修好，但告诉你已经修好了。</p>
+<p>前者你还能继续调。</p>
+<p>后者容易直接把坑带进代码库。</p>
+<h2 id="三-dynamic-workflows才是claude-code用户该看的">三、Dynamic workflows才是Claude Code用户该看的</h2>
+<p>这次发布里，我最关注的不是 Opus 4.8 本体，而是 Claude Code 的 dynamic workflows。</p>
+<p>官方介绍在这里：https://claude.com/blog/introducing-dynamic-workflows-in-claude-code</p>
+<p>它的思路很简单：</p>
+<p><strong>不要让一个 Agent 从头干到尾，而是让主 Agent 拆任务，再调度多个 subagents 并行处理，最后汇总和验证。</strong></p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-05-29_10-46-48.jpg" /></p>
+<p>这其实更接近真实工程协作。</p>
+<p>一个复杂任务，不应该只有“一个模型一直读、一直改、一直测”。</p>
+<p>更合理的方式是：</p>
+<ul>
+<li>一个子任务负责读模块</li>
+<li>一个子任务负责找影响范围</li>
+<li>一个子任务负责改代码</li>
+<li>一个子任务负责跑测试</li>
+<li>一个子任务负责挑错</li>
+<li>主 Agent 最后合并判断</li>
+</ul>
+<p>这类能力适合什么场景？</p>
+<p><strong>大仓库排查。</strong></p>
+<p>比如权限问题、性能问题、死代码、重复实现。</p>
+<p>顺序扫很慢，并行拆开更合理。</p>
+<p><strong>大规模迁移。</strong></p>
+<p>比如 API 替换、框架升级、语言迁移、模块重构。</p>
+<p>这类任务天然可以拆分，不适合让一个 Agent 慢慢翻。</p>
+<p><strong>高风险复核。</strong></p>
+<p>比如安全审计、合同检查、财务分析。</p>
+<p>一个 Agent 给结论，另一个 Agent 专门找反例，再由主 Agent 汇总，比单次回答更靠谱。</p>
+<p>不过录友别误会。</p>
+<p>Dynamic workflows 不是省钱功能。</p>
+<p>它更像是把“单人干活”升级成“小组协作”。</p>
+<p>小组协作效率高，但人也多，token 也多。</p>
+<p>第一次用，建议从小任务开始试，不要直接让它扫整个公司代码库。</p>
+<h2 id="四-fast-mode终于有点意义了">四、Fast mode终于有点意义了</h2>
+<p>Opus 4.8 常规价格没变：</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>输入价格</th>
+<th>输出价格</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>常规模式</td>
+<td>$5 / 百万 token</td>
+<td>$25 / 百万 token</td>
+</tr>
+<tr>
+<td>Fast mode</td>
+<td>$10 / 百万 token</td>
+<td>$50 / 百万 token</td>
+</tr>
+</tbody>
+</table>
+<p>Fast mode 的速度可以到 2.5 倍。</p>
+<p>这次价格降到上一代 fast 的三分之一。</p>
+<p>这不是便宜。</p>
+<p>但至少不再是“看起来有用、实际舍不得开”的功能。</p>
+<p>Claude Code 里，速度很影响体验。</p>
+<p>尤其是：</p>
+<ul>
+<li>线上问题定位</li>
+<li>演示前修 bug</li>
+<li>大改动最后一轮验证</li>
+<li>任务快结束但卡在测试失败</li>
+</ul>
+<p>这些场景下，fast mode 有价值。</p>
+<p>但日常写代码，我不建议默认开。</p>
+<p><strong>Fast mode 买的是时间，不是性价比。</strong></p>
+<h2 id="五-代码能力-更强-但别写成碾压">五、代码能力：更强，但别写成碾压</h2>
+<p>Opus 4.8 的代码能力确实比 Opus 4.7 好。</p>
+<p>我更愿意把它理解成“工程稳定性提升”，而不是“智商暴涨”。</p>
+<p>它在这些任务上更值得试：</p>
+<ul>
+<li>多文件修改</li>
+<li>长链路 bug 修复</li>
+<li>PR 审查</li>
+<li>工具调用后继续验证</li>
+<li>上下文压缩后继续执行</li>
+</ul>
+<p>但如果要和 GPT-5.5 比，不能只看一个表。</p>
+<p>Claude Code 是 Claude 的主场。</p>
+<p>Codex CLI 是 GPT-5.5 的主场。</p>
+<p>不同工具链下，模型表现会变。</p>
+<p>所以我的判断是：</p>
+<p><strong>Opus 4.8 和 GPT-5.5 在高端 AI 编程里都很强，具体谁好，要看任务和工具环境。</strong></p>
+<p>这也是为什么我不喜欢“碾压”这个词。</p>
+<p>它听起来很爽，但对开发者没帮助。</p>
+<p>开发者需要的是：这个任务用谁更稳、谁更便宜、谁更快、谁更容易校验。</p>
+<h2 id="六-表达风格稍微舒服了一点">六、表达风格稍微舒服了一点</h2>
+<p>Opus 4.7 有一个体感问题：有时不太像人在说话。</p>
+<p>它会给出很硬的判断，但中间缺少足够自然的解释。</p>
+<p>看起来像很强，读起来不一定舒服。</p>
+<p>Opus 4.8 稍微好了点。</p>
+<p>注意，是稍微。</p>
+<p>如果你让它做代码审查、架构点评、文案修改，它仍然可能输出那种“模型味很重”的句子。</p>
+<p>但整体上，比 Opus 4.7 更容易读。</p>
+<p>我个人还是觉得 Opus 4.6 的表达最自然。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-05-29_10-53-04.jpg" /></p>
+<h2 id="七-和deepseek-v4怎么选">七、和DeepSeek V4怎么选</h2>
+<p>这两天刚写完 <a href="https://mp.weixin.qq.com/s/GZa2BDnWMsHm5-osXJt3rA">DeepSeek V4-Pro永久降价75%</a>，现在 Opus 4.8 又来了。</p>
+<p>很多录友肯定会问：到底用哪个？</p>
+<p>我的判断很简单：</p>
+<p><strong>便宜模型负责量，顶级模型负责难。</strong></p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐模型</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>简单问答、文章初稿、普通代码解释</td>
+<td>DeepSeek V4-Flash</td>
+<td>便宜，够用</td>
+</tr>
+<tr>
+<td>代码扫描、批量分析、日志总结</td>
+<td>DeepSeek V4-Pro</td>
+<td>价格低，适合大规模跑</td>
+</tr>
+<tr>
+<td>核心代码修改、复杂 bug、长链路 Agent</td>
+<td>Claude Opus 4.8 / GPT-5.5</td>
+<td>更稳，更会验证</td>
+</tr>
+<tr>
+<td>大仓库迁移、安全审计、跨模块重构</td>
+<td>Claude Code + Opus 4.8 dynamic workflows</td>
+<td>能拆任务、并行跑、再验证</td>
+</tr>
+</tbody>
+</table>
+<p>模型选型不是站队，是算账。</p>
+<p>一个任务如果结果能自动校验、失败成本低、token 量很大，那 DeepSeek V4-Pro 很香。</p>
+<p>一个任务如果失败成本高、上下文复杂、需要持续判断和工具调用，那 Opus 4.8 或 GPT-5.5 更值得。</p>
+<p>不要拿 Opus 4.8 批量生成低价值内容。</p>
+<p>也不要指望便宜模型稳定接手所有复杂 Agent 任务。</p>
+<h2 id="写在最后">写在最后</h2>
+<p>Opus 4.8 是一次有用的更新。</p>
+<p>但不是一次值得神化的更新。</p>
+<p>它真正值得关注的是：effort 控制、dynamic workflows、fast mode 价格下降、长任务稳定性和工具调用习惯。</p>
+<p>这些东西不一定适合做夸张标题，但对开发者有用。</p>
+<p>至于跑分表，看看就行。</p>
+<p>别只看第一屏。</p>
+<p>脚注也要看。</p>
+<p>最后还是那句话：</p>
+<p><strong>便宜模型跑量，顶级模型攻坚。</strong></p>
+<p>自己测，按任务选。</p>
+<p>加油。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="claude-opus-4-7.html"><span class="k">← 上一篇</span><span class="v">Claude Opus 4.7 发布：编码能力暴涨、3倍高清视觉、新增xhigh档位，全面拆解</span></a><a class="nx" href="claude-opus-5.html"><span class="k">下一篇 →</span><span class="v">Claude Opus 5发布：半价接近Fable 5，Claude Code和AI编程任务怎么选</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#claude-opus-4-8发布-别被跑分带节奏-真正值得看的是claude-code工作流">Claude Opus 4.8发布：别被跑分带节奏，真正值得看的是Claude Code工作流</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/claude-opus-4-8.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

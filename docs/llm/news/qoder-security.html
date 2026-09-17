@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI十分钟写完头像上传，却可能顺手埋下漏洞：Qoder Security把安全检查塞进写码会话 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>qoder-security</span></div>
+      <h1 id="我就上线个上传头像功能">我就上线个上传头像功能，</h1>
+<p>现在让 AI Agent 做一个“头像上传”有多快？</p>
+<p>建接口、收文件、存到服务器、返回图片地址。</p>
+<p>需求一丢，十分钟可能就写完了。</p>
+<p>你本地传一张照片，能显示；再跑一下测试，也过了。</p>
+<p>看起来没啥问题，直接提交。</p>
+<p>但真正上线的网站且用户规模起来以后，情况就不一样了。 </p>
+<p>啥人都有，上传的也不止一张老老实实的头像。</p>
+<p>文件名里能不能塞进 <code>../</code>？只改请求里的 <code>Content-Type</code>，能不能把别的文件伪装成图片？文件大小有没有限制？上传后的文件会不会被服务器当成可执行文件？</p>
+<p>现在最大的问题是：<strong>代码生成提速太多，人工审查，根本看不过来</strong>。</p>
+<p>那只能以毒制毒，agent写代码，就要agent去审查好了。</p>
+<p>所以我现在开发项目，都会用 Qoder Security 扫一遍，我才会放心一些。</p>
+<p>Qoder Security把安全检查放进 Agent 正在写代码的会话里：边写、边查，发现问题后还在这个会话里继续修。</p>
+<p>如果还没有 Qoder账户的话，可以去 https://qoder.com.cn/ 注册一波。 </p>
+<p>建议下载 桌面应用端：</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_16-41-48.jpg" /> </p>
+<p>可以试试这个也页面，真正让你感受到，它在干活，不用看着它，去其他的就好了。 </p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_16-14-12.jpg" /></p>
+<p>不少录友，可能想，就一个头像上传，有啥安全可做的？ </p>
+<p>下面我带大家实操一下。</p>
+<h2 id="实测一波">实测一波</h2>
+<p>我直接拿一个真实需求测。 </p>
+<p>卡码简历（https://jianli.kamacoder.com/） 一直都没有头像管理的功能：</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_16-48-07.jpg" /></p>
+<p>正好这次来个大家演示一波。</p>
+<p>我会让 Qoder Agent 给一个用户中心增加头像上传接口。</p>
+<p>首先 让 Qoder 绑定对应的项目目录上。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_16-49-53.jpg" /></p>
+<p>提示词故意只写正常的产品需求，不提前把安全答案喂给它：</p>
+<div class="codehilite"><pre><span></span><code>请为这个项目增加用户头像上传功能：
+</code></pre></div>
+
+<p>这个提示词朴实无华，在正常不过了，估计大家平时和AI交互，也就是这么写提示词的。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_22-03-49.jpg" /> </p>
+<p>这里我没有故意要求 Agent 使用危险函数，也没有告诉它“请生成一段有漏洞的代码”。</p>
+<p>看的就是：</p>
+<p><strong>Agent 按正常思路把功能做完之后，Qoder Security 能不能发现功能测试之外的问题。</strong></p>
+<p>开发完了：</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_22-20-33.jpg" /> </p>
+<p>我来本地运行一下。</p>
+<p>这里帮我补充了 1M 图片以内，这个就不错，做过网站的人都知道，如果这个不现实，存储就容易被搞死。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_22-17-27.jpg" /></p>
+<p>接下来，来看看，安全方面 Qoder 都做了哪些：</p>
+<p><strong>1、 校验 JWT Token</strong> </p>
+<p>头像上传接口 POST /api/files/avatar 和用户更新接口 PUT /api/user/{id} 都需要携带有效 Token </p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_22-30-59.jpg" /></p>
+<p>如果没有 校验，任何人都可以直接调用 POST /api/files/avatar 上传文件，或调用 PUT /api/user/1 修改任意用户的资料。</p>
+<p>相当于所有接口裸奔在公网上，无需登录即可操作，服务器会变成公开的免费图床和资料篡改工具。</p>
+<p>不过这个修改，我感觉应该是必须的，是个Agent都应该考虑到。 </p>
+<p><strong>2、越权防护（IDOR 防护）</strong></p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_22-33-07.jpg" /> </p>
+<p>如果没有这个，用户 A 登录后，可以构造请求 PUT /api/user/2、PUT /api/user/3... 遍历修改所有用户的昵称、头像、手机号。</p>
+<p>攻击者可以把别人的头像换成违规图片，把别人的昵称改成侮辱性内容，甚至批量篡改所有用户资料。</p>
+<p>这就是经典的 IDOR（不安全的直接对象引用） 漏洞。 </p>
+<p><strong>3、字段白名单（防提权攻击）</strong> </p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_22-35-00.jpg" /> </p>
+<p>如果不这么做，有的用户如果直接把请求体反序列化为 User 实体传给 updateById，攻击者可以在请求体中夹带：</p>
+<div class="codehilite"><pre><span></span><code>{"name": "hack", "role": 1}
+</code></pre></div>
+
+<p>MyBatis 的 updateById 是动态 SQL，</p>
+<div class="codehilite"><pre><span></span><code>&lt;if test="role != null"&gt;role = #{role}&lt;/if&gt;
+</code></pre></div>
+
+<p>会把 role 更新到数据库。</p>
+<p>攻击者直接把自己从普通用户（role=0）提升为管理员（role=1），获得后台管理权限。</p>
+<p>同理还可以传 "isActive": 0 来封禁任意账号。这就是 Mass Assignment（批量赋值） 漏洞。</p>
+<p><strong>4、文件类型 + 大小校验</strong> </p>
+<p>如果不检查，攻击者可以上传 .jsp、.php、.sh 等可执行脚本文件。</p>
+<p>如果存储目录恰好被 Web 服务器当作静态资源目录对外暴露，攻击者访问 http://xxx/uploads/avatars/xxx.jsp 就能执行任意服务器端代码，直接拿下服务器（WebShell 上传漏洞）。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_22-17-27.jpg" /></p>
+<p>在这里其实做了类型检查 和 大小限制，基本就不会有这种问题了。 </p>
+<p><strong>5、文件名安全（UUID 重命名 + 路径遍历防护）</strong> </p>
+<p>FileStorageServiceImpl 用 UUID.randomUUID() 重新命名文件，并检查 .. 路径穿越字符。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_22-41-33.jpg" /></p>
+<p>如果没有这个，攻击者可以构造文件名为 ../../../etc/passwd 或 ../../webapps/ROOT/shell.jsp 的文件。</p>
+<p>File.createTempFile 或 Files.copy 会按照原始路径写入，直接覆盖系统关键文件或写入 Web 应用根目录。</p>
+<p>这就是 Path Traversal（路径遍历） 漏洞，轻则覆盖系统文件导致崩溃，重则写入 WebShell 获取服务器控制权。 </p>
+<p><strong>6、输入校验（长度、格式）</strong> </p>
+<p>昵称 ≤50 字符、简介 ≤200 字符、手机号正则校验、头像链接 ≤512 字符。 </p>
+<p>这个算是基操，没啥说的。 </p>
+<p><strong>7、图片压缩</strong></p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_22-43-23.jpg" /> </p>
+<p>这个其实很重要，虽然 已经限制了 1M以内，但是用户一多，存储成本也很高。</p>
+<p>而且 图片太大影响 头像加载速度，正常来说，头像只需要 10k以内。</p>
+<p>大于10k 都是浪费。 </p>
+<p><strong>8、图片检查</strong></p>
+<p>其实还有一点，他没有提示，就是用户上传的头像可能是“有颜色的图”，虽然这个 AI没法直接写一个鉴图服务，但如果能给出提示的话，就更好了。</p>
+<h2 id="优先配置">优先配置</h2>
+<p>Qoder Security 已经内置到 Qoder Desktop 和 Qoder CLI，不需要再装第三方插件。</p>
+<p>在 Desktop 里，进入 Quest 视窗的 <strong>设置 &gt; Security</strong> </p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_16-16-54.jpg" /> </p>
+<p>打开“开启安全审查”，就能看到三层能力：</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_16-17-11.jpg" /></p>
+<p>三层不是同一份扫描换三个名字，而是检查时机和深度不一样。</p>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>它主要干什么</th>
+<th>什么时候出现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>静态检查</td>
+<td>用高危模式和规则快速发现危险调用、硬编码密钥等明显风险</td>
+<td>Agent 生成代码或执行工具后自动运行</td>
+</tr>
+<tr>
+<td>轻量扫描</td>
+<td>结合本轮增量代码和上下文，判断外部输入是否流入文件、数据库、命令等敏感操作</td>
+<td>一轮代码修改接近完成时建议运行</td>
+</tr>
+<tr>
+<td>深度扫描</td>
+<td>跨文件、跨函数追踪完整数据流，找单个文件里看不出的关联风险</td>
+<td>提交或 push 前建议运行</td>
+</tr>
+</tbody>
+</table>
+<p>静态检查免费自动跑。</p>
+<p>轻量扫描和深度扫描会在合适的节点询问你要不要扫，由用户决定，不会强行打断写代码；这两层会消耗 Credits。</p>
+<h2 id="最后">最后</h2>
+<p>对于不懂代码的人，感觉写一个 上传头像无比简单。</p>
+<p>但如果作为上线的项目，每一个简单功能，都要好多安全工作要做的。</p>
+<p>所实话，一口气让AI改太多代码直接上线，我都是要烧香的。</p>
+<p>现在一般会用 Qoder Security  跑一下，基本不会有太大漏洞的。 </p>
+<p>但真正能进生产的代码，远不只是界面上那点功能，还得知道哪里可能出事。</p>
+<p>这才是 Agentic Coding 接下来要补的一课。</p>
+<p>想体验的录友，可以打开 Qoder Desktop (https://qoder.com/zh/desktop)，进入 Quest 视窗的 <strong>设置 &gt; Security</strong>，打开安全审查，然后拿一个自己的真实需求跑一遍。</p>
+<h2 id="目录">目录</h2>
+<p>先给录友看一下全文：</p>
+<ul>
+<li>一个头像上传，为什么能埋下安全坑</li>
+<li>代码安全为什么正在从流水线搬进写码会话</li>
+<li>Qoder Security 的三层检查到底在查什么</li>
+<li>实测：让 Agent 写头像上传，它能不能发现并修掉问题</li>
+<li>Qoder Security 适合谁，又不能替代什么</li>
+</ul>
+<blockquote>
+<p>【卡通图建议 1：放在这里】</p>
+<p>画面：程序员刚把“头像上传完成”卡片推进提交入口，背后却藏着伪装成头像的木马、超大文件和带 <code>../</code> 的文件名；一名 Qoder Security 安全员在提交入口前把它们拦下。</p>
+<p>作用：开篇把“功能看起来完成了，但安全问题藏在背后”画面化。这里适合卡通图，不适合画技术流程图。</p>
+</blockquote>
+<h2 id="一-头像上传这么简单-为什么反而容易出问题">一、头像上传这么简单，为什么反而容易出问题</h2>
+<p>头像上传，几乎每个后台项目都有。</p>
+<p>也正因为它太常见，开发者拿到需求后的第一反应通常是：</p>
+<ol>
+<li>前端选一张图片；</li>
+<li>后端接收 <code>multipart/form-data</code>；</li>
+<li>把文件写进 <code>uploads/avatars</code>；</li>
+<li>返回一个 URL。</li>
+</ol>
+<p>业务链路很短，Agent 也特别容易一次写完。</p>
+<p>可安全问题藏在“正常流程”之外。</p>
+<p>OWASP 的文件上传安全清单 (https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html)明确提醒：不能直接信任客户端传来的 <code>Content-Type</code>，文件类型、扩展名、文件签名、大小、文件名、存储位置和上传权限都需要分别处理。</p>
+<p>比如代码直接拿用户上传的原始文件名拼路径：</p>
+<div class="codehilite"><pre><span></span><code>uploads/avatars/ + 用户文件名
+</code></pre></div>
+
+<p>正常用户传的是 <code>carl.jpg</code>。</p>
+<p>攻击者传的可能是：</p>
+<div class="codehilite"><pre><span></span><code>../../config/app.yml
+</code></pre></div>
+
+<p>如果后端没有重新生成文件名，也没有校验最终路径，这个“头像”就可能跑出头像目录，覆盖本来不该碰的文件。</p>
+<p>再比如，只看 <code>.jpg</code> 后缀或者浏览器传来的 <code>image/jpeg</code>，也不代表文件内容真的是图片。</p>
+<p><strong>这些问题都不影响普通用户上传头像，所以功能测试很可能一路绿灯。</strong></p>
+<p>这也是安全问题最麻烦的地方：它往往不是功能没实现，而是实现得“只考虑了好人怎么用”。</p>
+<h2 id="二-ai-写码越快-安全检查越不能只守在最后">二、AI 写码越快，安全检查越不能只守在最后</h2>
+<p>以前一个开发者一天改几十行、几百行代码，代码评审还能慢慢看。</p>
+<p>现在 Agent 一轮对话就能改多个文件，十分钟写完一个完整功能，代码产出速度已经变了。</p>
+<p>如果安全检查仍然只出现在 CI 流水线或者合并请求里，会发生什么？</p>
+<p>开发者收到告警时，可能已经切去做下一个需求了。</p>
+<p>他要重新回忆：</p>
+<ul>
+<li>这个参数从哪里进来；</li>
+<li>中间经过了哪些函数；</li>
+<li>为什么当时这么写；</li>
+<li>改掉之后会不会破坏原来的需求。</li>
+</ul>
+<p>发现漏洞只是第一步，<strong>重新捡回上下文才是最费时间的那一步。</strong></p>
+<p>所以 2026 年，AI Coding 产品开始出现两条安全路线。</p>
+<p>一条是仓库级扫描。OpenAI 的 Codex Security (https://openai.com/index/codex-security-now-in-research-preview/)会理解已有代码库、建立威胁模型、验证风险，再给出修复建议。</p>
+<p>另一条是会话内护航。Claude Code 的 Security Guidance (https://claude.com/plugins/security-guidance)会在写代码的过程中给出安全提醒，尽量让问题在当前会话解决。</p>
+<p>两条路线不完全一样，但背后是同一个判断：</p>
+<p><strong>AI 生成代码的速度上来了，安全反馈也得跟着进入 AI 写码流程。</strong></p>
+<p>Qoder Security 走的是“会话内护航 + 可主动扫描”这条线。</p>
+<p>按照 Qoder 本次发布口径，它是国内主流 Agentic Coding 产品中，率先把“编码会话内三层安全护航 + 同会话修复”做成可用产品能力的产品。</p>
+<p>注意这个说法的边界。</p>
+<p>不是“国内第一个代码安全工具”，也不是“国内首个 AI 安全大模型”，而是 <strong>Agentic Coding 产品里的会话内安全能力</strong>。</p>
+<h2 id="三-qoder-security-到底做了什么">三、Qoder Security 到底做了什么</h2>
+<p>Qoder Security 已经内置到 Qoder Desktop 和 Qoder CLI，不需要再装第三方插件。</p>
+<p>在 Desktop 里，进入 Quest 视窗的 <strong>设置 &gt; Security</strong> </p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_16-16-54.jpg" /> </p>
+<p>打开“开启安全审查”，就能看到三层能力：</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-30_16-17-11.jpg" /></p>
+<p>三层不是同一份扫描换三个名字，而是检查时机和深度不一样。</p>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>它主要干什么</th>
+<th>什么时候出现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>静态检查</td>
+<td>用高危模式和规则快速发现危险调用、硬编码密钥等明显风险</td>
+<td>Agent 生成代码或执行工具后自动运行</td>
+</tr>
+<tr>
+<td>轻量扫描</td>
+<td>结合本轮增量代码和上下文，判断外部输入是否流入文件、数据库、命令等敏感操作</td>
+<td>一轮代码修改接近完成时建议运行</td>
+</tr>
+<tr>
+<td>深度扫描</td>
+<td>跨文件、跨函数追踪完整数据流，找单个文件里看不出的关联风险</td>
+<td>提交或 push 前建议运行</td>
+</tr>
+</tbody>
+</table>
+<p>静态检查免费自动跑。</p>
+<p>轻量扫描和深度扫描会在合适的节点询问你要不要扫，由用户决定，不会强行打断写代码；这两层会消耗 Credits。</p>
+<p>【画卡通图】</p>
+<h2 id="最后_1">最后</h2>
+<p>对于不懂代码的人，感觉写一个 上传头像无比简单。</p>
+<p>但如果作为上线的项目，每一个简单功能，都要好多安全工作要做的。</p>
+<p>所实话，一口气让AI改太多代码直接上线，我都是要烧香的。</p>
+<p>现在一般会用 Qoder Security  跑一下，基本不会有太大漏洞的。 </p>
+<p>但真正能进生产的代码，远不只是界面上那点功能，还得知道哪里可能出事。</p>
+<p>这才是 Agentic Coding 接下来要补的一课。</p>
+<p>想体验的录友，可以打开 <a href="https://qoder.com/zh/desktop">Qoder Desktop</a>，进入 Quest 视窗的 <strong>设置 &gt; Security</strong>，打开安全审查，然后拿一个自己的真实需求跑一遍。</p>
+<!--
+发布前检查清单：
+1. 补齐 6 组真实截图，裁掉账号、仓库地址、Token、密钥和客户信息。
+2. 补齐所有“补实测结论”，删除全部待补提示框。
+3. 若测试没有触发某一层，不伪造结果，改写成该层本次未命中。
+4. 核对当时 UI 中三层正式名称、开关路径、Credits 提示是否变化。
+5. 按投放平台要求确认是否添加“合作内容 / 广告”声明。
+6. 不使用“100% 检出”“零误报”“替代 CI / SAST”等表述。
+-->
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="openai-cursor-partnership-end.html"><span class="k">← 上一篇</span><span class="v">OpenAI突然终止与Cursor合作：AI编程工具用户如何用APIDock中转继续接入GPT-5.6、GPT-4o和o1模型</span></a><a class="nx" href="../transformer/attention_code.html"><span class="k">下一篇 →</span><span class="v">手撕Attention：不依赖框架从零实现注意力机制</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#我就上线个上传头像功能">我就上线个上传头像功能，</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/qoder-security.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

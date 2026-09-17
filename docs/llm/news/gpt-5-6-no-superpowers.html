@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GPT-5.6发布后，Superpowers已经没必要学了？Agent Skill、Claude Code、Codex开发流程该做减法了 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>gpt-5-6-no-superpowers</span></div>
+      <h1 id="恭喜-还没学过superpowers的录友-现在不用学了">恭喜，还没学过Superpowers的录友：现在不用学了</h1>
+<p>AI时代变化太快了。</p>
+<p>有些东西，你学得慢一点，最后就可以不用学了。</p>
+<p>不少录友应该还没用过Superpowers吧？</p>
+<p>甚至可能都不知道，过去一年里还有一大批非常火、非常好用的Agent Skill。</p>
+<p>恭喜你们。</p>
+<p><strong>不用补课了。</strong></p>
+<p><a href="./gpt-5-6.html">GPT-5.6发布</a>之后，模型自己理解需求、规划步骤、调用工具、运行测试和检查结果的能力又往前走了一大截。</p>
+<p>过去用来“教模型怎么干活”的很多Skill，正在从必装插件变成重复说明。</p>
+<p><img alt="恭喜这课不用补了" src="https://file1.kamacoder.com/i/web/20260728104947_gpt56_skills_01_late_learner-compressed.jpg" /></p>
+<p>先把我的结论说清楚：</p>
+<p><strong>Superpowers没有消失，Skill也没有失去价值。</strong></p>
+<p>但从GPT-5.6开始，普通开发者已经没必要先装一大包Skill，再开始用Agent。</p>
+<p>默认顺序应该反过来：</p>
+<p><strong>先让模型直接做。它真的做不好，再补一个最小Skill。</strong></p>
+<h2 id="superpowers过去解决了什么">Superpowers过去解决了什么</h2>
+<p><a href="https://github.com/obra/superpowers">Superpowers</a>不是一个让模型突然变聪明的魔法插件。</p>
+<p>它是一套软件开发方法论，把开发过程拆成一组可以自动触发的Skill：</p>
+<ul>
+<li>动手前先澄清需求、做brainstorming</li>
+<li>设计确认后再写实施计划</li>
+<li>按TDD推进，而不是先写完再补测试</li>
+<li>把任务交给子Agent执行和审查</li>
+<li>完成前必须验证，不能嘴上说“应该没问题”</li>
+</ul>
+<p>这套东西过去非常有价值。</p>
+<p>因为当时很多编码Agent有几个明显短板：</p>
+<ul>
+<li>用户刚说一句需求，它就急着改代码</li>
+<li>任务稍微长一点，中间约束就丢了</li>
+<li>会写计划，但执行时不按计划</li>
+<li>测试失败后容易猜着修</li>
+<li>没跑验证，就宣布任务完成</li>
+</ul>
+<p>Superpowers相当于给模型装了一套外置工程纪律。</p>
+<p>模型不会主动停下来想，就用Skill强制它停。</p>
+<p>模型不会稳定测试，就把TDD写成铁律。</p>
+<p>模型容易跑偏，就把设计、计划、实现、审查拆成一道道门。</p>
+<p>我前面在<a href="../../interview/llm/ai_enhanced_development_openspec_superpowers_gstack.html">AI增强开发三件套</a>里还专门介绍过它。</p>
+<p>那篇文章在当时没有问题。</p>
+<p><strong>问题是，模型能力的保质期太短了。</strong></p>
+<h2 id="gpt-5-6把很多-外置纪律-吃进了模型">GPT-5.6把很多“外置纪律”吃进了模型</h2>
+<p>GPT-5.6真正改变的，不只是代码跑分。</p>
+<p>OpenAI在<a href="https://developers.openai.com/api/docs/guides/latest-model">GPT-5.6官方使用指南</a>里明确提到，模型现在更擅长从上下文理解用户真实意图，很多时候已经不需要人把每一步都规定出来。</p>
+<p>你仍然要告诉它：</p>
+<ul>
+<li>最终目标是什么</li>
+<li>哪些硬约束不能碰</li>
+<li>哪些动作需要确认</li>
+<li>什么证据才算完成</li>
+</ul>
+<p>但你不必再写：</p>
+<p>“先读文件，然后列计划，然后等我确认，然后一次改一个文件，然后解释每一步，然后再运行测试……”</p>
+<p>这正是很多通用Skill最喜欢做的事。</p>
+<p>更直接的证据，是OpenAI对编码Agent做的内部评测。</p>
+<p>官方指南称，在一组内部样本里，<strong>更精简的系统Prompt让评测分数提高约10%～15%，总Token减少41%～66%，成本减少33%～67%。</strong></p>
+<p>这些数字不能直接套到所有项目，但方向已经很清楚：</p>
+<p><strong>模型变强以后，更多说明不一定带来更多能力，反而可能制造更多噪声。</strong></p>
+<p><img alt="模型强了先给流程做减法" src="https://file1.kamacoder.com/i/web/20260728104950_gpt56_skills_02_lean_workflow-compressed.jpg" /></p>
+<p>GPT-5.6还新增了更强的工具编排、持续推理和多Agent能力。</p>
+<p>以前Skill要教它“怎么拆任务、怎么并行、怎么收结果”。</p>
+<p>现在Harness和模型本身已经能做其中很大一部分。</p>
+<p>如果Skill还在机械重复这些动作，就像给已经会骑车的人又装了六个辅助轮。</p>
+<p>不是更稳。</p>
+<p>是更重。</p>
+<h2 id="最先没必要的-是这四类skill">最先没必要的，是这四类Skill</h2>
+<h3 id="第一类-只会提醒模型认真一点">第一类：只会提醒模型认真一点</h3>
+<p>例如：</p>
+<ul>
+<li>先思考再回答</li>
+<li>先计划再执行</li>
+<li>不要遗漏边界情况</li>
+<li>写完一定要检查</li>
+<li>遇到问题先找根因</li>
+</ul>
+<p>这些原则都对。</p>
+<p>但如果一个Skill的全部价值，就是把正确的废话写得更长，GPT-5.6已经不太需要它了。</p>
+<p>把“修复后相关测试必须通过”写进验收标准，比加载几百行“如何成为严谨工程师”更有效。</p>
+<h3 id="第二类-重复agent原生能力">第二类：重复Agent原生能力</h3>
+<p>现在的Codex、Claude Code和其他Harness，已经普遍自带计划、子Agent、代码审查、浏览器、测试和工具调用能力。</p>
+<p>如果Skill只是把原生能力再包一层，就会出现三套流程互相打架：</p>
+<ul>
+<li>Harness想直接推进</li>
+<li>Skill要求先进入自己的规划仪式</li>
+<li>项目规则又要求另一套验证顺序</li>
+</ul>
+<p>最后模型不是能力不够，而是忙着判断该听谁的。</p>
+<h3 id="第三类-为了所有任务强制同一套重流程">第三类：为了所有任务强制同一套重流程</h3>
+<p>改一个错别字，也要先brainstorming。</p>
+<p>修一个明确的小Bug，也要先写完整设计。</p>
+<p>动两行CSS，也要拉子Agent实现、再拉两个Agent审查。</p>
+<p>这种流程在大任务上可能有价值，在小任务上就是纯开销。</p>
+<p><strong>任务复杂度不同，流程强度也应该不同。</strong></p>
+<h3 id="第四类-从来没有被评测过的skill">第四类：从来没有被评测过的Skill</h3>
+<p>很多人收藏Skill，和以前收藏Prompt模板一样。</p>
+<p>看到别人说好用，就装。</p>
+<p>装完从没对比过：</p>
+<ul>
+<li>成功率有没有提高</li>
+<li>返工次数有没有下降</li>
+<li>Token和时间增加了多少</li>
+<li>是否出现误触发</li>
+<li>简单任务是不是被过度流程化</li>
+</ul>
+<p>没有失败样本，也没有对照评测，这种Skill不是工程资产。</p>
+<p>它只是赛博护身符。</p>
+<h2 id="但这不等于-所有skill都该删">但这不等于“所有Skill都该删”</h2>
+<p>OpenAI目前仍然把Skill定义为可复用工作流，并通过渐进式加载避免一次性塞满上下文，详见<a href="https://learn.chatgpt.com/docs/build-skills">官方Skill文档</a>。</p>
+<p>所以真正的分界线，不是“模型强不强”。</p>
+<p>而是这个Skill到底在补什么。</p>
+<p>下面几类，我会继续保留：</p>
+<table>
+<thead>
+<tr>
+<th>Skill类型</th>
+<th>为什么模型强了仍然需要</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>项目专属规则</td>
+<td>模型不知道你公司的目录、发布规范、业务口径和历史约定</td>
+</tr>
+<tr>
+<td>确定性脚本</td>
+<td>PDF渲染、图片压缩、数据迁移、制品打包不能只靠模型“理解”</td>
+</tr>
+<tr>
+<td>外部工具与连接</td>
+<td>数据库、内部文档、设计工具和审批系统需要真实接口与权限</td>
+</tr>
+<tr>
+<td>高风险流程</td>
+<td>上线、付款、删库、权限变更需要硬边界和人工确认</td>
+</tr>
+<tr>
+<td>失败样本沉淀</td>
+<td>模型在同类任务上稳定犯错，才值得把纠错方法固化下来</td>
+</tr>
+</tbody>
+</table>
+<p>一句话：</p>
+<p><strong>通用常识交给模型，组织经验留在Skill，安全边界交给系统。</strong></p>
+<p>这和<a href="../../interview/llm/agent_skill_interview.html">Agent Skill面试详解</a>里讲的原则并不矛盾。</p>
+<p>Skill仍然是复用经验的方法。</p>
+<p>只是“模型已经会的事”，不再算值得复用的经验。</p>
+<h2 id="新方法-先裸跑-再加最小skill">新方法：先裸跑，再加最小Skill</h2>
+<p><img alt="先裸跑再加最小Skill" src="https://file1.kamacoder.com/i/web/20260728104955_gpt56_skills_03_minimum_skill-compressed.jpg" /></p>
+<p>以后判断一个Skill要不要装，我建议用下面这套顺序。</p>
+<h3 id="第一步-先定义结果-不定义仪式">第一步：先定义结果，不定义仪式</h3>
+<p>把目标、上下文、硬约束、验收标准说清楚。</p>
+<p>不要上来就规定模型必须走哪套方法论。</p>
+<p>如果你还在用GPT-5.5时期的长Prompt，可以先看<a href="../intro/gpt56_sol_prompt_guide.html">GPT-5.6 Sol Prompt指南</a>。</p>
+<h3 id="第二步-让gpt-5-6裸跑">第二步：让GPT-5.6裸跑</h3>
+<p>不开Superpowers，不加载一堆通用Skill。</p>
+<p>直接让它完成几组真实任务，记录成功率、返工次数、Token、耗时和失败位置。</p>
+<p>这才是基线。</p>
+<h3 id="第三步-只看可复现的失败">第三步：只看可复现的失败</h3>
+<p>偶尔一次写得不好，不值得立刻写Skill。</p>
+<p>只有同一类错误稳定出现，例如总漏掉数据库回滚、总用错内部组件、总忘记上传制品，才说明模型缺少项目经验或确定流程。</p>
+<h3 id="第四步-只补一个最小skill">第四步：只补一个最小Skill</h3>
+<p>不要把整个开发方法论搬进去。</p>
+<p>只补那一个稳定缺口：</p>
+<ul>
+<li>什么时候触发</li>
+<li>需要读什么</li>
+<li>必须执行什么脚本</li>
+<li>怎样验收</li>
+<li>什么时候停止</li>
+</ul>
+<h3 id="第五步-再跑同一组任务">第五步：再跑同一组任务</h3>
+<p>如果质量没有提升，删掉。</p>
+<p>如果质量只提升一点，但Token和时间翻倍，也删掉。</p>
+<p>如果只对少数复杂任务有效，就改成显式调用，不要默认触发。</p>
+<p><strong>Skill不是装得越多越专业，而是每一个都要证明自己值得占用上下文。</strong></p>
+<h2 id="superpowers还要不要装">Superpowers还要不要装</h2>
+<p>如果你是刚开始用GPT-5.6的普通开发者，我的建议很直接：</p>
+<p><strong>先别装。</strong></p>
+<p>先学会把目标、约束和验收说清楚，学会看Diff、跑测试、检查证据。</p>
+<p>这些能力比背一套Skill名字重要得多。</p>
+<p>如果你在带新人，希望用一套显式流程训练TDD、设计评审和根因分析，Superpowers仍然是很好的教材。</p>
+<p>如果你的项目很大、任务很长，而且对照评测证明它确实减少跑偏和返工，也可以继续用。</p>
+<p>但它应该从“开机必装”变成“按需工具”。</p>
+<p>这就是GPT-5.6之后最大的变化：</p>
+<p><strong>我们不再默认用Skill教模型如何工作，而是先相信模型能工作，再用证据决定哪里需要约束。</strong></p>
+<h2 id="写在最后">写在最后</h2>
+<p>AI时代，学得慢不一定吃亏。</p>
+<p>有时候你还没爬完旧楼梯，电梯已经装好了。</p>
+<p>真正该学的，不是每一代最火的Prompt、插件和Skill名字。</p>
+<p>而是看清楚：</p>
+<p><strong>模型现在已经会什么，仍然不会什么，以及什么事情永远不能只相信模型。</strong></p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="gpt-5-5.html"><span class="k">← 上一篇</span><span class="v">GPT-5.5发布：OpenAI最强Agent编程模型，稳定自主运行7小时，价格翻倍值不值？</span></a><a class="nx" href="gpt-5-6.html"><span class="k">下一篇 →</span><span class="v">GPT-5.6正式发布：Sol、Terra、Luna怎么选？Codex并入ChatGPT，AI编程进入多智能体时代</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#恭喜-还没学过superpowers的录友-现在不用学了">恭喜，还没学过Superpowers的录友：现在不用学了</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/gpt-5-6-no-superpowers.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

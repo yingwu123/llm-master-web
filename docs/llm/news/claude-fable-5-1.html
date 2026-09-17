@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude Fable 5.1发布：缓存价降75%，和Opus 5、GPT-5.6 Sol怎么选 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>claude-fable-5-1</span></div>
+      <h1 id="claude-fable-5-1发布-缓存价降75-anthropic这次终于开始管账单了">Claude Fable 5.1发布：缓存价降75%，Anthropic这次终于开始管账单了</h1>
+<p>前面写 <a href="./claude-fable-5.html">Fable 5</a> 时，我的判断是：能力很强，但更像一台只在关键时刻启动的攻坚机器。</p>
+<p>中间又来了 <a href="./claude-opus-5.html">Claude Opus 5</a>，把大部分日常 Coding 和 Agent 任务接了过去。</p>
+<p>9 月 1 日，Anthropic 发布 Claude Fable 5.1 和 Mythos 5.1。这次不是简单补丁：<strong>能力继续往上推，缓存价格直接砍掉 75%，安全误判和数据留存也一起改了。</strong></p>
+<p><img alt="Fable 5.1发布首屏" src="https://file1.kamacoder.com/i/web/20260902104543.jpg" /></p>
+<p><em>截图说明：Anthropic 官方发布页首屏，发布日期为 2026 年 9 月，页面本身标注由 Fable 5.1 制作。</em></p>
+<p>先说结论：<strong>Fable 5.1 仍然不是便宜模型，但它第一次有机会从“偶尔攻坚”走进一部分高价值日常工作流。</strong></p>
+<h2 id="一-5-1到底更新了什么">一、5.1到底更新了什么</h2>
+<p>先把最重要的信息放在一起：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>Claude Fable 5.1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>发布时间</td>
+<td>2026 年 9 月 1 日</td>
+</tr>
+<tr>
+<td>API 模型名</td>
+<td><code>claude-fable-5-1</code></td>
+</tr>
+<tr>
+<td>可用平台</td>
+<td>Claude 全平台、Claude API、AWS、Google Cloud、Microsoft Azure</td>
+</tr>
+<tr>
+<td>输入价格</td>
+<td>10 美元 / 百万 Token</td>
+</tr>
+<tr>
+<td>输出价格</td>
+<td>50 美元 / 百万 Token</td>
+</tr>
+<tr>
+<td>缓存读取</td>
+<td>0.25 美元 / 百万 Token，比 Fable 5 低 75%</td>
+</tr>
+<tr>
+<td>默认 Effort</td>
+<td>Claude Code 为 High；Cowork 和 Claude.ai 为 Medium</td>
+</tr>
+<tr>
+<td>核心场景</td>
+<td>Coding、知识工作、长时间 Agent、科学研究</td>
+</tr>
+<tr>
+<td>数据留存</td>
+<td>默认仍是 30 天；符合条件的企业客户可用 ZDR 过渡方案，后续接入 EFS</td>
+</tr>
+</tbody>
+</table>
+<p>输入和输出单价一分钱没降。</p>
+<p>所以标题里的“降价”，准确说是 <strong>Prompt Cache 读取降价</strong>，不是所有 Token 打二五折。</p>
+<p>但对 Agent 来说，这个变化很实在。长任务会反复带上系统提示、工具定义、仓库上下文和历史结果，缓存命中占比越高，降价越明显。</p>
+<p>Anthropic 用 2026 年 8 月四周真实用量估算：典型 Fable 工作负载总成本下降约 25%，上下文和工具调用密集的 Agent 工作负载最多下降约 45%。</p>
+<p><img alt="Fable 5.1成本结构" src="https://file1.kamacoder.com/i/web/20260902104547.jpg" /></p>
+<p><em>截图说明：左边是典型任务，成本指数从 100 降到 75；右边是高 Agent 化任务，从 100 降到 55。阴影部分代表缓存读取成本。</em></p>
+<p>这张图也提醒录友一件事：<strong>只有缓存真的命中，账单才会降。</strong></p>
+<p>如果你的 Agent 每轮都改系统提示、打乱工具定义、塞入全新的上下文，缓存复用率很低，那 45% 和你没多大关系。上线前别只看单价，要记录 <code>cache_read_input_tokens</code>、总 Token、任务成功率和人工接管次数。</p>
+<h2 id="二-这次不只是更便宜-能力也拉开了">二、这次不只是更便宜，能力也拉开了</h2>
+<p>官方把 Fable 5.1 定位成目前最强的通用 Claude，重点不是一次回答多聪明，而是能否在长任务里持续推进、发现根因、失败后恢复。</p>
+<p>最夸张的一项是 Terminal-Bench-Science 0.1：</p>
+<ul>
+<li>Fable 5.1 Max：52.6%</li>
+<li>Fable 5 Max：24.7%</li>
+<li>Opus 5：29.0%</li>
+<li>GPT-5.6 Sol：22.4%</li>
+</ul>
+<p><img alt="Fable 5.1科学任务曲线" src="https://file1.kamacoder.com/i/web/20260902104544.jpg" /></p>
+<p><em>截图说明：横轴是单任务平均成本，纵轴是正确率。Fable 5.1 从 Low 到 Max 的整条曲线都在 Fable 5 上方。</em></p>
+<p>更值得看的不是 Max 那个点。</p>
+<p>Fable 5.1 的 Low 档是 26.3%，已经略高于 Fable 5 Max 的 24.7%，单任务平均成本则从 44.1 美元降到 11.1 美元。</p>
+<p>这说明 5.1 的进步不是“多烧 Token 换高分”。<strong>同一类任务，它能用更低 Effort 接近甚至超过上一代的最高档。</strong></p>
+<p>不过别把一张厂商曲线翻译成“所有科研任务都翻倍”。官方也写了，Terminal-Bench-Science 每个模型的标准误差约为 3.5 到 4.5 个百分点，而且不同 Harness、工具和重试策略都会影响成本。</p>
+<p>真正接入时，先拿你自己的 20 到 50 个任务跑 Low、Medium、High 三档。Max 不是默认答案。</p>
+<h2 id="三-完整跑分很强-但有一个脚注不能删">三、完整跑分很强，但有一个脚注不能删</h2>
+<p>官方总表里，Fable 5.1 在列出的项目上全部领先 Fable 5，也在多数项目上高于 Opus 5 和 GPT-5.6 Sol：</p>
+<p><img alt="Fable 5.1官方跑分" src="https://file1.kamacoder.com/i/web/20260902104545.jpg" /></p>
+<p><em>截图说明：官方对比覆盖科研 Agent、终端编程、知识工作、电脑操作、综合推理、业务工作流和 Cursor 编程评测。绿色列为 Fable 5.1。</em></p>
+<p>几个对真实 Agent 比较有参考价值的数字：</p>
+<table>
+<thead>
+<tr>
+<th>评测</th>
+<th style="text-align: right;">Fable 5.1</th>
+<th style="text-align: right;">Fable 5</th>
+<th style="text-align: right;">Opus 5</th>
+<th style="text-align: right;">GPT-5.6 Sol</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Terminal-Bench 4.0</td>
+<td style="text-align: right;">55.8%</td>
+<td style="text-align: right;">42.0%</td>
+<td style="text-align: right;">52.3%</td>
+<td style="text-align: right;">37.3%</td>
+</tr>
+<tr>
+<td>OSWorld 2.0 strict</td>
+<td style="text-align: right;">41.7%</td>
+<td style="text-align: right;">36.1%</td>
+<td style="text-align: right;">39.6%</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>AutomationBench</td>
+<td style="text-align: right;">31.4%</td>
+<td style="text-align: right;">17.1%</td>
+<td style="text-align: right;">26.9%</td>
+<td style="text-align: right;">19.6%</td>
+</tr>
+<tr>
+<td>CursorBench 3.2.0</td>
+<td style="text-align: right;">73.4%</td>
+<td style="text-align: right;">70.5%</td>
+<td style="text-align: right;">70.0%</td>
+<td style="text-align: right;">67.2%</td>
+</tr>
+</tbody>
+</table>
+<p>这里必须把脚注带上。</p>
+<p>Fable 5.1 是带生产安全策略跑的。遇到安全策略介入时，部分网络安全任务会交给 Opus 4.8，生物任务会交给 Opus 5；OSWorld 的部分任务则直接计零分。</p>
+<p>所以这张表测到的不只是一个裸模型，也包含 <strong>Fable 5.1 + 安全分类器 + 回退模型</strong> 这套生产系统。</p>
+<p>这对普通用户未必是坏事，但对评测解读很重要。你的任务如果容易触发网络安全或生物安全边界，实际体验可能和表里的平均分差很多。</p>
+<h2 id="四-安全回退终于没那么容易误伤">四、安全回退终于没那么容易误伤</h2>
+<p>Fable 5 发布时最让开发者头疼的，不只是贵，还有安全分类器误判。</p>
+<p>Fable 5.1 的网络安全策略把误介入次数平均减少约 60%。现在模型可以用于在源代码中发现漏洞，但渗透测试、漏洞利用生成、基于二进制的漏洞扫描，仍可能被转交给 Opus 模型。</p>
+<p>生物安全策略对基础生物和医疗类正常问题的误判，相比 Fable 5 首发时减少约 85%。研究和开发级生命科学问题仍会进入更严格的回退或受控访问流程。</p>
+<p>录友写 API 接入时，不要假设“请求了 Fable 5.1，执行的一定还是 Fable 5.1”。生产环境至少要记录：</p>
+<ul>
+<li>最终模型和停止原因；</li>
+<li>是否触发回退；</li>
+<li>回退后的质量、延迟和费用；</li>
+<li>哪一类业务问题最容易被误判。</li>
+</ul>
+<p><strong>安全回退不是报错兜底，而是一条会改变模型能力的正常业务分支。</strong></p>
+<h2 id="五-30天留存没彻底取消-但企业多了一条路">五、30天留存没彻底取消，但企业多了一条路</h2>
+<p>Fable 5.1 默认仍要求 30 天数据留存，用于安全监控。</p>
+<p>变化在 Enterprise Frontier Safeguards，也就是 EFS。数据会保存在客户自己控制的云基础设施里，默认由客户而不是 Anthropic 做人工审查，在提供安全监控的同时实现接近零数据留存协议的隐私边界。</p>
+<p>EFS 会从 2026 年秋季开始分阶段推出。在它正式可用前，符合资格的企业客户可以先用 Fable 5.1 的零数据留存过渡方案。</p>
+<p>这不是“所有 API 用户自动获得 ZDR”。涉及源码、医疗、金融、法务和客户数据的团队，接入前仍要确认自己的组织资格、云平台支持和合同条款。</p>
+<h2 id="六-fable-5-1-opus-5-gpt-5-6-sol怎么选">六、Fable 5.1、Opus 5、GPT-5.6 Sol怎么选</h2>
+<p>还是看失败成本和任务量。</p>
+<table>
+<thead>
+<tr>
+<th>你的任务</th>
+<th>优先试谁</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>多天运行、跨应用、复杂根因分析，失败一次代价很高</td>
+<td>Fable 5.1</td>
+<td>能力上限最高，长链路和自我验证更强</td>
+</tr>
+<tr>
+<td>高频 Claude Code、常规代码审查和功能开发</td>
+<td><a href="./claude-opus-5.html">Opus 5</a></td>
+<td>输入输出单价是 Fable 的一半，日常任务更容易算账</td>
+</tr>
+<tr>
+<td>多智能体并行、成本敏感、已经在 Codex 工作流里</td>
+<td><a href="./gpt-5-6.html">GPT-5.6 Sol</a></td>
+<td>工具链和多 Agent 模式不同，不要只按 Anthropic 私榜迁移</td>
+</tr>
+<tr>
+<td>旧 Fable 5 工作流，缓存命中率高</td>
+<td>直接 A/B Fable 5.1</td>
+<td>同单价、缓存更便宜，Low 或 Medium 就可能超过旧版高档</td>
+</tr>
+<tr>
+<td>涉及高风险网络安全或生命科学</td>
+<td>先确认回退和访问资格</td>
+<td>安全策略可能换模型，Mythos 5.1 只向审核组织开放</td>
+</tr>
+</tbody>
+</table>
+<p>Fable 5.1 最值得关注的，不是又多拿了几个第一。</p>
+<p>而是它开始把 <strong>成功率、Token 效率、缓存成本和长任务稳定性</strong> 放在同一张账单里。</p>
+<p>普通问答和小改动没必要上 Fable。真正值得用它的，是那些你愿意花更多钱，但不能接受模型做到一半就丢下的任务。</p>
+<p><strong>先用真实任务测 Medium，再决定要不要为 Max 买单。</strong></p>
+<h2 id="资料来源">资料来源</h2>
+<ul>
+<li>
+<p>Anthropic：Fable 5.1 与 Mythos 5.1 官方发布页：https://www.anthropic.com/claude-fable-and-mythos-5-1</p>
+</li>
+<li>
+<p>Anthropic：Claude Fable 模型页与价格说明：https://www.anthropic.com/claude/fable</p>
+</li>
+</ul>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="claude-crazy-0628.html"><span class="k">← 上一篇</span><span class="v">Claude大规模封号：Claude账号被封、Claude Code不能用，国内开发者怎么在Codex和Opus 4.8之间切换</span></a><a class="nx" href="claude-fable-5-7-2.html"><span class="k">下一篇 →</span><span class="v">Claude Fable 5重新开放：很强，也真的很贵，国内如何用上Opus4.8 和Fable5？</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#claude-fable-5-1发布-缓存价降75-anthropic这次终于开始管账单了">Claude Fable 5.1发布：缓存价降75%，Anthropic这次终于开始管账单了</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/claude-fable-5-1.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

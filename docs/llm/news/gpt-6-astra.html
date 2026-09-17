@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GPT-6 Astra正式发布：OpenAI最强AI Agent、Computer Use、API价格，和GPT-5.6 Sol、Claude Fable 5.1怎么选 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>gpt-6-astra</span></div>
+      <h1 id="gpt-6-astra发布-跑分几乎刷满-但我更在意它开始接管鼠标了">GPT-6 Astra发布：跑分几乎刷满，但我更在意它开始接管鼠标了</h1>
+<blockquote>
+<p><strong>想尽快体验 Astra，目前更直接的方式是升级 ChatGPT Pro。</strong> 国内没有海外卡的录友，可以看这篇 <a href="./gpt-6-pro-rollout.html">GPT-6 Astra开放 与 充值方法</a>，里面整理了 PayAI.plus 的 Pro 100 美元、Pro 200 美元两个充值入口和注意事项。需要提醒的是，Pro 用户现在也是有限灰度，并非充值后立刻出现；Plus 用户想在 Chat 里直接使用 GPT-6 Astra，还需要再等几天。</p>
+</blockquote>
+<p>两个月前写 <a href="./gpt-5-6.html">GPT-5.6</a> 时，我说 OpenAI 正在把 ChatGPT 从聊天框改造成一个能持续干活的工作台。</p>
+<p>现在，GPT-6 Astra 来了。</p>
+<p>2026 年 9 月 3 日，OpenAI 正式发布 GPT-6 Astra。官方给它的定位很直接：最聪明、最对齐，也是目前最擅长电脑操作、浏览器使用、软件工程、网络安全和科学工作的 OpenAI 模型。</p>
+<p><img alt="GPT-6 Astra发布首屏" src="https://file1.kamacoder.com/i/web/20260904143405.png" /></p>
+<p><em>截图说明：OpenAI 官方发布页首屏没有堆参数，只放了一个由星光组成的“6”。这次 Astra 不是 GPT-5.6 Sol 的小修小补，而是 GPT-6 的第一款旗舰模型。</em></p>
+<p>刚看到发布页时，我的第一反应不是“AGI 终于来了”。</p>
+<p>我更在意另一件事：<strong>过去的大模型主要在回答问题，Astra 的重点是直接进入软件，把任务做完。</strong></p>
+<p>填表、改 CRM、整理日历、跑 Excel、制作 PPT、调试网站、安装软件，它都想接手。</p>
+<p>这条线一旦跑通，影响的就不只是程序员，而是所有坐在电脑前工作的人。</p>
+<h2 id="先把发布信息说清楚">先把发布信息说清楚</h2>
+<p>GPT-6 Astra 的基础规格如下：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>GPT-6 Astra</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>发布时间</td>
+<td>2026 年 9 月 3 日</td>
+</tr>
+<tr>
+<td>API 模型名</td>
+<td><code>gpt-6-astra</code></td>
+</tr>
+<tr>
+<td>上下文窗口</td>
+<td>1,050,000 Token</td>
+</tr>
+<tr>
+<td>最大输出</td>
+<td>128,000 Token</td>
+</tr>
+<tr>
+<td>知识截止日期</td>
+<td>2026 年 4 月 30 日</td>
+</tr>
+<tr>
+<td>推理档位</td>
+<td>Low、Medium、High、Xhigh、Max</td>
+</tr>
+<tr>
+<td>输入价格</td>
+<td>10 美元 / 百万 Token</td>
+</tr>
+<tr>
+<td>输出价格</td>
+<td>50 美元 / 百万 Token</td>
+</tr>
+<tr>
+<td>核心能力</td>
+<td>推理、编程、电脑操作、研究、文档制作</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="GPT-6 Astra模型规格" src="https://file1.kamacoder.com/i/web/20260904143409.png" /></p>
+<p><em>截图说明：OpenAI 开发者文档列出了 Astra 的模型定位、价格、输入模态和上下文规格。它支持文本与图片输入，但不直接支持音频、视频输入。</em></p>
+<p>开放范围要多说一句。</p>
+<p>官方发布页写的是：Astra 先向少量组织灰度，未来几天陆续覆盖 ChatGPT Plus、Pro、Business、Enterprise、OpenAI API 和 AWS。</p>
+<p>但产品帮助中心写得更细：<strong>Chat 里的 GPT-6 Pro 首批面向 Pro 100 美元、Pro 200 美元、Business 和 Enterprise，暂不包含 Plus。</strong> 不同产品的 Work、Codex 和 Chat 也可能不同步。</p>
+<p>所以录友现在没在模型列表里看到，不一定是账号有问题。灰度期间，以自己账户里的模型选择器和额度提示为准。</p>
+<h2 id="跑分确实猛-但别只盯着98-和99-9">跑分确实猛，但别只盯着98%和99.9%</h2>
+<p>OpenAI 在发布摘要里放了三个非常抓眼球的数字：</p>
+<ul>
+<li>FrontierMath Tier 4：97.6%</li>
+<li>ARC-AGI-3：99.9%</li>
+<li>ExploitBench：100%</li>
+</ul>
+<p><img alt="GPT-6 Astra官方摘要" src="https://file1.kamacoder.com/i/web/20260904143406.png" /></p>
+<p><em>截图说明：官方摘要强调 Astra 在数学、抽象推理、漏洞利用、电脑操作和专业工作上的突破，同时注明当前仍是分批开放。</em></p>
+<p>看到 99.9%，很容易产生一种感觉：题库是不是已经被刷穿了？</p>
+<p>数字没错，但脚注不能丢。</p>
+<p>ARC-AGI-3 的成绩来自带状态的 Responses API Harness，模型会在交互环境中持续观察、行动和学习，不是把一道题扔进普通聊天框就能复现。OpenAI 也明确说，研究环境、系统提示和可用工具与生产版 ChatGPT 不完全相同。</p>
+<p><strong>这说明 Astra 的 Agent 系统很强，不等于普通问答已经有 99.9% 的正确率。</strong></p>
+<p>我反而更关注 Terminal-Bench Science 0.1。</p>
+<p>它让智能体用代码和终端完成科研工作流，包括分析数据、运行模拟和拟合模型。Astra 最高拿到 64.6%，<a href="./claude-fable-5-1.html">Claude Fable 5.1</a> 是 52.6%，GPT-5.6 Sol 只有 22.4%。</p>
+<p><img alt="GPT-6 Astra科学评测" src="https://file1.kamacoder.com/i/web/20260904143408.png" /></p>
+<p><em>截图说明：横轴是估算的 API 单任务成本，纵轴是科研任务解决率。Astra 的多个推理档位整体位于对比模型上方，但更高分依然伴随更高成本。</em></p>
+<p>这张图比“数学 98 分”更接近未来的工作方式：<strong>模型不只给答案，而是自己调用终端、处理数据、发现失败，再继续试。</strong></p>
+<h2 id="电脑操作-才是这代模型真正拉开差距的地方">电脑操作，才是这代模型真正拉开差距的地方</h2>
+<p>在 OSWorld 2.0 里，Astra 得到 72.6%，GPT-5.6 Sol 是 65.7%。</p>
+<p>只看 6.9 个百分点，好像还没到换代级别。</p>
+<p>但 Astra 完成一项任务的模拟时间大约是 40 分钟，Sol 约为 75 分钟。<strong>正确率更高，同时每项任务少花约 47% 的时间。</strong> 更新后的 Codex Harness 在 Mind2Web 上又把任务速度推到了原体验的 1.9 倍。</p>
+<p>这对电脑 Agent 太关键了。</p>
+<p>一个模型操作网页成功率 70%，但点一次、等一次、看一次，半小时还没填完表，用户照样会关掉它。Computer Use 的竞争不只是“会不会点”，还是“能不能在人类失去耐心前点完”。</p>
+<p>其他几个数据也很明显：</p>
+<table>
+<thead>
+<tr>
+<th>评测</th>
+<th style="text-align: right;">GPT-6 Astra</th>
+<th style="text-align: right;">GPT-5.6 Sol</th>
+<th style="text-align: right;">Claude Fable 5.1</th>
+<th style="text-align: right;">Claude Opus 5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agents' Last Exam</td>
+<td style="text-align: right;">59.3%</td>
+<td style="text-align: right;">53.6%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">55.5%</td>
+</tr>
+<tr>
+<td>AutomationBench</td>
+<td style="text-align: right;">41.4%</td>
+<td style="text-align: right;">18.1%</td>
+<td style="text-align: right;">31.4%</td>
+<td style="text-align: right;">26.9%</td>
+</tr>
+<tr>
+<td>ScreenSpot-Pro</td>
+<td style="text-align: right;">92.7%</td>
+<td style="text-align: right;">76.9%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>OSWorld 2.0</td>
+<td style="text-align: right;">72.6%</td>
+<td style="text-align: right;">65.7%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">70.2%</td>
+</tr>
+</tbody>
+</table>
+<p>AutomationBench 从 18.1% 涨到 41.4%，是我认为这次最有含金量的提升之一。它测的是跨应用完成真实办公流程，不是认一个按钮。</p>
+<p>当然，41.4% 也说明现实：<strong>最强电脑 Agent 依然会在一半以上的复杂任务里失败。</strong> 现在就让它无人监管地改生产数据，还太早。</p>
+<h2 id="编程很强-但没有把claude全面打趴下">编程很强，但没有把Claude全面打趴下</h2>
+<p>GPT-6 Astra 在 Terminal-Bench 4.0 上从 Sol 的 37.3% 提升到 57.9%，也高于 Fable 5.1 的 55.8% 和 <a href="./claude-opus-5.html">Claude Opus 5</a> 的 52.3%。</p>
+<p>数据库迁移内部评测也从 42.7% 涨到 63.9%。这类任务要求模型读懂旧结构、生成迁移方案、执行并验证，很符合 Astra 的长链路优势。</p>
+<p>但换个榜单，结论就没那么夸张了：</p>
+<table>
+<thead>
+<tr>
+<th>编程评测</th>
+<th style="text-align: right;">Astra</th>
+<th style="text-align: right;">Fable 5.1</th>
+<th style="text-align: right;">Fable 5</th>
+<th style="text-align: right;">Opus 5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FrontierCode 1.1 Main</td>
+<td style="text-align: right;">53.3%</td>
+<td style="text-align: right;">50.9%</td>
+<td style="text-align: right;">53.5%</td>
+<td style="text-align: right;">53.4%</td>
+</tr>
+<tr>
+<td>Coding Agent Index v1.4</td>
+<td style="text-align: right;">67.0</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">67.2</td>
+<td style="text-align: right;">68.1</td>
+</tr>
+<tr>
+<td>DeepSWE v1.1</td>
+<td style="text-align: right;">74.1%</td>
+<td style="text-align: right;">67.4%</td>
+<td style="text-align: right;">69.9%</td>
+<td style="text-align: right;">73.7%</td>
+</tr>
+</tbody>
+</table>
+<p>在 FrontierCode Main 上，Astra 略低于 Fable 5 和 Opus 5；Coding Agent Index 也没有拿第一。</p>
+<p>综合智能指数同样如此：Astra 是 61.2，Fable 5.1 是 65.7，Opus 5 是 63.1。Humanity's Last Exam 带工具评测里，Astra 的 57.2% 也低于 Fable 5.1 的 65.0%。</p>
+<p>所以更准确的判断是：<strong>Astra 在终端、电脑操作、跨软件工作流和科学 Agent 上提升巨大，但“所有代码任务都第一”并不成立。</strong></p>
+<p>厂商发布会最喜欢给你看自己赢的那张图。我们选模型，得把它输的表格也翻出来。</p>
+<h2 id="四个agent更新-比跑分更值得开发者看">四个Agent更新，比跑分更值得开发者看</h2>
+<p>Astra 带来的几个接口变化，都是在解决长任务的真实痛点。</p>
+<p>第一个是异步工具调用。工具在后台运行时，模型不用原地等着，可以继续推理、调用其他工具，或者先回答不依赖结果的部分。真正的多工具 Agent，不应该被最慢的一个接口拖死。</p>
+<p>第二个是中途转向。模型工作时，你可以补充要求、纠正方向。Responses API 会保留已完成的工作，再从新指令继续，而不是把整项任务推倒重来。</p>
+<p>第三个是动态调整推理强度。对话过程中可以从 Low 提到 High，也可以在简单追问时降下来，同时保留原来的 Prompt Cache。</p>
+<p>第四个是 Codex 跨上下文记忆。过去 Context 满了只能压缩，压缩一次就可能丢掉“这个方案为什么失败”。Astra 可以保留笔记，还能搜索之前的上下文窗口，找回旧需求、测试结果和工具输出。</p>
+<p>我很喜欢这个方向。</p>
+<p>大仓库里最折磨人的不是模型少写一行代码，而是干了两小时后忘记自己为什么改成这样。<strong>Agent 的上限越来越取决于记忆、工具编排和验收，不只取决于底座模型。</strong></p>
+<h2 id="价格翻倍-长上下文还有一层容易忽略的加价">价格翻倍，长上下文还有一层容易忽略的加价</h2>
+<p>GPT-6 Astra 的标准 API 价格是每百万输入 Token 10 美元、输出 Token 50 美元。</p>
+<p><img alt="GPT-6 Astra价格表" src="https://file1.kamacoder.com/i/web/20260904143410.png" /></p>
+<p><em>截图说明：缓存读取为 1 美元，缓存写入为 12.5 美元。Batch 和 Flex 按标准价五折，Fast mode 按标准价两倍计费。</em></p>
+<p>和 OpenAI 当前模型目录中的 GPT-5.6 Sol 相比，Astra 的输入和输出单价都是 2.5 倍。它与 Fable 5.1 同为 10 / 50 美元这一档，是明确的旗舰攻坚价。</p>
+<p>还有一条很容易漏看：<strong>输入超过 272K Token 后，整次请求的输入和缓存费按两倍算，输出费按 1.5 倍算。</strong> 不是只给超过的部分加价。</p>
+<p>所以 1.05M 上下文能装下整个仓库，不代表你应该每轮都把整个仓库塞进去。</p>
+<p>假设一次请求用了 30 万输入、2 万输出，未命中缓存时，基础价格不是 4 美元，而是 7.5 美元：输入 6 美元，输出 1.5 美元。再叠加搜索、电脑操作和多轮重试，账单很快就上去了。</p>
+<p>OpenAI 强调 Astra 用更少输出 Token 完成任务，单任务成本可能低于旧模型。这个方向可信，但最终还是要用自己的任务集测：成功一次花多少钱，而不是只看每百万 Token。</p>
+<h2 id="网络安全满分-也是这次最让人不安的部分">网络安全满分，也是这次最让人不安的部分</h2>
+<p>Astra 是 OpenAI 第一款被评为网络安全“Critical”级别的广泛部署模型。</p>
+<p>它在 ExploitBench 上拿到 100%，Sol 是 78.5%；在一个只收录 2026 年 6 月到 8 月新漏洞的内部评测上，Astra 也明显领先，并在测试中发现了两个此前未知的零日漏洞。</p>
+<p>这当然能帮助防守方更快发现和修复问题，但同一套能力也能被用于攻击。</p>
+<p>因此普通版本会拒绝生成更高级的漏洞利用 PoC。更开放的能力会通过 Daybreak 计划，逐步提供给经过审核的防守团队。</p>
+<p>安全报告里还有一个不太舒服的结论：Astra 整体更守边界，在 54,218 个内部 Codex 任务模拟中，高严重度失当行为比 Sol 少约 53%；但它的书面思考过程比 Sol 更难监控，在被明确要求规避监控的对抗实验里，确实更会隐藏意图。</p>
+<p>换句话说，<strong>它更少做坏事了，但真想藏时，也更会藏了。</strong></p>
+<p>OpenAI 给所有 Astra 工具调用部署了额外监控，检测到潜在越权时，ChatGPT 或 Codex 可能暂停任务让用户确认，API 则会直接停止。</p>
+<p>能力越强，权限管理越不能靠一句“请谨慎操作”。生产系统要把授权范围、不可逆操作确认、审计日志和回滚机制写进 Harness。</p>
+<h2 id="astra-fable-5-1-opus-5-sol怎么选">Astra、Fable 5.1、Opus 5、Sol怎么选</h2>
+<p>不是站队，还是算账。</p>
+<table>
+<thead>
+<tr>
+<th>你的任务</th>
+<th>优先试谁</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>跨浏览器和办公软件执行，时间很贵</td>
+<td>GPT-6 Astra</td>
+<td>Computer Use 和自动化提升最明显</td>
+</tr>
+<tr>
+<td>科研终端、复杂数据分析、长链路攻坚</td>
+<td>GPT-6 Astra / Fable 5.1</td>
+<td>两者都强，拿真实任务比较成功率和成本</td>
+</tr>
+<tr>
+<td>高难知识问答、综合推理</td>
+<td>Fable 5.1</td>
+<td>部分综合评测仍领先 Astra</td>
+</tr>
+<tr>
+<td>高频 Claude Code、常规工程开发</td>
+<td>Opus 5</td>
+<td>单价是 Astra 的一半，部分编程榜单并不落后</td>
+</tr>
+<tr>
+<td>已经跑稳的 Codex 日常工作流</td>
+<td>GPT-5.6 Sol</td>
+<td>价格低很多，简单任务没必要为 Astra 买单</td>
+</tr>
+<tr>
+<td>涉及高风险网络安全</td>
+<td>先看访问资格和审计要求</td>
+<td>能力很强，但限制、监控和合规成本也更高</td>
+</tr>
+</tbody>
+</table>
+<p>我对 GPT-6 Astra 的个人判断是：它不是一个“聊天突然像真人”的版本，而是一个 <strong>电脑开始真正变成模型工作环境</strong> 的版本。</p>
+<p>这比“又多答对几道题”重要，也比“AGI 已到”更具体。</p>
+<p>但今天的 Astra 仍然贵，仍然会失败，首批开放范围也有限。最漂亮的三个分数里，两个接近满分、一个已经满分，可复杂办公自动化的成功率仍只有 41.4%。</p>
+<p>这组反差，才是我们应该记住的。</p>
+<p><strong>模型开始能替你操作整台电脑了，但把手完全离开方向盘，还没到时候。</strong></p>
+<h2 id="资料来源">资料来源</h2>
+<ul>
+<li>
+<p>OpenAI：GPT-6 Astra 官方发布页：https://openai.com/index/gpt-6-astra/</p>
+</li>
+<li>
+<p>OpenAI Developers：GPT-6 Astra 模型规格与价格：https://developers.openai.com/api/docs/models/gpt-6-astra</p>
+</li>
+<li>
+<p>OpenAI Developers：GPT-6 Astra 模型指南：https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra</p>
+</li>
+<li>
+<p>OpenAI：GPT-6 Astra 安全概览：https://openai.com/index/safety-overview-gpt-6-astra/</p>
+</li>
+<li>
+<p>OpenAI Deployment Safety Hub：GPT-6 Astra System Card：https://deploymentsafety.openai.com/gpt-6-astra/</p>
+</li>
+<li>
+<p>OpenAI Help Center：GPT-5.6 与 GPT-6 Pro 开放范围：https://help.openai.com/en/articles/20001354-gpt-56-and-gpt-6-pro-in-chatgpt</p>
+</li>
+</ul>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="gpt-6-astra-amazing-cases.html"><span class="k">← 上一篇</span><span class="v">彻底杀疯了！分享9个让人惊艳的GPT-6 Astra案例：3D人体、V8发动机、Figma设计、PCB布局和游戏开发</span></a><a class="nx" href="gpt-6-pro-rollout.html"><span class="k">下一篇 →</span><span class="v">GPT-6 Astra开始开放，Pro用户优先灰度，Plus用户再等等</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#gpt-6-astra发布-跑分几乎刷满-但我更在意它开始接管鼠标了">GPT-6 Astra发布：跑分几乎刷满，但我更在意它开始接管鼠标了</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/gpt-6-astra.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

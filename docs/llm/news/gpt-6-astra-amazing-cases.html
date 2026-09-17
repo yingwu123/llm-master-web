@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>彻底杀疯了！分享9个让人惊艳的GPT-6 Astra案例：3D人体、V8发动机、Figma设计、PCB布局和游戏开发 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>gpt-6-astra-amazing-cases</span></div>
+      <h1 id="彻底杀疯了-分享9个让人惊艳的gpt-6-astra案例">彻底杀疯了！分享9个让人惊艳的GPT-6 Astra案例</h1>
+<blockquote>
+<p><strong>想尽快体验 Astra，目前更直接的方式是升级 ChatGPT Pro。</strong>可以看这篇 <a href="./gpt-6-pro-rollout.html">GPT-6 Astra开放 与 充值方法</a>**。</p>
+</blockquote>
+<p>前面写 <a href="./gpt-6-astra.html">GPT-6 Astra正式发布</a> 时，我最关注的就是它的 Computer Use：模型不只在聊天框里回答问题，而是开始进入浏览器、Blender、Figma、KiCad 这些真实软件，把任务做出来。</p>
+<p>这两天再看 X 上大家交出来的“作业”，题材已经扩展到了人体解剖、V8 发动机、蒸汽火车、电路板，甚至是完整的 3D 场景。</p>
+<p>其中一个人体解剖网站，截至 2026 年 9 月 8 日已经拿到约 <strong>5.12 万赞、642 万次浏览</strong>。</p>
+<p>这次我挑了 9 个值得看的案例。</p>
+<p>有的视觉效果确实炸裂，有的成品未必已经能用，但制作方法非常值得抄作业。</p>
+<p>先提醒一句：<strong>下面的部件数量、制作耗时和“一次生成”等信息，主要来自作者自述。视频好看，不等于工程质量、专业准确性和交付标准已经通过验证。</strong></p>
+<h2 id="1-2234个部件-把人体一层层拆开看">1、2234个部件，把人体一层层拆开看</h2>
+<p>ashe 用 Astra 创建了一个 <a href="https://x.com/ashebytes/status/2096221988763173186">3D 人体解剖网站</a>。</p>
+<p>按作者的说法，这个人体模型包含 <strong>2234 个部件</strong>。用户可以旋转模型、隐藏外层结构，再顺着自己感兴趣的部位一层层往里看。</p>
+<p><img alt="3D人体解剖模型" src="https://file1.kamacoder.com/i/web/20260908142459.jpg" /></p>
+<p>这个案例最打动我的，不是“零代码做了一个网页”。</p>
+<p>而是它把原本很难靠文字建立的空间关系，变成了可以自己探索的交互过程。</p>
+<p>人体解剖、机械结构，以及 JVM 垃圾回收，本质上都有同一个讲解难点：对象在哪里、彼此什么关系、前后发生了什么变化。</p>
+<p>一张平面图只能给固定视角。交互模型却允许读者停下来、换角度、拆开看，很多解释自然就省掉了。</p>
+<p>但这里也要把边界说清楚。</p>
+<p><strong>2234 个部件不等于 Astra 从零完成了整个人体建模。</strong> 原帖展示的是网站成果，底层模型从哪里来、医学结构是否准确，都没有得到独立验证。真拿去教学，还得让专业人士审核。</p>
+<h2 id="2-v8发动机-也能做成交互式演示">2、V8发动机，也能做成交互式演示</h2>
+<p>Dilum Sanjaya 给 Astra 的任务，是制作一个细节丰富、可以交互的 <a href="https://x.com/DilumSanjaya/status/2096280244663775423">V8 发动机可视化</a>。</p>
+<p>注意，这里的 V8 是机械发动机，和 Chrome 里的 JavaScript V8 引擎没有关系。</p>
+<p><img alt="V8发动机可视化" src="https://file1.kamacoder.com/i/web/20260908142500.jpg" /></p>
+<p>相比一张发动机剖面图，可交互模型给了讲解者更多空间。</p>
+<p>你可以围绕结构展开，也可以让读者停在没看懂的位置，自己观察活塞、曲轴和其他部件的关系。</p>
+<p>这类案例特别适合技术教育。</p>
+<p>不是把原来的文字换成一个更炫的动画，而是让读者主动控制观察顺序。</p>
+<h2 id="3-一张旧图纸-几分钟重建一列蒸汽火车">3、一张旧图纸，几分钟重建一列蒸汽火车</h2>
+<p>Tom Krcha 的玩法很直接：给 Astra 一张旧的蒸汽火车图片，让它在 Blender 里重建。</p>
+<p>按作者描述，几分钟后，项目里已经出现了 <strong>3295 个可以编辑的对象</strong>。</p>
+<p><img alt="蒸汽火车三维重建" src="https://file1.kamacoder.com/i/web/20260908142502.jpg" /></p>
+<p>重点注意“可以编辑”这几个字。</p>
+<p>做内容也好，做产品原型也好，第一版出来以后通常还要改。比例不对要调，某个部件需要单独讲要拆，镜头不满意还要重新安排。</p>
+<p>如果模型最后只丢给你一张漂亮的渲染图，后面修改依然很痛苦。</p>
+<p><strong>能继续在 Blender 里调整的工程文件，才真正给后续工作留下了空间。</strong></p>
+<p>当然，3295 个对象也不能直接证明建模质量。对象是否组织清楚、拓扑和几何是否合理，还得打开工程检查。</p>
+<p>但从一张旧图出发，快速得到一个能继续加工的三维项目，这个用途已经很有吸引力了。</p>
+<h2 id="4-figma这个案例-真正惊艳的是它先给自己写了个插件">4、Figma这个案例，真正惊艳的是它先给自己写了个插件</h2>
+<p>设计师 issui.txt 分享的 <a href="https://x.com/issui_ikeda/status/2096467418575147367">Figma 设计案例</a>，是这批作品里我个人最感兴趣的一个。</p>
+<p>作者让 Astra 根据品牌视觉完成页面设计，并且直接操作 Figma 把结果做出来。</p>
+<p><img alt="Figma页面设计" src="https://file1.kamacoder.com/i/web/20260908142504.jpg" /></p>
+<p>他对成品的评价很高，甚至说这次结果动摇了自己此前对 AI 设计能力的判断。</p>
+<p>但更值得看的细节藏在回复里。</p>
+<p>他没有使用 Figma MCP，也没有使用 Figma Agent，而是让 Astra <strong>先为当前任务创建一个 Figma 插件，再结合电脑操作完成设计</strong>。</p>
+<p>这提供了一种很灵活的 Agent 用法：现成工具不够顺手时，不必一直等官方适配，也可以让模型为当前任务临时写一段程序，再配合界面操作完成工作。</p>
+<p>这恰恰是 Astra 最让我兴奋的地方。</p>
+<p>平时大量时间都耗在不同软件之间：找素材、改版式、检查页面、导出结果。模型如果能把这些动作真正接起来，收益比“聊天回答更长了”实在得多。</p>
+<p>但别把这段演示理解成“AI 全程只靠鼠标就做完了设计”。</p>
+<p><strong>插件参与了工作，而这套工具组合，正是这个案例最值得学的部分。</strong></p>
+<h2 id="5-连kicad的pcb布局都有人试了">5、连KiCad的PCB布局都有人试了</h2>
+<p>Kai Yang 展示的是让 Astra 在 <a href="https://x.com/ChihYang04/status/2095637507337826741">KiCad 中做 PCB 布局</a>。</p>
+<p>视频只有约 18 秒，截至 2026 年 9 月 8 日却已经拿到约 <strong>5028 个赞、94 万次浏览</strong>。</p>
+<p><img alt="KiCad电路板布局" src="https://file1.kamacoder.com/i/web/20260908142506.jpg" /></p>
+<p>这类专业软件案例很值得留意。</p>
+<p>布局工作有具体对象，也有具体约束。模型需要识别界面上的元件，再执行移动、放置、连线等操作，不能只生成一段看起来合理的说明。</p>
+<p>不过，现有视频能支持的结论也就到“完成了一段 PCB 布局演示”为止。</p>
+<p><strong>是否通过 ERC、DRC，电气规则是否正确，制板以后能不能正常工作，都需要额外的检查结果。</strong></p>
+<p>能操作专业软件，和能交付专业工程，中间还有很长一段路。</p>
+<h2 id="6-一次任务-直接生成能在浏览器里跑的3d游戏">6、一次任务，直接生成能在浏览器里跑的3D游戏</h2>
+<p>浏览器游戏是这轮 Astra 案例里最热闹的题材之一。</p>
+<p>Theo 展示了一个 <a href="https://x.com/theo/status/2095599934766764338">一次任务生成的 3D 游戏</a>，完成后直接在浏览器里运行。</p>
+<p><img alt="浏览器3D游戏" src="https://file1.kamacoder.com/i/web/20260908142508.jpg" /></p>
+<p>这种演示的传播力非常强。</p>
+<p>因为大家都玩过游戏，人物能不能移动、场景像不像、交互有没有反馈，几秒钟就能看出一个大概。</p>
+<p>但“一次生成”也很容易让人误判。</p>
+<p>一段能跑起来的 Demo，不等于完整游戏开发已经结束。关卡、手感、碰撞、存档、性能、兼容性和长期维护，才是后面真正费时间的部分。</p>
+<h2 id="7-minecraft风格作品-把体素世界也做出来了">7、Minecraft风格作品，把体素世界也做出来了</h2>
+<p>Flavio Adamo 展示的是一个 <a href="https://x.com/flavioAd/status/2095597137849446688">Minecraft 风格的浏览器作品</a>。</p>
+<p>作者在回复中补充，项目使用了 Three.js、自制 JavaScript 体素引擎和程序化地形，还包含挖掘、合成、生物 AI、localStorage 存档和 Vite 构建。</p>
+<p><img alt="Minecraft风格游戏" src="https://file1.kamacoder.com/i/web/20260908142510.jpg" /></p>
+<p>这比“做一个像 Minecraft 的页面”复杂得多。</p>
+<p>它同时涉及画面、世界生成、交互规则和浏览器运行环境。模型不仅要把某一帧做得像，还得让多个系统一起运转。</p>
+<p>但这里依然要区分 Demo 和产品。</p>
+<p>熟悉的视觉风格让我们很容易做直观比较，却也容易忽略代码结构、性能上限和边界情况。判断项目质量，最终还是要看源码和实际运行，而不是只看短视频。</p>
+<h2 id="8-45分钟做出3d场景-这套流程最值得抄作业">8、45分钟做出3D场景，这套流程最值得抄作业</h2>
+<p>Anshu 的 <a href="https://x.com/anshuc/status/2096008083826725132">3D 场景案例</a> 很抓眼球。作者称，首版用了 45 分钟。</p>
+<p><img alt="Blender游戏场景" src="https://file1.kamacoder.com/i/web/20260908142511.jpg" /></p>
+<p>但我更想展开的是他的制作方法：</p>
+<ol>
+<li>把 Codex 接上 Blender MCP；</li>
+<li>给 Astra 提供游戏概念；</li>
+<li>让 Astra 使用 ImageGen Skill 先生成目标美术风格的概念图；</li>
+<li>再拿实际游戏截图和概念图对照，继续迭代；</li>
+<li>同时给出 60 FPS 的性能目标。</li>
+</ol>
+<p>这里有一个可以直接借鉴的动作：<strong>先把想要的画面做成视觉参考，再让模型拿运行截图检查差距。</strong></p>
+<p>单靠文字说“更有质感”“再精致一点”，修改方向很容易飘。</p>
+<p>有了参考图以后，就能具体检查场景、颜色、光影和构图哪里不对，模型也有了更明确的修改依据。</p>
+<p>作者后续还补充称，首版只是一个小型图形 Demo，完整玩法是继续运行后补上的；最初显示的低额度消耗，也可能是客户端更新不及时。</p>
+<p>所以真正值得复制的，不是“45 分钟做完游戏”，而是 <strong>概念图定方向、截图做验收、性能指标卡底线</strong> 这套闭环。</p>
+<h2 id="9-还有人在unreal-engine里搭曼哈顿">9、还有人在Unreal Engine里搭曼哈顿</h2>
+<p>Matt Shumer 的题材更大：让 Astra 在 <a href="https://x.com/mattshumer_/status/2095609734845927525">Unreal Engine 中搭建曼哈顿街区</a>。</p>
+<p>作者称，这个项目持续了一周，并且按街道不断完善。</p>
+<p><img alt="Unreal曼哈顿街区" src="https://file1.kamacoder.com/i/web/20260908142513.jpg" /></p>
+<p>它很容易让人联想到 Astra 的长任务能力。</p>
+<p>场景规模扩大以后，模型要处理的对象、素材和修改会越来越多。此时真正难的已经不是某一帧够不够漂亮，而是项目能否持续推进，前面的约束会不会丢，后面的修改会不会破坏已有结果。</p>
+<p>不过，“持续一周”不等于模型连续无人值守运行了一周。</p>
+<p>素材从哪里来、中间有多少人工介入、改了多少轮，原帖并没有完整交代。这个案例证明了它能参与大规模场景制作，但还不能证明整个流程已经全自动化。</p>
+<h2 id="看完9个案例-我更确定astra强在哪里了">看完9个案例，我更确定Astra强在哪里了</h2>
+<p>这 9 个作品横跨网页、Blender、Figma、KiCad 和 Unreal Engine。</p>
+<p>表面看，是 Astra 什么软件都会一点。</p>
+<p>但真正的变化是三件事：</p>
+<ul>
+<li><strong>它开始把现成软件当作工作环境。</strong> 不只写代码，还会进入工具里操作和检查结果。</li>
+<li><strong>它会临时补工具。</strong> Figma 插件案例说明，接口不够用时，模型可以先给自己造一把扳手。</li>
+<li><strong>它能形成“生成—观察—修改”的闭环。</strong> Anshu 用概念图和运行截图反复对照，比一句模糊的“再优化一下”有效得多。</li>
+</ul>
+<p>这也是为什么我认为 Computer Use 比很多接近满分的 Benchmark 更值得关注。</p>
+<p>不过，别看到演示视频就直接把 Astra 当成成熟员工。</p>
+<p>人体模型要审医学准确性，火车工程要检查对象组织，PCB 要跑规则检查，游戏要看性能和完整玩法，设计稿也要经过品牌与可用性验收。</p>
+<p><strong>Agent 可以把第一版的速度拉得非常快，但最后那道验收，今天仍然不能省。</strong></p>
+<h2 id="astra确实能干-但额度也是真的贵">Astra确实能干，但额度也是真的贵</h2>
+<p>我在 <a href="./gpt-6-astra.html">GPT-6 Astra发布详解</a> 里算过价格：Astra 的标准 API 价格是每百万输入 Token 10 美元、输出 Token 50 美元，长上下文、Fast 模式和多轮工具调用还会继续放大成本。</p>
+<p>所以我的建议很简单：</p>
+<ul>
+<li>Plus 用户暂时不用为了这些演示硬上 Astra；</li>
+<li>Pro 用户也别一开始就拉满推理档位、打开 Fast 模式；</li>
+<li>先用低档跑一个边界清楚的小任务，看看成功率和额度消耗；</li>
+<li>简单任务继续交给便宜模型，把 Astra 留给其他模型真搞不定的长链路任务。</li>
+</ul>
+<p>至于 Ultra 模式下的 Astra，我只能说——那真是给富哥们准备的。</p>
+<p><strong>Astra 已经彻底杀疯了，但我们的额度，最好别跟着一起疯。</strong></p>
+<h2 id="资料来源">资料来源</h2>
+<ul>
+<li>ashe，3D人体解剖网站：https://x.com/ashebytes/status/2096221988763173186</li>
+<li>Dilum Sanjaya，V8发动机可视化：https://x.com/DilumSanjaya/status/2096280244663775423</li>
+<li>Tom Krcha，蒸汽火车重建：https://x.com/tomkrcha/status/2095756085890310311</li>
+<li>issui.txt，Figma设计案例：https://x.com/issui_ikeda/status/2096467418575147367</li>
+<li>Kai Yang，KiCad PCB布局：https://x.com/ChihYang04/status/2095637507337826741</li>
+<li>Theo，浏览器3D游戏：https://x.com/theo/status/2095599934766764338</li>
+<li>Flavio Adamo，Minecraft风格作品：https://x.com/flavioAd/status/2095597137849446688</li>
+<li>Anshu，3D场景案例：https://x.com/anshuc/status/2096008083826725132</li>
+<li>Matt Shumer，Unreal Engine曼哈顿：https://x.com/mattshumer_/status/2095609734845927525</li>
+</ul>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="gpt-5-6.html"><span class="k">← 上一篇</span><span class="v">GPT-5.6正式发布：Sol、Terra、Luna怎么选？Codex并入ChatGPT，AI编程进入多智能体时代</span></a><a class="nx" href="gpt-6-astra.html"><span class="k">下一篇 →</span><span class="v">GPT-6 Astra正式发布：OpenAI最强AI Agent、Computer Use、API价格，和GPT-5.6 Sol、Claude Fable 5.1怎么选</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#彻底杀疯了-分享9个让人惊艳的gpt-6-astra案例">彻底杀疯了！分享9个让人惊艳的GPT-6 Astra案例</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/gpt-6-astra-amazing-cases.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude永久提额25%其实回收17%？Tibo重置Codex额度，承认后台任务在烧你的用量 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>claude-codex-usage-limits-reset</span></div>
+      <h1 id="claude说永久-25-codex给你重置额度-两家公司终于开始解释-额度去哪了">Claude说永久+25%，Codex给你重置额度：两家公司终于开始解释“额度去哪了”</h1>
+<p>这两天，Claude 和 Codex 都在聊额度。</p>
+<p>一边是 Claude Code 官宣：<strong>标准周额度永久提高 25%。</strong></p>
+<p>另一边是 OpenAI 的 Codex 负责人 Tibo：<strong>所有付费 Codex、ChatGPT Work 用户的用量重置。</strong> 并且他还写了一长串排查结果：以前有些额度，并不是你让模型多干了活，而是图像压缩、后台记忆、<code>/goal</code> 重试、子 Agent、Computer History、MCP 这些机制在额外消耗。</p>
+<p>听起来都像好消息。</p>
+<p>但这两件事真正值得看的，不是“送了多少”，而是：<strong>额外额度按什么基准算；你的额度又究竟被什么消耗。</strong></p>
+<p><img alt="Claude Code额度公告" src="https://file1.kamacoder.com/i/web/20260830200935.png" /></p>
+<blockquote>
+<p>公告截图引用 ClaudeDevs 原帖内容，原帖链接见文末资料来源。</p>
+</blockquote>
+<p>先说结论：</p>
+<ul>
+<li>Claude 的“永久 +25%”，是相对原始标准周额度；相对大家现在正在用的临时 +50%，9 月 14 日后实际会少约 <strong>17%</strong>。</li>
+<li>Tibo 说的“可多跑 10%～50%”，不是统一给所有人加额度，而是修掉不同使用方式下的额外消耗后，<strong>同一份额度能走得更远</strong>。</li>
+<li>重置能缓解一次焦虑，但更关键的是把用量的来源、异常消耗和补偿规则展示出来。否则用户只能靠“额度怎么突然没了”来猜系统出了什么问题。</li>
+</ul>
+<h2 id="claude的永久-25-到底是加还是减">Claude的永久+25%，到底是加还是减</h2>
+<p>ClaudeDevs 的原话是：从 <strong>2026 年 9 月 14 日</strong>起，Pro、Max、Team 和按席位 Enterprise 的 Claude Code 标准周额度永久提高 25%；在此之前，现有的临时 +50% 继续生效。</p>
+<p>问题出在“标准”二字。</p>
+<p>把原本的标准周额度当成 100：</p>
+<table>
+<thead>
+<tr>
+<th>时间</th>
+<th style="text-align: right;">相对原始标准额度</th>
+<th style="text-align: right;">相对今天的变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>临时活动期间（当前）</td>
+<td style="text-align: right;">150</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>2026 年 9 月 14 日之后</td>
+<td style="text-align: right;">125</td>
+<td style="text-align: right;"><strong>-16.7%</strong></td>
+</tr>
+</tbody>
+</table>
+<p>所以，永久额度当然仍然比活动前多 25；但对已经习惯 150 的重度用户来说，9 月 14 日感受到的是从 150 回到 125。</p>
+<p>这不是文字游戏，ClaudeDevs 随后的回复也直接写了：<strong>和今天相比，Claude Code 的周额度会减少 17%。</strong></p>
+<p>这里再划一条边界：这次说的是<strong>周额度</strong>，不是每 5 小时窗口，也不是 API 的 RPM/TPM。Claude 官方说明里也写得很清楚，Claude、Claude Code、Claude Desktop 的使用会计入同一个用量池；模型、对话长度、工具和 effort 档位都会影响实际能跑多久。</p>
+<p>所以别把“+25%”直接翻译成“以后每周多用四分之一”。你应该问的是：<strong>我今天的可用量是多少，9 月 14 日后会变成多少？</strong></p>
+<p>对于轻度用户，这可能只是数字变化。对于把 Claude Code 当日常生产力、每周都接近上限的录友，这就是实打实少掉约六分之一当前产能。排期、批处理和长任务，最好趁现在重新算一遍。</p>
+<h2 id="tibo这次不是只按了重置键-还列出了-烧额度-的后台问题">Tibo这次不是只按了重置键，还列出了“烧额度”的后台问题</h2>
+<p>Tibo 在公开帖中说，会重置所有付费 Codex 和 ChatGPT Work 用户的用量；团队排查了数千份报告，修复后，<strong>依具体用法不同，用户的额度可比以前多跑 10%～50%。</strong></p>
+<p>注意这个口径：它不是套餐统一扩容，也不是“每个人多 50%”。这是对修复前后效率的估算，效果取决于你是否刚好踩中了这些问题。</p>
+<p><img alt="Tibo公开的用量修复清单" src="https://file1.kamacoder.com/i/web/20260830200937.png" /></p>
+<blockquote>
+<p>此图为 Tibo 公开帖在用量追踪页中的转载截图；原帖链接见文末资料来源。</p>
+</blockquote>
+<p>原帖列出的项目里，最值得普通用户关心的是下面几类：</p>
+<table>
+<thead>
+<tr>
+<th>后台机制</th>
+<th>Tibo 公开描述的问题</th>
+<th>对用量的影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Compaction</td>
+<td>压缩上下文时保留旧图片，甚至再次触发压缩</td>
+<td>重度图像用户修复后用量约降 10%</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>后台 memory worker 继承 Stop hook，可能不该跑还持续跑</td>
+<td>影响用户不足 1%，但长尾很严重；出现过 15,000 次停止检查</td>
+</tr>
+<tr>
+<td><code>/goal</code></td>
+<td>任务已结束仍越过停止条件，或不停重试坏掉的工具</td>
+<td>案例中可吃掉一周额度的 15%～70%</td>
+</tr>
+<tr>
+<td>Subagents</td>
+<td>小模型会自行挑更强 helper；非 Fast 编排也可能让子 Agent 跑 Fast</td>
+<td>没有显式要求也可能提高消耗</td>
+</tr>
+<tr>
+<td>Computer History</td>
+<td>重复摘要重叠的电脑操作历史</td>
+<td>某些情况一周能消耗到周额度的五分之一</td>
+</tr>
+<tr>
+<td>Rolling summaries</td>
+<td>普通对话触发额外后台请求</td>
+<td>单次约 1%，积少成多；已关闭</td>
+</tr>
+<tr>
+<td>MCP</td>
+<td>工具结果可能被编码两次，工具说明被截断后又重新获取</td>
+<td>同一份上下文和工具结果重复计费</td>
+</tr>
+</tbody>
+</table>
+<p>“后台偷偷烧额度”这个说法很形象，但也要说准确：<strong>目前能确认的是 Tibo 公开承认这些产品机制会带来非用户主观意图的额外消耗，并称已修复；OpenAI 尚未发布面向所有用户的完整事故报告、影响人数和逐项补偿算法。</strong></p>
+<p>不要把它写成“OpenAI 故意扣你的额度”。意图没证据，但用量归因不透明、异常消耗会真实影响用户，这两件事已经足够需要被认真对待。</p>
+<h2 id="为什么agent时代-看得见额度-比-再送一次额度-更重要">为什么Agent时代，“看得见额度”比“再送一次额度”更重要</h2>
+<p>传统聊天模型主要消耗一次请求的输入和输出。</p>
+<p>Agent 不一样。它会读仓库、开工具、跑浏览器、压缩上下文、开子 Agent、维护记忆、重试失败工具，再把结果灌回上下文。</p>
+<p>真正昂贵的往往不只是最后那一句回答，而是中间那些你看不到的循环。</p>
+<p>这也是为什么同样一句“修一下这个 Bug”，有人只掉 2%，有人半天就见底。差别可能来自：</p>
+<ul>
+<li>仓库和对话上下文是否过长；</li>
+<li>MCP 返回的是精简结果，还是整段日志、网页和 JSON；</li>
+<li>子 Agent 是否被无节制拉起、是否误跑了高档模型或 Fast；</li>
+<li>失败工具有没有明确的重试上限和停止条件；</li>
+<li>你是否让 Agent 在一个已经很长、又塞过图片和浏览器历史的会话里继续硬跑。</li>
+</ul>
+<p>Claude 这边承诺会给用户更多可见性和控制权；Tibo 也说正在做应用内用量去向展示，让用户“不用猜”。这两个方向都对。</p>
+<p><strong>额度规则可以复杂，但不能让用户只能靠体感记账。</strong> 至少要能看到：这一轮花在哪里、后台任务花了多少、哪个模型和工具在消耗、异常时怎么申诉和补偿。</p>
+<p>OpenAI 此前介绍过 Codex 的限额和 credits 系统，目标本来就是让每次消耗可追溯、可核对。现在这次修复，反过来说明：当 Agent 的后台链路越来越长，账本能不能对得上，已经和模型能力一样重要。</p>
+<h2 id="录友现在怎么做-别只盯着-还剩百分之几">录友现在怎么做：别只盯着“还剩百分之几”</h2>
+<p>如果你用 Claude Code：</p>
+<ul>
+<li>先看本周自己是否真的会碰到上限。不会碰到，就别被 +25% 和 -17% 的标题带着焦虑。</li>
+<li>每周都接近上限，就把 9 月 14 日后的可用量按当前的约 83% 预估，提前安排长任务和批量改造。</li>
+<li>不需要时降低 effort，关掉无关工具和连接器。Claude 官方也明确提示，工具和连接器是高 Token 消耗项。</li>
+</ul>
+<p>如果你用 Codex：</p>
+<ul>
+<li>重置到账前后，都用 <code>/status</code> 或设置里的用量页记一次；异常消耗时保留任务时间、模型、模式和复现路径。</li>
+<li>把 MCP 的返回结果收窄。能返回摘要、路径和必要字段，就不要整段日志、完整网页和大 JSON 全塞进上下文。</li>
+<li>子 Agent 不是越多越好。对小任务限定并发、模型和 Fast 模式；失败重试要有次数上限。</li>
+<li>长会话、图像输入、电脑操作历史特别多时，及时开新任务或新会话。别把一个“上下文垃圾场”当成永动机。</li>
+</ul>
+<p>这一点和前面写的 <a href="./gpt-5-6-no-superpowers.html">GPT-5.6发布后，Superpowers已经没必要学了？</a> 是同一件事：模型和 Harness 变强以后，别再默认往流程里塞更多子 Agent、更多强制复核和更长指令。先看任务是否真的需要；<strong>能力没变强之前，账单已经先变厚了。</strong></p>
+<h2 id="别只庆祝提额-先把账单打开">别只庆祝提额，先把账单打开</h2>
+<p>Claude 的公告至少把“从当前额度看会少 17%”说出来了；Tibo 也把一部分后台消耗的根因摊在台面上，并给付费用户做了用量重置。</p>
+<p>这都是进步。</p>
+<p>但真正该成为常态的，不是每次出了问题以后由某个人来按重置键。</p>
+<p>而是你每一份额度，<strong>为什么花、花到哪、错了怎么退</strong>，都能在产品里一眼看清。</p>
+<h2 id="资料来源">资料来源</h2>
+<ul>
+<li>ClaudeDevs：Claude Code 周额度公告：https://x.com/ClaudeDevs/status/2093742321473065266</li>
+<li>ClaudeDevs：相对当前额度减少约 17% 的后续说明：https://x.com/ClaudeDevs/status/2093742321473065266</li>
+<li>Tibo Sottiaux：Codex、ChatGPT Work 用量重置及修复清单：https://x.com/thsottiaux/status/2093801758665715784</li>
+<li>Anthropic 帮助中心：用量和长度限制说明：https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work</li>
+<li>OpenAI：Codex 与 Sora 的限额、credits 和可审计计费设计：https://openai.com/index/beyond-rate-limits/</li>
+</ul>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="chatgpt-pro-20x-subscription-pause.html"><span class="k">← 上一篇</span><span class="v">ChatGPT暂停Pro 20X新订阅：200美元套餐为什么停售，现有用户、Codex和GPT-6 Astra受什么影响</span></a><a class="nx" href="claude-crazy-0628.html"><span class="k">下一篇 →</span><span class="v">Claude大规模封号：Claude账号被封、Claude Code不能用，国内开发者怎么在Codex和Opus 4.8之间切换</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#claude说永久-25-codex给你重置额度-两家公司终于开始解释-额度去哪了">Claude说永久+25%，Codex给你重置额度：两家公司终于开始解释“额度去哪了”</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/claude-codex-usage-limits-reset.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

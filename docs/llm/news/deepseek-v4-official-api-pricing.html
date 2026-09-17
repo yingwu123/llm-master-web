@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepSeek V4全系列正式版上线：Flash、Pro新定价，API最高涨12倍 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>deepseek-v4-official-api-pricing</span></div>
+      <h1 id="deepseek-v4全系列正式版上线-flash-pro新定价-api最高涨12倍">DeepSeek V4全系列正式版上线：Flash、Pro新定价，API最高涨12倍</h1>
+<p>前面写 <a href="./deepseek-v4-flash-official.html">DeepSeek V4-Flash 正式版</a> 时，卡哥提醒过录友：峰谷定价已经在路上，但具体什么时候生效，要等官方公告。</p>
+<p>现在时间和价格都定了。</p>
+<p><strong>DeepSeek V4 全系列模型正式版上线，API 将在北京时间 2026 年 8 月 17 日 00:00 执行新价格。</strong></p>
+<p><img alt="DeepSeek V4全系列API新定价" src="https://file1.kamacoder.com/i/web/20260814231456_265_57.jpg" /></p>
+<p>表面看，是高峰时段价格翻倍。</p>
+<p>但把它和现在的 API 价格放在一起算，你会发现事情没这么简单：<strong>闲时价也涨了，部分项目在高峰时段最高变成当前价格的 12 倍。</strong></p>
+<h2 id="这不是简单的-高峰翻倍">这不是简单的“高峰翻倍”</h2>
+<p>先把价格摊开看，单位都是人民币元/百万 Tokens。</p>
+<table>
+<thead>
+<tr>
+<th>模型与计费项</th>
+<th style="text-align: right;">当前价格</th>
+<th style="text-align: right;">8月17日起闲时价</th>
+<th style="text-align: right;">高峰价</th>
+<th style="text-align: right;">高峰价是当前的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>V4-Flash 缓存命中输入</td>
+<td style="text-align: right;">0.02</td>
+<td style="text-align: right;">0.05</td>
+<td style="text-align: right;">0.10</td>
+<td style="text-align: right;">5 倍</td>
+</tr>
+<tr>
+<td>V4-Flash 缓存未命中输入</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">1.50</td>
+<td style="text-align: right;">3.00</td>
+<td style="text-align: right;">3 倍</td>
+</tr>
+<tr>
+<td>V4-Flash 输出</td>
+<td style="text-align: right;">2.00</td>
+<td style="text-align: right;">4.50</td>
+<td style="text-align: right;">9.00</td>
+<td style="text-align: right;">4.5 倍</td>
+</tr>
+<tr>
+<td>V4-Pro 缓存命中输入</td>
+<td style="text-align: right;">0.025</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">0.30</td>
+<td style="text-align: right;">12 倍</td>
+</tr>
+<tr>
+<td>V4-Pro 缓存未命中输入</td>
+<td style="text-align: right;">3.00</td>
+<td style="text-align: right;">4.50</td>
+<td style="text-align: right;">9.00</td>
+<td style="text-align: right;">3 倍</td>
+</tr>
+<tr>
+<td>V4-Pro 输出</td>
+<td style="text-align: right;">6.00</td>
+<td style="text-align: right;">13.50</td>
+<td style="text-align: right;">27.00</td>
+<td style="text-align: right;">4.5 倍</td>
+</tr>
+</tbody>
+</table>
+<p>当前价格可在 <a href="https://api-docs.deepseek.com/zh-cn/quick_start/pricing">DeepSeek 官方定价页</a> 查看；新价格以 8 月 17 日生效的公告为准。</p>
+<p>这里最容易被误读的是：新表里的“闲时”并不等于现在的常规价。</p>
+<p>以输出为例，V4-Flash 从 2 元涨到闲时 4.5 元，V4-Pro 从 6 元涨到闲时 13.5 元，都是当前价格的 <strong>2.25 倍</strong>。到了高峰，再在闲时价的基础上翻倍。</p>
+<p>缓存命中价涨得更明显。V4-Pro 从 0.025 元变成闲时 0.15 元、高峰 0.30 元，高峰价是当前的 <strong>12 倍</strong>。</p>
+<p>缓存命中本来就便宜，所以绝对金额仍然不高。但如果你的系统依赖超长固定前缀、大量复用 Prompt，这个变化会直接改掉原来的成本模型。</p>
+<h2 id="每天7小时高峰-agent白天跑要重新算账">每天7小时高峰，Agent白天跑要重新算账</h2>
+<p>官方划定的高峰时段是北京时间：</p>
+<ul>
+<li>9:00—12:00</li>
+<li>14:00—18:00</li>
+</ul>
+<p>一天一共 <strong>7 小时高峰、17 小时闲时</strong>，其余时间都按闲时价计算。</p>
+<p>这两个时间段刚好覆盖国内团队白天最集中的开发和业务调用。早上让 Claude Code 扫仓库，下午批量跑 PR Review、日志分析和子 Agent，基本都会撞上高峰。</p>
+<p>举个简单的账。</p>
+<p>假设一次批处理消耗 1000 万未命中输入 Tokens，加 300 万输出 Tokens：</p>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th style="text-align: right;">当前价格</th>
+<th style="text-align: right;">新闲时价格</th>
+<th style="text-align: right;">新高峰价格</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>V4-Flash</td>
+<td style="text-align: right;">16 元</td>
+<td style="text-align: right;">28.5 元</td>
+<td style="text-align: right;">57 元</td>
+</tr>
+<tr>
+<td>V4-Pro</td>
+<td style="text-align: right;">48 元</td>
+<td style="text-align: right;">85.5 元</td>
+<td style="text-align: right;">171 元</td>
+</tr>
+</tbody>
+</table>
+<p>同一批任务，代码没变、Prompt 没变，只是运行时间不同，成本就能差一倍。</p>
+<p><strong>以后调用 DeepSeek，调度时间也成了模型选型的一部分。</strong></p>
+<h2 id="以后如果用deepseek需要注意的点">以后如果用DeepSeek需要注意的点</h2>
+<p>第一，<strong>把在线请求和离线任务拆开。</strong> 用户正在等待的问答、代码补全没法躲高峰，但代码扫描、文档索引、批量评测、日报生成完全可以排到 18 点以后。</p>
+<p>第二，<strong>别只统计总 Tokens。</strong> 至少要把模型、缓存命中与未命中、输入与输出、高峰与闲时分别记下来。否则月底只看到总账单上涨，很难知道问题出在哪。</p>
+<p>第三，<strong>给 Agent 加预算和停止条件。</strong> Agent 一旦反复读文件、重复调用工具、失败后无效重试，贵的不只是输出。高峰期每一次空转都按双倍新价格扣费。</p>
+<p>第四，<strong>按任务路由模型。</strong> 可批量、能验收、失败成本低的任务继续优先用 V4-Flash；复杂推理再上 V4-Pro；关键跨模块改动和长链路 Agent，则要把稳定性与人工复核成本一起算。</p>
+<p>这也是为什么不能只盯着“每百万 Tokens 多少钱”。真正该比较的是：<strong>完成同一个任务，总共花多少钱，失败后还要返工几次。</strong></p>
+<h2 id="不要闭眼全量切换">不要闭眼全量切换</h2>
+<p>从预览版到全系列正式版，说明 V4-Flash 和 V4-Pro 的产品阶段往前走了一步。</p>
+<p>但这次公告给出的核心信息是正式版和新定价，没有给出新的版本号、评测成绩或接口迁移说明。<strong>不要把“正式版”自动脑补成能力全面大升级。</strong></p>
+<p>已经接入 <code>deepseek-v4-flash</code> 和 <code>deepseek-v4-pro</code> 的项目，先盯官方更新日志和 8 月 17 日后的实际账单，再决定是否扩大流量。</p>
+<p>模型怎么选，还是那套账：</p>
+<ul>
+<li>量大、可延迟、能自动验收，DeepSeek V4 仍然值得用，但尽量放到闲时。</li>
+<li>失败代价高、需要长时间自主执行，优先看任务成功率，可以对比 <a href="./claude-opus-5.html">Claude Opus 5</a>。</li>
+<li>需要国产模型、预算又比较敏感，也可以把 <a href="./glm-5-2.html">GLM-5.2</a> 放进同一套真实任务里测，不要只比厂商跑分。</li>
+</ul>
+<p>不是站队，是算账。</p>
+<h2 id="最后">最后</h2>
+<p><strong>一是别把闲时价当成原价。</strong> 新闲时价已经上调，高峰是在新闲时价上再翻倍。</p>
+<p><strong>二是别只拿缓存命中价做预算。</strong> 是否命中取决于请求前缀能不能复用。真实业务里只要 Prompt、上下文或路由方式变化，未命中输入才是更应该保守估算的价格。</p>
+<p><strong>三是别等账单出来才迁任务。</strong> 先从日志里找出最耗 Tokens、又不要求实时完成的任务，把它们移出 9:00—12:00 和 14:00—18:00，收益最直接。</p>
+<p>DeepSeek V4 正式版上线当然是好事，但这次对开发者影响更直接的，其实是价格规则变了。</p>
+<p>以前是选哪个模型。</p>
+<p>现在还要多问一句：<strong>这个任务，非得白天跑吗？</strong></p>
+<p>加油</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="deepseek-v4-flash-vision-exp.html"><span class="k">← 上一篇</span><span class="v">DeepSeek终于能看图了：V4-Flash-Vision-Exp识图、图表、ASCII和SVG实测，Harness多模态怎么用？</span></a><a class="nx" href="deepseek-v4-price.html"><span class="k">下一篇 →</span><span class="v">DeepSeek V4降价75%：我接上Claude Code跑了几天，说说真实感受</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#deepseek-v4全系列正式版上线-flash-pro新定价-api最高涨12倍">DeepSeek V4全系列正式版上线：Flash、Pro新定价，API最高涨12倍</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/deepseek-v4-official-api-pricing.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

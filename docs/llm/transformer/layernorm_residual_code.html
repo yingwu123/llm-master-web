@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>手撕LayerNorm与残差连接：别让基础组件被忽略 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>transformer</span><span class="sep">›</span><span>layernorm_residual_code</span></div>
+      <h1 id="手撕layernorm与残差连接-别让基础组件被忽略">手撕LayerNorm与残差连接：别让基础组件被忽略</h1>
+<p>上一篇文章我们把 FFN 从零手撕了一遍，走完了升维 → 激活 → 降维的完整流程。</p>
+<p>这篇文章我们来手撕两个<strong>长期被"配角化"的组件</strong>：<strong>残差连接（Residual Connection）</strong> 和 <strong>层归一化（LayerNorm）</strong>。</p>
+<p>它们看起来简单，代码加起来不超过 20 行，但缺了任何一个，Transformer 就跑不深。</p>
+<h2 id="残差连接">残差连接</h2>
+<p>残差连接的公式只有一行：</p>
+<p>$$
+\text{输出} = F(x) + x
+$$</p>
+<p>$F(x)$ 是子层的输出（比如 Attention 或 FFN 的结果），$x$ 是这一层的输入。两者<strong>直接相加</strong>。</p>
+<p>就这么简单？就这么简单。</p>
+<p>但它解决了一个深层网络的根本问题：<strong>梯度消失</strong>。</p>
+<p>反向传播时，梯度需要从最后一层一路流回第一层。每穿过一层，就要乘一次该层的导数，如果导数很小（比如 Sigmoid 激活区域），链式相乘下来，梯度会指数级缩小，前面几层根本收不到有效的训练信号。</p>
+<p>残差连接的巧妙在于：它给梯度提供了一条<strong>"高速公路"</strong>，可以绕过中间层直接流回去，不需要每一层都"乘一遍"。</p>
+<p><img alt="LayerNorm代码计算流程示意图" src="https://file1.kamacoder.com/i/algo/article13_423_p1.drawio.png" /></p>
+<p>代码里实现残差非常直接：</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">residual_connection</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">sublayer_output</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    残差连接：直接相加</span>
+
+<span class="sd">    参数：</span>
+<span class="sd">        x:               子层的输入, shape (L, d_model)</span>
+<span class="sd">        sublayer_output: 子层的输出, shape (L, d_model)</span>
+
+<span class="sd">    返回：</span>
+<span class="sd">        shape (L, d_model)，和输入完全一致</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">x</span> <span class="o">+</span> <span class="n">sublayer_output</span>
+
+<span class="c1"># 测试</span>
+<span class="n">L</span><span class="p">,</span> <span class="n">d_model</span> <span class="o">=</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+
+<span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>             <span class="c1"># 子层输入</span>
+<span class="n">sublayer_out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>  <span class="c1"># 子层输出（模拟）</span>
+
+<span class="n">output</span> <span class="o">=</span> <span class="n">residual_connection</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">sublayer_out</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输入形状:   </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>             <span class="c1"># (7, 8)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"子层输出:   </span><span class="si">{</span><span class="n">sublayer_out</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 8)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"残差输出:   </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>        <span class="c1"># (7, 8)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入形状:   (7, 8)
+子层输出:   (7, 8)
+残差输出:   (7, 8)
+</code></pre></div>
+
+<p>就是一个加法，形状完全不变。但正是这个加法，让 Transformer 能稳定地堆到 100 多层。</p>
+<h2 id="layernorm">LayerNorm</h2>
+<p>残差相加之后，数值的范围可能变得很大或者很不均匀——有的维度值极大，有的极小。进入下一层计算时，这种不稳定会严重影响训练效果。</p>
+<p>LayerNorm 要做的事，就是把每个 Token 的向量<strong>归一化</strong>：均值变成 0，方差变成 1。</p>
+<p>公式如下：</p>
+<p>$$
+\text{LayerNorm}(x) = \frac{x - \mu}{\sigma + \epsilon} \cdot \gamma + \beta
+$$</p>
+<p>一共四步：</p>
+<ol>
+<li>算这个向量的均值 $\mu$</li>
+<li>算这个向量的标准差 $\sigma$</li>
+<li>用 $(x - \mu) / \sigma$ 标准化，每个维度都"缩"到均值 0、方差 1</li>
+<li>再乘 $\gamma$（缩放）、加 $\beta$（偏移）——这两个是可学习参数，让模型自己决定"归一化到什么程度"</li>
+</ol>
+<p>其中 $\epsilon$ 是一个很小的数（比如 1e-5），防止分母为 0。</p>
+<p><img alt="残差连接代码计算流程示意图" src="https://file1.kamacoder.com/i/algo/article13_423_p2.drawio.png" /></p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">LayerNorm</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        LayerNorm</span>
+
+<span class="sd">        参数：</span>
+<span class="sd">            d_model: 向量维度</span>
+<span class="sd">            eps:     防止除零的小常数</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>   <span class="c1"># 可学习缩放参数，初始化为 1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">beta</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>  <span class="c1"># 可学习偏移参数，初始化为 0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eps</span>   <span class="o">=</span> <span class="n">eps</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        x: shape (L, d_model)</span>
+<span class="sd">        """</span>
+        <span class="c1"># 对每个 Token（每一行）分别计算均值和标准差</span>
+        <span class="n">mu</span>    <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>          <span class="c1"># (L, 1)</span>
+        <span class="n">sigma</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>           <span class="c1"># (L, 1)</span>
+
+        <span class="c1"># 标准化</span>
+        <span class="n">x_norm</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mu</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">sigma</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>          <span class="c1"># (L, d_model)</span>
+
+        <span class="c1"># 缩放 + 偏移（广播到每一行）</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">*</span> <span class="n">x_norm</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span>          <span class="c1"># (L, d_model)</span>
+
+
+<span class="c1"># 测试</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">L</span><span class="p">,</span> <span class="n">d_model</span> <span class="o">=</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10</span>  <span class="c1"># 故意放大数值，模拟数值不稳定的情况</span>
+
+<span class="n">ln</span> <span class="o">=</span> <span class="n">LayerNorm</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">ln</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"归一化前 - 均值: </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">, 标准差: </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"归一化后 - 均值: </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">, 标准差: </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输入形状: </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">, 输出形状: </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>归一化前 - 均值: -0.37, 标准差: 9.87
+归一化后 - 均值: 0.0000, 标准差: 1.0000
+输入形状: (7, 8), 输出形状: (7, 8)
+</code></pre></div>
+
+<p>输入的标准差接近 10，归一化之后变成了 1——数值被"拉"回了合理范围，而形状完全不变。</p>
+<h2 id="把两者拼在一起-add-norm">把两者拼在一起 Add &amp; Norm</h2>
+<p>在 Transformer 里，残差连接和 LayerNorm 从来不分家，标准写法叫 <strong>Add &amp; Norm</strong>：</p>
+<p>$$
+\text{输出} = \text{LayerNorm}(x + F(x))
+$$</p>
+<p>先加（残差），再归一化（LayerNorm）。每个子模块——无论是 Attention 还是 FFN——后面都跟一个这样的结构。</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">add_and_norm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">sublayer_output</span><span class="p">,</span> <span class="n">layer_norm</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Add &amp; Norm：残差连接 + LayerNorm</span>
+
+<span class="sd">    参数：</span>
+<span class="sd">        x:               子层输入,  shape (L, d_model)</span>
+<span class="sd">        sublayer_output: 子层输出,  shape (L, d_model)</span>
+<span class="sd">        layer_norm:      LayerNorm 实例</span>
+
+<span class="sd">    返回：</span>
+<span class="sd">        shape (L, d_model)</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">layer_norm</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">sublayer_output</span><span class="p">)</span>
+
+
+<span class="c1"># 完整测试</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">L</span><span class="p">,</span> <span class="n">d_model</span> <span class="o">=</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span>
+
+<span class="n">x</span>            <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+<span class="n">attn_output</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>  <span class="c1"># 模拟 Attention 子层的输出</span>
+<span class="n">ffn_output</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>  <span class="c1"># 模拟 FFN 子层的输出</span>
+
+<span class="n">ln1</span> <span class="o">=</span> <span class="n">LayerNorm</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>
+<span class="n">ln2</span> <span class="o">=</span> <span class="n">LayerNorm</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>
+
+<span class="c1"># Attention 子层 → Add &amp; Norm</span>
+<span class="n">after_attn</span> <span class="o">=</span> <span class="n">add_and_norm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">attn_output</span><span class="p">,</span> <span class="n">ln1</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Attention 子层后: </span><span class="si">{</span><span class="n">after_attn</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 8)</span>
+
+<span class="c1"># FFN 子层 → Add &amp; Norm</span>
+<span class="n">after_ffn</span>  <span class="o">=</span> <span class="n">add_and_norm</span><span class="p">(</span><span class="n">after_attn</span><span class="p">,</span> <span class="n">ffn_output</span><span class="p">,</span> <span class="n">ln2</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"FFN 子层后:       </span><span class="si">{</span><span class="n">after_ffn</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>   <span class="c1"># (7, 8)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">输入形状:  </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输出形状:  </span><span class="si">{</span><span class="n">after_ffn</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"形状一致:  </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">after_ffn</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>Attention 子层后: (7, 8)
+FFN 子层后:       (7, 8)
+
+输入形状:  (7, 8)
+输出形状:  (7, 8)
+形状一致:  True
+</code></pre></div>
+
+<hr />
+<h2 id="post-norm-vs-pre-norm">Post-Norm vs Pre-Norm</h2>
+<p>上面写的是 <strong>Post-Norm</strong>，也就是原始论文的做法：先算子层，后归一化。</p>
+<p>$$
+\text{Post-Norm:} \quad x' = \text{LayerNorm}(x + F(x))
+$$</p>
+<p>但现代大模型（比如 Llama、GPT-3）基本都改成了 <strong>Pre-Norm</strong>：先归一化，再算子层。</p>
+<p>$$
+\text{Pre-Norm:} \quad x' = x + F(\text{LayerNorm}(x))
+$$</p>
+<p>两者差别只有一行代码，效果却不同：Pre-Norm 的训练更稳定，在层数很深（几十层以上）时尤为明显。</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Post-Norm（原始 Transformer）</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">post_norm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">sublayer_fn</span><span class="p">,</span> <span class="n">layer_norm</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">layer_norm</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">sublayer_fn</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+
+<span class="c1"># Pre-Norm（现代大模型）</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">pre_norm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">sublayer_fn</span><span class="p">,</span> <span class="n">layer_norm</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">x</span> <span class="o">+</span> <span class="n">sublayer_fn</span><span class="p">(</span><span class="n">layer_norm</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+</code></pre></div>
+
+<p>记住这两种写法的区别，面试或者读源码时会频繁遇到。</p>
+<hr />
+<h2 id="步骤汇总">步骤汇总</h2>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>公式</th>
+<th>核心作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>残差连接</td>
+<td>$F(x) + x$</td>
+<td>给梯度留高速公路，防止深层网络训练崩</td>
+</tr>
+<tr>
+<td>LayerNorm</td>
+<td>$\frac{x-\mu}{\sigma} \cdot \gamma + \beta$</td>
+<td>把每个 Token 的向量拉回均值 0、方差 1</td>
+</tr>
+<tr>
+<td>Add &amp; Norm</td>
+<td>$\text{LayerNorm}(x + F(x))$</td>
+<td>两者捆绑，每个子层后面都挂一个</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p>到这里，Transformer Block 的所有零件——Multi-Head Attention、FFN、残差连接、LayerNorm——我们都手撕完了。</p>
+<p>下一篇文章，我们会把这些零件真正<strong>拼成一个完整的 Transformer Encoder Block</strong>，一行一行跑通完整的前向过程，大家点个关注不迷路～</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="fnn_code.html"><span class="k">← 上一篇</span><span class="v">手撕FFN：Transformer前馈网络代码实现</span></a><a class="nx" href="mha.html"><span class="k">下一篇 →</span><span class="v">Multi-Head Attention详解：为什么一个头不够，多头怎么拆分和拼接</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#手撕layernorm与残差连接-别让基础组件被忽略">手撕LayerNorm与残差连接：别让基础组件被忽略</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/transformer/layernorm_residual_code.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

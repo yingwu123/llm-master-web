@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent vs Workflow：什么时候根本不需要Agent，别把简单流程做复杂 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>app</span><span class="sep">›</span><span>agent_vs_workflow</span></div>
+      <h1 id="agent-vs-workflow-什么时候根本不需要-agent">Agent vs Workflow：什么时候根本不需要 Agent？</h1>
+<p><a href="https://programmercarl.com/other/project_kamaClaude.html">
+  <img src="https://file1.kamacoder.com/i/web/2026-06-16_14-36-54.jpg" style="width:100%;cursor:pointer;" alt="KamaClaude">
+</a></p>
+<p>前两篇我们把 Agent 的基础讲了一遍。</p>
+<p>第一篇讲 <a href="./agent_intro.html">Agent 到底是什么</a>，核心是：<strong>Agent 不是更会聊天，而是能围绕目标持续行动。</strong></p>
+<p>第二篇讲 <a href="./react_reflection_planning.html">ReAct、Reflection、规划执行</a>，核心是：<strong>Agent 要能边做边判断，做完还要检查。</strong></p>
+<p>但到这里，很多录友会产生一个新误区：</p>
+<p>“既然 Agent 这么强，那我是不是所有流程都应该改成 Agent？”</p>
+<p>不是。</p>
+<p>而且我建议你把这句话记住：</p>
+<p><strong>不是所有任务都需要 Agent。很多场景硬上 Agent，反而是在给系统制造不稳定。</strong></p>
+<p>这篇就专门讲一个面试和项目里都很常见的问题：</p>
+<p><strong>Agent 和 Workflow 到底怎么选？什么时候根本不需要 Agent？</strong></p>
+<p><img alt="Agent vs Workflow：选型看的是路径确定性" src="https://file1.kamacoder.com/i/web/20260517200409_agent_workflow_01_decision_overview_compressed.png" /></p>
+<h2 id="一-先说结论-流程能写死-就优先-workflow">一、先说结论：流程能写死，就优先 Workflow</h2>
+<p>很多人一听 Workflow，就觉得它不如 Agent 高级。</p>
+<p>这个理解是错的。</p>
+<p>Workflow 不是低级方案。</p>
+<p>在很多生产系统里，Workflow 才是更靠谱的方案。</p>
+<p>什么是 Workflow？</p>
+<p>简单说，就是<strong>步骤固定、规则明确、输入输出稳定的流程编排。</strong></p>
+<p>比如发票审核：</p>
+<ol>
+<li>OCR 识别发票图片。</li>
+<li>提取金额、税号、日期。</li>
+<li>校验字段是否合法。</li>
+<li>调用财务系统入账。</li>
+<li>返回审核结果。</li>
+</ol>
+<p>这个流程很清楚。</p>
+<p>先做什么，后做什么，异常怎么处理，都能提前写出来。</p>
+<p>这种场景，你根本不需要让模型每次自由发挥：</p>
+<p>“我思考一下，接下来要不要入账。”</p>
+<p>这就很危险。</p>
+<p>因为财务流程最需要的不是“灵活”，而是<strong>稳定、可审计、可回放、可控制。</strong></p>
+<p>所以第一条原则很简单：</p>
+<p><strong>如果流程能稳定写死，就优先用 Workflow，不要硬上 Agent。</strong></p>
+<h2 id="二-workflow-解决的是-按固定步骤稳定执行">二、Workflow 解决的是“按固定步骤稳定执行”</h2>
+<p>Workflow 的核心价值，是把业务流程变成一条可控链路。</p>
+<p>它关注的问题是：</p>
+<ul>
+<li>每一步做什么</li>
+<li>每一步依赖什么输入</li>
+<li>每一步失败怎么重试</li>
+<li>哪些节点需要人工审批</li>
+<li>哪些结果需要记录和追踪</li>
+</ul>
+<p>比如客服退款流程。</p>
+<p>用户申请退款后，系统可能这样走：</p>
+<ol>
+<li>校验订单是否存在。</li>
+<li>判断订单是否在退款期限内。</li>
+<li>判断商品是否已发货。</li>
+<li>如果未发货，自动退款。</li>
+<li>如果已发货，进入人工审核。</li>
+<li>写入退款记录，通知用户。</li>
+</ol>
+<p>这个流程有分支，但它仍然是 Workflow。</p>
+<p>因为分支规则是确定的。</p>
+<p>订单超过 7 天不能退。</p>
+<p>已发货要人工审核。</p>
+<p>未发货可自动退款。</p>
+<p>这些规则都能写在代码里。</p>
+<p>这种任务让 Agent 来判断，反而会增加风险。</p>
+<p>因为 Agent 可能解释错规则，也可能在边界条件上犯错。</p>
+<p>而 Workflow 的好处是：<strong>规则一旦写清楚，每次都会稳定执行。</strong></p>
+<p><img alt="Workflow：规则分支不是 Agent，能写清楚就固定执行" src="https://file1.kamacoder.com/i/web/20260517200412_agent_workflow_02_workflow_refund_compressed.png" /></p>
+<h2 id="三-agent-解决的是-路径不确定时动态决策">三、Agent 解决的是“路径不确定时动态决策”</h2>
+<p>那 Agent 什么时候有价值？</p>
+<p>当任务目标明确，但执行路径不确定时。</p>
+<p>比如：</p>
+<p>“帮我定位线上接口变慢的原因。”</p>
+<p>这个任务没法提前写死。</p>
+<p>可能是数据库慢。</p>
+<p>可能是缓存击穿。</p>
+<p>可能是刚发布的代码引入了慢查询。</p>
+<p>可能是第三方接口超时。</p>
+<p>可能是流量突然变大。</p>
+<p>你不知道第一步该查哪里。</p>
+<p>就算第一步查了监控，也不知道第二步该查日志、数据库、发布记录还是链路追踪。</p>
+<p>这时候 Agent 的价值就出来了。</p>
+<p>它可以根据中间结果动态调整下一步：</p>
+<ol>
+<li>先查接口延迟曲线。</li>
+<li>发现 22:10 开始变慢。</li>
+<li>再查 22:10 附近有没有发布。</li>
+<li>发现支付服务 22:05 发布。</li>
+<li>再查支付服务日志。</li>
+<li>发现下游支付回调大量超时。</li>
+<li>再查第三方接口状态。</li>
+<li>最后形成结论和证据。</li>
+</ol>
+<p>这个过程不是固定流程。</p>
+<p>它是不断“观察结果 -&gt; 再决定下一步”。</p>
+<p>这就是 Agent 更适合的地方。</p>
+<p>所以第二条原则是：</p>
+<p><strong>路径不确定、需要中途判断、需要多工具探索，才考虑 Agent。</strong></p>
+<p><img alt="Agent：路径不确定时，根据结果继续探索" src="https://file1.kamacoder.com/i/web/20260517200414_agent_workflow_03_agent_open_fault_compressed.png" /></p>
+<h2 id="四-别把-有分支-误判成-需要-agent">四、别把“有分支”误判成“需要 Agent”</h2>
+<p>这里有个特别容易踩的坑。</p>
+<p>很多录友会说：</p>
+<p>“我这个流程也有分支啊，是不是就要 Agent？”</p>
+<p>不一定。</p>
+<p><strong>有分支，不等于需要 Agent。</strong></p>
+<p>关键要看分支是不是能提前定义。</p>
+<p>比如退款流程：</p>
+<ul>
+<li>未发货 -&gt; 自动退款</li>
+<li>已发货 -&gt; 人工审核</li>
+<li>超过退款期 -&gt; 拒绝退款</li>
+</ul>
+<p>这叫规则分支。</p>
+<p>规则分支适合 Workflow。</p>
+<p>再比如风控审核：</p>
+<ul>
+<li>金额小于 1000，自动通过</li>
+<li>金额大于 1000，进入二次校验</li>
+<li>命中黑名单，人工审核</li>
+</ul>
+<p>这也是 Workflow。</p>
+<p>因为判断条件清楚，规则边界明确。</p>
+<p>真正需要 Agent 的，是那种你没法提前列出完整路径的任务。</p>
+<p>比如：</p>
+<p>“帮我分析这次活动转化率为什么下降。”</p>
+<p>这个任务可能要查流量来源、页面加载速度、用户路径、按钮点击率、支付成功率、竞品价格、客服反馈。</p>
+<p>而且查到一个异常后，下一步还要跟着异常走。</p>
+<p>这种才是开放决策。</p>
+<p>所以判断标准不是“有没有分支”，而是：</p>
+<p><strong>分支能不能提前写清楚。</strong></p>
+<p>能写清楚，就是 Workflow。</p>
+<p>写不清楚，才考虑 Agent。</p>
+<h2 id="五-过度-agent-化-是很多项目翻车的开始">五、过度 Agent 化，是很多项目翻车的开始</h2>
+<p>现在 Agent 太热了。</p>
+<p>很多项目为了显得“智能”，会把简单流程也包装成 Agent。</p>
+<p>这就是过度 Agent 化。</p>
+<p>它最常见的问题有四个。</p>
+<h3 id="1-成本更高">1. 成本更高</h3>
+<p>Workflow 执行一次，可能就是几次接口调用。</p>
+<p>Agent 执行一次，可能要多轮模型调用、多次工具调用、反复观察和总结。</p>
+<p>同样一个任务，如果 Workflow 0.5 秒能跑完，Agent 跑 20 秒，还消耗一堆 token。</p>
+<p>这不是智能。</p>
+<p>这是把简单问题复杂化。</p>
+<h3 id="2-延迟更长">2. 延迟更长</h3>
+<p>用户只是想查一个订单状态。</p>
+<p>Workflow 直接查数据库就行。</p>
+<p>如果你让 Agent 先理解意图、再规划、再调用工具、再总结，用户体验只会变差。</p>
+<p>能直接返回，就不要绕一圈。</p>
+<h3 id="3-稳定性更差">3. 稳定性更差</h3>
+<p>Workflow 的路径是固定的。</p>
+<p>Agent 的路径是模型动态决定的。</p>
+<p>动态决策意味着灵活，也意味着不稳定。</p>
+<p>它可能选错工具，可能重复调用，可能提前总结，可能跑偏。</p>
+<p>在高风险业务里，这种不稳定不是小问题。</p>
+<h3 id="4-调试更难">4. 调试更难</h3>
+<p>Workflow 出问题，可以看节点日志。</p>
+<p>哪个节点失败，输入是什么，输出是什么，一眼能定位。</p>
+<p>Agent 出问题，经常要看整条 trace。</p>
+<p>它为什么选这个工具？</p>
+<p>为什么忽略那个结果？</p>
+<p>为什么明明失败了还继续走？</p>
+<p>调试成本明显更高。</p>
+<p>所以不是“Agent 更高级”，而是：</p>
+<p><strong>Agent 的自由度更高，也意味着你要付出更多成本去约束它。</strong></p>
+<p><img alt="过度 Agent 化：把简单流程做复杂，系统会变贵变慢变难控" src="https://file1.kamacoder.com/i/web/20260517200416_agent_workflow_04_over_agentization_compressed.png" /></p>
+<h2 id="六-一个简单判断-这件事能不能画成固定流程图">六、一个简单判断：这件事能不能画成固定流程图</h2>
+<p>项目里怎么快速判断用 Workflow 还是 Agent？</p>
+<p>我给一个很实用的方法：</p>
+<p><strong>先问自己：这件事能不能画成固定流程图。</strong></p>
+<p>如果能画出来，而且大多数情况都覆盖了，那就优先 Workflow。</p>
+<p>比如：</p>
+<ul>
+<li>发票审核</li>
+<li>订单退款</li>
+<li>简历四要素检查</li>
+<li>内容发布审核</li>
+<li>工单状态流转</li>
+<li>数据同步任务</li>
+</ul>
+<p>这些都适合 Workflow。</p>
+<p>如果你画不出来，或者画出来之后发现分支爆炸，说明它可能更适合 Agent。</p>
+<p>比如：</p>
+<ul>
+<li>线上故障定位</li>
+<li>复杂竞品调研</li>
+<li>大型代码库问题分析</li>
+<li>用户反馈归因</li>
+<li>多数据源经营分析</li>
+<li>开放式资料整理</li>
+</ul>
+<p>这些任务路径不固定。</p>
+<p>你很难提前定义每一步。</p>
+<p>这时 Agent 才有意义。</p>
+<p><img alt="一个简单判断：这件事该不该上 Agent" src="https://file1.kamacoder.com/i/web/20260517200418_agent_workflow_05_selection_tree_compressed.png" /></p>
+<h2 id="七-最稳的方案-往往是-workflow-agent">七、最稳的方案，往往是 Workflow + Agent</h2>
+<p>真实项目里，不一定是二选一。</p>
+<p>很多时候，最靠谱的是混合架构：</p>
+<p><strong>外层用 Workflow 控制主流程，里面某些开放节点交给 Agent。</strong></p>
+<p>比如一个智能工单系统。</p>
+<p>主流程可以是 Workflow：</p>
+<ol>
+<li>接收工单。</li>
+<li>判断工单类型。</li>
+<li>分配处理队列。</li>
+<li>处理完成后通知用户。</li>
+<li>记录处理结果。</li>
+</ol>
+<p>这条主流程必须稳定。</p>
+<p>但在“分析工单原因”这个节点，可以用 Agent。</p>
+<p>因为不同工单的问题路径不一样。</p>
+<p>有的要查日志。</p>
+<p>有的要查订单。</p>
+<p>有的要查用户行为。</p>
+<p>有的要查最近发布记录。</p>
+<p>这部分适合 Agent 动态决策。</p>
+<p>所以更合理的架构是：</p>
+<p><strong>Workflow 负责边界和流程，Agent 负责开放问题求解。</strong></p>
+<p>这样既有稳定性，又有灵活性。</p>
+<p>不要让 Agent 接管整个系统。</p>
+<p>让它在真正需要判断的地方发挥作用。</p>
+<p><img alt="最稳的方案：Workflow 控主流程，Agent 处理开放节点" src="https://file1.kamacoder.com/i/web/20260517200419_agent_workflow_06_hybrid_architecture_compressed.png" /></p>
+<h2 id="八-面试时怎么回答-agent-vs-workflow">八、面试时怎么回答 Agent vs Workflow</h2>
+<p><strong>面试官问：Agent 和 Workflow 有什么区别？</strong></p>
+<p>不要只说：</p>
+<p>“Agent 更智能，Workflow 更固定。”</p>
+<p>这句话太泛了。</p>
+<p>你可以这样答：</p>
+<p>“Workflow 适合步骤明确、规则稳定、可提前编排的任务，核心是稳定执行；Agent 适合目标明确但路径不确定、需要中途观察结果并动态决策的任务，核心是探索和调整。工程上不是所有场景都要用 Agent，如果流程能写死，用 Workflow 更稳定、更便宜、更容易审计。”</p>
+<p><strong>面试官问：你们项目里为什么不用纯 Agent？</strong></p>
+<p>可以这样答：</p>
+<p>“因为纯 Agent 的自由度太高，成本、延迟和不确定性都会上升。我们一般把主流程放在 Workflow 里，保证权限、状态流转和异常处理可控；只有在路径不确定的节点，比如故障定位、原因分析、复杂数据查询，才让 Agent 调工具动态判断。”</p>
+<p><strong>面试官问：怎么判断一个场景该不该上 Agent？</strong></p>
+<p>可以这样答：</p>
+<p>“我会先看流程能不能提前画清楚。如果步骤固定、分支规则明确，就用 Workflow；如果路径无法提前穷举，需要根据中间结果不断调整下一步，才考虑 Agent。同时还要看风险、成本、延迟和可解释性要求，不能为了技术热度硬套 Agent。”</p>
+<p>这套回答就比较稳。</p>
+<p>它说明你不是只会追热点，而是知道工程取舍。</p>
+<h2 id="九-别为了-智能-牺牲确定性">九、别为了“智能”牺牲确定性</h2>
+<p>Agent 真正有价值的地方，是处理开放问题。</p>
+<p>但生产系统里，很多环节不需要开放。</p>
+<p>它需要确定。</p>
+<p>需要可控。</p>
+<p>需要每次结果一致。</p>
+<p>需要出了问题能追责。</p>
+<p>这时候 Workflow 就比 Agent 合适。</p>
+<p>所以做大模型应用，不要看到 Agent 就兴奋。</p>
+<p>先问自己四个问题：</p>
+<ul>
+<li>这个流程能不能写死？</li>
+<li>分支规则能不能提前定义？</li>
+<li>错了以后影响大不大？</li>
+<li>用户更需要灵活，还是更需要稳定？</li>
+</ul>
+<p>如果答案偏向稳定，那就别硬上 Agent。</p>
+<p><strong>Agent 解决的是路径不确定的问题。</strong></p>
+<p><strong>Workflow 解决的是流程稳定执行的问题。</strong></p>
+<p>选错了，系统会变贵、变慢、变难控。</p>
+<p>能把这个边界讲清楚，才是真正懂 Agent。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="agent_tool_design.html"><span class="k">← 上一篇</span><span class="v">工具设计决定Agent上限：Tool Use、Function Calling、参数Schema和返回值怎么设计</span></a><a class="nx" href="browser_agent_dom_context.html"><span class="k">下一篇 →</span><span class="v">Browser Agent怎么读取大型网页？DOM清洗、可访问性树、局部读取与Token预算</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#agent-vs-workflow-什么时候根本不需要-agent">Agent vs Workflow：什么时候根本不需要 Agent？</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/app/agent_vs_workflow.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

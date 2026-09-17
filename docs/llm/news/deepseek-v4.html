@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepSeek V4发布：1.6万亿参数开源MoE，百万上下文，价格只要GPT-5.5的十分之一 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>deepseek-v4</span></div>
+      <h1 id="deepseek-v4发布-1-6万亿参数开源moe-百万上下文-价格只要gpt-5-5的十分之一">DeepSeek V4发布：1.6万亿参数开源MoE，百万上下文，价格只要GPT-5.5的十分之一</h1>
+<p><a href="https://notes.kamacoder.com/qita/0021.gpt-5-6-sol-terra-luna-domestic-guide.html">
+  <img src="https://file1.kamacoder.com/i/web/2026-07-17_15-06-45.jpg" style="width:100%;cursor:pointer;" alt="KamaClaude">
+</a></p>
+<p>昨天写<a href="https://mp.weixin.qq.com/s/TQDAYdeSQYwnPqF8DROuUQ">GPT-5.5</a>的时候，结尾说了一句"deepseekV4也发布了，明天单独写一篇来分析一下"。</p>
+<p>没错，<strong>同一天</strong>，2026年4月24日，DeepSeek和OpenAI撞车了。</p>
+<p>GPT-5.5凌晨发，DeepSeek V4北京时间白天发。两家同一天放大招，这节奏符合ai的气质（卷起来）。</p>
+<p><img alt="DeepSeek V4模型发布截图" src="https://file1.kamacoder.com/i/web/2026-04-24_17-20-01.jpg" /></p>
+<p>之前在<a href="https://mp.weixin.qq.com/s/QJZ34IOWf8vdEiFqugNsMw">Opus 4.7那篇</a>里还调侃DeepSeek"生产队的驴不能这么拖"，结果人家真的在憋大招。</p>
+<p>而且这次不是小打小闹——<strong>1.6万亿参数、开源、百万上下文、价格只要闭源模型的十分之一</strong>。</p>
+<p>接下来逐个拆开看看。</p>
+<h2 id="一-两个模型-v4-pro和v4-flash">一、两个模型：V4-Pro和V4-Flash</h2>
+<p><img alt="DeepSeek V4模型能力说明截图" src="https://file1.kamacoder.com/i/web/2026-04-24_18-42-54.jpg" />
+DeepSeek这次一口气发了两个模型，都是MoE（混合专家）架构：</p>
+<p><strong>V4-Pro</strong>——旗舰版
+- 总参数：<strong>1.6万亿</strong>（1.6T）
+- 每个token激活参数：<strong>490亿</strong>（49B）
+- 61层，384个路由专家 + 1个共享专家，每次只激活6个
+- 训练数据：33万亿token</p>
+<p><strong>V4-Flash</strong>——轻量版
+- 总参数：<strong>2840亿</strong>（284B）
+- 每个token激活参数：<strong>130亿</strong>（13B）
+- 43层，256个路由专家 + 1个共享专家，同样每次激活6个
+- 训练数据：32万亿token</p>
+<p>录友可能会问：1.6万亿参数，这不是巨贵吗？</p>
+<p><strong>不贵。</strong> 这就是MoE的精髓——参数虽然多，但每次推理只激活一小部分。V4-Pro有1.6万亿参数，但每个token只用490亿，相当于只用了3%的参数。</p>
+<p>打个比方：一个公司有384个专家，但每个项目只派6个人去干活。人多但不是同时上，所以成本可控。</p>
+<p>两个模型都开源了，权重放在Hugging Face上，Base和Instruct版本都有。</p>
+<h2 id="二-评测数据-编码能力开源天花板">二、评测数据：编码能力开源天花板</h2>
+<p>先看最硬的数据。</p>
+<p><img alt="DeepSeek V4性能指标截图" src="https://file1.kamacoder.com/i/web/2026-04-24_17-20-02.jpg" /></p>
+<p><strong>编码类</strong></p>
+<table>
+<thead>
+<tr>
+<th>评测</th>
+<th>V4-Pro</th>
+<th>V4-Flash</th>
+<th>Claude Opus 4.6</th>
+<th>GPT-5.4</th>
+<th>Gemini 3.1 Pro</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LiveCodeBench</td>
+<td><strong>93.5</strong></td>
+<td>91.6</td>
+<td>88.8</td>
+<td>—</td>
+<td>91.7</td>
+</tr>
+<tr>
+<td>Codeforces</td>
+<td><strong>3206</strong></td>
+<td>3052</td>
+<td>—</td>
+<td>3168</td>
+<td>3052</td>
+</tr>
+<tr>
+<td>SWE-Bench Verified</td>
+<td>80.6</td>
+<td>79.0</td>
+<td><strong>80.8</strong></td>
+<td>—</td>
+<td>80.6</td>
+</tr>
+<tr>
+<td>Terminal Bench 2.0</td>
+<td>67.9</td>
+<td>56.9</td>
+<td>65.4</td>
+<td>75.1</td>
+<td>68.5</td>
+</tr>
+</tbody>
+</table>
+<p>录友可能不知道这几个指标啥意思，我来解读一下：</p>
+<p><strong>LiveCodeBench 93.5</strong>——这是实时编码能力评测，V4-Pro直接超过了GPT-5.4的91.7。一个开源模型，在编码benchmark上打赢了OpenAI的上一代旗舰，这在以前是不敢想的。</p>
+<p><strong>Codeforces 3206分</strong>——这是竞赛编程平台的rating，3206分在人类选手中排<strong>第23名</strong>。GPT-5.4是3168分。一个AI模型，在全球编程竞赛中能排进前30，而且是开源的。</p>
+<p><strong>SWE-Bench Verified 80.6</strong>——修真实GitHub issue的能力，和Claude Opus 4.6的80.8基本持平。注意这里对比的是Opus 4.6，不是4.7。</p>
+<p><strong>Terminal Bench 2.0 67.9</strong>——这是Agent全链路工程能力测试，V4-Pro只拿到67.9。GPT-5.5是82.7，差距明显。<strong>这也是V4最大的短板：Agent场景还追不上闭源前沿。</strong></p>
+<p>不过deepseek在Agent方面，还是有较大提升 ，下图为 V4-Pro 在某 Agent 框架下生成的 PPT 内页示例： </p>
+<p><img alt="DeepSeek V4产品定位截图" src="https://file1.kamacoder.com/i/web/2026-04-24_17-36-26.jpg" /></p>
+<p><strong>数学类</strong></p>
+<p>数学方面V4-Pro也很猛：</p>
+<ul>
+<li><strong>Putnam-2025</strong>：120/120，满分通过。Putnam是北美最难的大学数学竞赛之一</li>
+<li><strong>IMOAnswerBench</strong>：89.8，接近GPT-5.4的91.4</li>
+<li><strong>HMMT 2026</strong>：95.2，略低于Claude Opus 4.6的96.2和GPT-5.4的97.7</li>
+</ul>
+<p><strong>知识类——这是短板</strong></p>
+<table>
+<thead>
+<tr>
+<th>评测</th>
+<th>V4-Pro</th>
+<th>Gemini 3.1 Pro</th>
+<th>Claude Opus 4.6</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MMLU-Pro</td>
+<td>87.5</td>
+<td><strong>91.0</strong></td>
+<td>89.1</td>
+</tr>
+<tr>
+<td>SimpleQA-Verified</td>
+<td>57.9</td>
+<td><strong>75.6</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>GPQA Diamond</td>
+<td>90.1</td>
+<td><strong>94.3</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>HLE</td>
+<td>37.7</td>
+<td><strong>44.4</strong></td>
+<td>40.0</td>
+</tr>
+</tbody>
+</table>
+<p>知识类评测，V4-Pro全面落后于Gemini 3.1 Pro，也低于Claude Opus 4.6。DeepSeek自己也承认了这一点，说V4在通用知识方面"距离Gemini 3.1 Pro还有差距"。</p>
+<p><strong>总结一下评测</strong>：编码和数学是开源天花板，甚至超过部分闭源模型；知识和Agent场景还有差距。DeepSeek自己的定位是"略低于GPT-5.4和Gemini 3.1 Pro"，大概落后前沿3-6个月。</p>
+<p>但别忘了——<strong>这是开源的</strong>。</p>
+<h2 id="三-百万上下文-原生支持-不加钱">三、百万上下文：原生支持，不加钱</h2>
+<p>V4-Pro和V4-Flash都原生支持<strong>100万token上下文</strong>，不需要额外付费，不需要开什么"长文本模式"。</p>
+<p>100万token是什么概念？大约相当于<strong>750万字中文</strong>，或者<strong>一整本《红楼梦》读4遍</strong>。</p>
+<p>这个上下文长度和GPT-5.5一样，都是100万。但GPT-5.5的价格是$5/$30（输入/输出每百万token），V4-Pro是$1.74/$3.48。<strong>同样的上下文能力，价格差了将近10倍。</strong></p>
+<p>而且DeepSeek在长上下文的效率上做了很大优化。相比V3.2，在100万token长度下：</p>
+<ul>
+<li>V4-Pro：计算量只有V3.2的<strong>27%</strong>（3.7倍降低），KV cache只有<strong>10%</strong>（9.5倍压缩）</li>
+<li>V4-Flash：计算量只有V3.2的<strong>10%</strong>（9.8倍降低），KV cache只有<strong>7%</strong>（13.7倍压缩）</li>
+</ul>
+<p><img alt="DeepSeek V4价格信息截图" src="https://file1.kamacoder.com/i/web/2026-04-24_18-35-20.jpg" /></p>
+<p>怎么做到的？核心是两种混合注意力机制：</p>
+<p><strong>CSA（压缩稀疏注意力）</strong>——把KV cache压缩4倍，然后只关注最相关的top-k个token（Pro是1024个，Flash是512个），再加一个128 token的滑动窗口保证局部连贯性。</p>
+<p><strong>HCA（重度压缩注意力）</strong>——更激进，压缩率128倍，在压缩后的表示上做全局注意力。</p>
+<p>两种机制交替使用，既能看清近处的细节，又能把握远处的全局。</p>
+<p><strong>不过有个短板要说清楚</strong>：长上下文检索能力在超过128K之后会下降。MRCR评测在100万token下只有83.5，Claude Opus 4.6是92.9。也就是说，<strong>V4能装下100万token，但在超长文档里"找东西"的能力还不如Claude。</strong></p>
+<p>对大部分录友来说，日常用到的上下文很少超过128K，所以这个短板影响不大。但如果你的场景是"扔一整个代码仓库进去让AI分析"，要注意这个限制。</p>
+<h2 id="四-推理模式-三档可调">四、推理模式：三档可调</h2>
+<p>V4-Pro和V4-Flash都支持三种推理模式：</p>
+<ul>
+<li><strong>Non-Think</strong>：不做深度推理，直接回答。速度最快，token消耗最少</li>
+<li><strong>High</strong>：中等深度推理，适合大部分需要思考的任务</li>
+<li><strong>Max</strong>：全力推理，使用更长上下文，减少长度惩罚</li>
+</ul>
+<p>这个设计和Claude的effort参数思路类似——让用户根据任务难度选择"模型愿意花多少力气思考"。</p>
+<p>效果差距有多大？看V4-Pro的数据：</p>
+<table>
+<thead>
+<tr>
+<th>评测</th>
+<th>Non-Think</th>
+<th>Max</th>
+<th>提升</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MMLU-Pro</td>
+<td>82.9</td>
+<td>87.5</td>
+<td>+4.6</td>
+</tr>
+<tr>
+<td>SimpleQA-Verified</td>
+<td>45.0</td>
+<td>57.9</td>
+<td>+12.9</td>
+</tr>
+<tr>
+<td>HLE</td>
+<td>7.7</td>
+<td>37.7</td>
+<td>+30.0</td>
+</tr>
+</tbody>
+</table>
+<p>HLE（Humanity's Last Exam，人类最后的考试）从7.7飙到37.7，差距接近<strong>5倍</strong>。这说明对于真正难的问题，推理模式的选择影响巨大。</p>
+<p><strong>实用建议</strong>：</p>
+<ul>
+<li>日常对话、简单问答：<strong>Non-Think</strong>，省钱省时间</li>
+<li>写代码、做分析：<strong>High</strong>，性价比最高</li>
+<li>数学竞赛、复杂推理：<strong>Max</strong>，别省这点token</li>
+</ul>
+<p>API调用时可以按请求级别切换模式，不用换模型。</p>
+<p><img alt="DeepSeek V4模型对比截图" src="https://file1.kamacoder.com/i/web/2026-04-24_18-38-38.jpg" /></p>
+<h2 id="五-价格-这才是真正的杀手锏">五、价格：这才是真正的杀手锏</h2>
+<p>看完能力，再看价格。这才是DeepSeek V4最炸裂的部分。</p>
+<p><img alt="DeepSeek V4 输出价格对比" src="https://file1.kamacoder.com/i/web/20260424175437_dsv4_price.png" /></p>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>输入（缓存命中）</th>
+<th>输入（缓存未命中）</th>
+<th>输出</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>V4-Flash</strong></td>
+<td><strong>$0.028</strong></td>
+<td><strong>$0.14</strong></td>
+<td><strong>$0.28</strong></td>
+</tr>
+<tr>
+<td><strong>V4-Pro</strong></td>
+<td><strong>$0.145</strong></td>
+<td><strong>$1.74</strong></td>
+<td><strong>$3.48</strong></td>
+</tr>
+<tr>
+<td>Claude Opus 4.7</td>
+<td>—</td>
+<td>$5.00</td>
+<td>$25.00</td>
+</tr>
+<tr>
+<td>GPT-5.5</td>
+<td>—</td>
+<td>$5.00</td>
+<td>$30.00</td>
+</tr>
+<tr>
+<td>GPT-5.4</td>
+<td>—</td>
+<td>$2.50</td>
+<td>$15.00</td>
+</tr>
+</tbody>
+</table>
+<p>来算笔账：</p>
+<p><strong>V4-Pro vs GPT-5.5</strong>：输出价格$3.48 vs $30，<strong>GPT-5.5贵了8.6倍</strong>。输入价格$1.74 vs $5，贵了2.9倍。</p>
+<p><strong>V4-Pro vs Claude Opus 4.7</strong>：输出价格$3.48 vs $25，<strong>Opus 4.7贵了7.2倍</strong>。</p>
+<p><strong>V4-Flash就更离谱了</strong>：输出$0.28/百万token。跑同样的任务，V4-Flash的成本是GPT-5.5的<strong>百分之一</strong>。</p>
+<p>而且DeepSeek还有缓存命中机制——如果你的请求和之前的请求有大量重复的前缀（比如system prompt），缓存命中后输入价格再打<strong>八折</strong>。V4-Flash缓存命中后输入只要$0.028/百万token，这个价格基本可以忽略不计。</p>
+<p><strong>但价格低不代表能替代。</strong> V4-Pro在编码benchmark上确实接近甚至超过GPT-5.4，但在Agent场景（Terminal Bench 2.0）和知识类评测上还有明显差距。</p>
+<p>所以结论很清楚：<strong>如果你的场景是编码、数学、批量处理，V4-Pro的性价比碾压一切。如果你需要Agent长任务或者最强的通用知识能力，闭源模型还是更稳。</strong></p>
+<h2 id="六-与gpt-5-5-opus-4-7三方对比">六、与GPT-5.5、Opus 4.7三方对比</h2>
+<p>现在市面上三个最值得关注的模型：DeepSeek V4-Pro、GPT-5.5、Claude Opus 4.7。怎么选？</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>DeepSeek V4-Pro</th>
+<th>GPT-5.5</th>
+<th>Claude Opus 4.7</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>编码（LiveCodeBench）</td>
+<td>93.5</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>编码（SWE-Bench Pro）</td>
+<td>55.4</td>
+<td>58.6</td>
+<td><strong>64.3</strong></td>
+</tr>
+<tr>
+<td>Agent（Terminal Bench）</td>
+<td>67.9</td>
+<td><strong>82.7</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>数学（HMMT 2026）</td>
+<td>95.2</td>
+<td>—</td>
+<td>96.2</td>
+</tr>
+<tr>
+<td>知识（MMLU-Pro）</td>
+<td>87.5</td>
+<td>—</td>
+<td>89.1</td>
+</tr>
+<tr>
+<td>上下文窗口</td>
+<td>100万</td>
+<td>100万</td>
+<td>200K</td>
+</tr>
+<tr>
+<td>输出价格/百万token</td>
+<td><strong>$3.48</strong></td>
+<td>$30</td>
+<td>$25</td>
+</tr>
+<tr>
+<td>开源</td>
+<td><strong>是</strong></td>
+<td>否</td>
+<td>否</td>
+</tr>
+<tr>
+<td>推理模式</td>
+<td>三档</td>
+<td>无</td>
+<td>effort五档</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="DeepSeek V4使用场景截图" src="https://file1.kamacoder.com/i/web/2026-04-24_18-07-12.jpg" /></p>
+<p>几个关键判断：</p>
+<p><strong>纯编码场景</strong>：V4-Pro在竞赛编程（LiveCodeBench、Codeforces）上最强，但在真实工程修bug（SWE-Bench Pro）上Opus 4.7还是第一。如果你写的是算法题，V4-Pro更强；如果你改的是线上bug，Opus 4.7更稳。</p>
+<p><strong>Agent长任务</strong>：GPT-5.5断层领先，7小时稳定运行不是V4能比的。Terminal Bench 2.0差了将近15个百分点。</p>
+<p><strong>性价比</strong>：V4-Pro碾压。同样水平的编码能力，价格只有闭源模型的十分之一。跑批量任务、做数据处理、搞研究，V4-Pro是最优选。</p>
+<p><strong>私有化部署</strong>：只有V4能做到。开源权重意味着你可以在自己的服务器上跑，数据不出内网。对金融、医疗、政府这些对数据安全敏感的行业，这是唯一选择。</p>
+<p><img alt="DeepSeek V4模型工具箱截图" src="https://file1.kamacoder.com/i/web/2026-04-24_18-07-30.jpg" /></p>
+<p><strong>说白了</strong>：V4-Pro是"穷人的Opus（实惠装）"，能力接近前沿，价格差一个数量级。GPT-5.5是"Agent之王"，跑长任务最稳。Opus 4.7是"编码之王"，改bug最准。三个不是替代关系，是各有战场。</p>
+<p><img alt="DeepSeek V4成本预算示意图" src="https://file1.kamacoder.com/i/web/2026-04-24_18-07-46.jpg" /></p>
+<h2 id="七-开源-华为昇腾-对国内开发者意味着什么">七、开源 + 华为昇腾：对国内开发者意味着什么</h2>
+<p><img alt="DeepSeek + 华为昇腾" src="https://file1.kamacoder.com/i/web/2026-04-24_17-54-42.jpg" /></p>
+<p>这次发布有两个对国内开发者特别重要的信息：</p>
+<p><strong>第一，完全开源。</strong></p>
+<p>V4-Pro和V4-Flash的权重都放在Hugging Face上，Base和Instruct版本都有。你可以下载、微调、部署，不需要申请、不需要审核。</p>
+<p>这意味着：
+- 企业可以在自己的服务器上跑，数据不出内网
+- 研究者可以基于V4做二次开发
+- 创业公司可以用V4-Flash搭建低成本的AI产品</p>
+<p><strong>第二，华为昇腾Ascend 950原生支持。</strong></p>
+<p>DeepSeek宣布V4原生适配华为昇腾950芯片。在当前的芯片环境下，这个消息的意义不用多说。</p>
+<p>V4-Flash只需要130亿激活参数，在配置好的单台服务器上就能跑。V4-Pro需要的硬件更多（几十张GPU），但对大厂来说不是问题。</p>
+<p><strong>对国内开发者的实际影响</strong>：以前想用前沿大模型，要么调OpenAI/Anthropic的API（贵，而且有合规风险）<a href="https://mp.weixin.qq.com/s/KyalQxxgeNlqNpsnX0YdCQ">我之前两个claude账号都被封了</a>，要么用国内厂商的模型（能力差一截）。现在V4-Pro在编码和数学上已经接近闭源前沿，而且可以本地部署，这个选择就很有吸引力了。</p>
+<h2 id="写在最后">写在最后</h2>
+<p>总结一下 DeepSeek V4：<strong>开源平权、价格屠夫、编码天花板</strong>。</p>
+<p>对开发者来说：</p>
+<ul>
+<li><strong>预算有限的</strong>：V4-Pro是目前性价比最高的选择，编码能力接近前沿，价格只要十分之一</li>
+<li><strong>跑批量任务的</strong>：V4-Flash的$0.28/百万token输出价格，跑多少都不心疼</li>
+<li><strong>需要私有化部署的</strong>：V4是唯一能本地跑的前沿级模型</li>
+<li><strong>跑Agent长任务的</strong>：还是GPT-5.5更合适，V4在这块差距明显</li>
+<li><strong>改线上bug的</strong>：Opus 4.7的SWE-Bench Pro 64.3还是最强</li>
+</ul>
+<p>不过这里还是要说明一下：<strong>编码天花板"说的是benchmark，不是真实开发体验</strong></p>
+<p>我们平时写代码，靠的是Agent——接入Claude Code CLI，让模型自己定位问题、改代码、跑测试、验证结果，这是一整套链路。V4在LiveCodeBench、Codeforces这些"做题"场景确实猛，但Terminal Bench 2.0只有67.9，GPT-5.5是82.7，Opus 4.7在Agent编码上更是公认最强。</p>
+<p><strong>做题强不等于干活强。</strong> 真正接入CLI跑Agent任务，DeepSeek V4和Claude还是差了不少。benchmark上的"编码天花板"，到了真实开发场景里，可能只是"编码中等偏上"。</p>
+<p>所以录友们别被benchmark迷惑了——如果你的日常是用Agent写代码，Claude Code + Opus 4.7还是第一选择（但确实贵）。</p>
+<p>目前我个人感受写代码，写文章性价比最高的还是 Claude agent + Cli + <a href="https://www.bigmodel.cn/glm-coding?ic=L9I20DKWAG">GLM5.1</a></p>
+<p>V4的优势在<strong>性价比和开源</strong>，不在Agent体验。而现在agent其实是里普通用户最近的一种交互方式。</p>
+<p>一周之内，Opus 4.7、GPT-5.5、DeepSeek V4接连发布。三家各有所长，没有谁能通吃。</p>
+<p><strong>DeepSeek 依然是国产开源之光</strong>！！</p>
+<p>加油</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="deepseek-v4-pro-permanent-price-cut.html"><span class="k">← 上一篇</span><span class="v">DeepSeek V4-Pro永久降价75%：5月22日悄悄改了API定价页，这不是特惠了</span></a><a class="nx" href="glm-5-2.html"><span class="k">下一篇 →</span><span class="v">GLM-5.2发布：智谱这次不放跑分表，先让你用上，开源、1M上下文、华为昇腾训练，和Opus 4.8、DeepSeek V4怎么选</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#deepseek-v4发布-1-6万亿参数开源moe-百万上下文-价格只要gpt-5-5的十分之一">DeepSeek V4发布：1.6万亿参数开源MoE，百万上下文，价格只要GPT-5.5的十分之一</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/deepseek-v4.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

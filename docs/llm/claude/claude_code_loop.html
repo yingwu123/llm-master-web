@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude Code作者说“不写Prompt，写Loop”：AI编程从提示词到Agent闭环到底变了什么 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><a href="../../../docs/llm/claude/README.html">claude</a><span class="sep">›</span><span>claude_code_loop</span></div>
+      <h1 id="claude-code作者说-不写prompt-写loop-ai编程从提示词到agent闭环到底变了什么">Claude Code作者说“不写Prompt，写Loop”：AI编程从提示词到Agent闭环到底变了什么</h1>
+<p>录友们好，今天继续聊 Claude Code。</p>
+<p>前面我们讲过 <a href="https://mp.weixin.qq.com/s/UchpOfemclpAoPIk2ToNCw">CLAUDE.md 到底怎么写</a>，还拆过 <a href="https://mp.weixin.qq.com/s/by51ptT2qumwN3hTrq3FeA">Claude Code 怎么读懂大代码库</a>。</p>
+<p>这几篇文章其实一直在讲同一个问题：</p>
+<p><strong>AI 编程不是把模型换强一点就完了。</strong></p>
+<p>模型很重要，但真正决定体验的，是模型外面那层 Agent 内核、工具系统、项目记忆、验证流程、权限边界。</p>
+<p>最近 Claude Code 作者 Boris Cherny 有一句话被很多人讨论：</p>
+<blockquote>
+<p>不少读者问我，如何充值Claude会员，我在这里篇单独讲一下：<a href="../../qita/0002.claudepay.html">国内Claude充值会员的方法</a></p>
+</blockquote>
+<p><strong>“我已经不写 prompt 了，我写 loop。”</strong></p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-06-09_11-33-20.jpg" /> </p>
+<p>完整采访视频，大家可以去B站搜一下，选一个带字母的，看起来舒服一下。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-06-09_11-35-50.jpg" /></p>
+<p>过去很多人以为，AI 编程的核心能力是“怎么写一句更聪明的提示词”。</p>
+<p>现在越来越明显：<strong>真正有价值的不是写一句 prompt，而是把任务设计成一个能持续推进、自动验证、出错能纠偏、该停能停下来的 loop。</strong></p>
+<p>这就是今天要讲的重点。</p>
+<p><img alt="Prompt 到 Loop 的 AI 编程范式迁移图" src="https://file1.kamacoder.com/i/web/20260609100829_claude_code_loop_01_prompt_to_loop_compressed.png" /></p>
+<h2 id="一-为什么只写-prompt-不够了">一、为什么只写 Prompt 不够了？</h2>
+<p>先别急着把 prompt 贬得一文不值。</p>
+<p>Prompt 当然有用。</p>
+<p>你问一个概念，让 AI 解释一下。</p>
+<p>你贴一段代码，让 AI 帮你改写。</p>
+<p>你让它生成一个 SQL、一个正则、一个接口文档。</p>
+<p>这些场景里，prompt 就够了。</p>
+<p>因为任务短、边界清楚、结果也容易人工判断。</p>
+<p>但 AI 编程不是只做这种小任务。</p>
+<p>真实项目里，你让 Claude Code 修一个 bug，往往不是一句话就能完成。</p>
+<p>它要先读代码。</p>
+<p>要定位调用链。</p>
+<p>要判断哪个文件该改，哪个文件不能动。</p>
+<p>要修改实现。</p>
+<p>要跑测试。</p>
+<p>测试失败了，还要回头看日志。</p>
+<p>日志里可能暴露了另一个问题。</p>
+<p>修完之后，还要确认没有引入新的副作用。</p>
+<p>这时候你会发现，<strong>prompt 只是任务的起点，不是任务的完成机制。</strong></p>
+<p>你写一句：</p>
+<p>“帮我修一下登录失败的问题。”</p>
+<p>这句话只表达了目标。</p>
+<p>但它没有说：</p>
+<ul>
+<li>去哪里找入口</li>
+<li>哪些文件不能动</li>
+<li>怎么判断修好了</li>
+<li>测试失败了怎么办</li>
+<li>什么时候必须停下来问人</li>
+<li>什么改动算越界</li>
+</ul>
+<p>这些东西如果都靠模型自己猜，就会出现两个问题。</p>
+<p>第一，模型会浪费大量上下文摸索。</p>
+<p>第二，模型可能看起来很努力，最后却朝错方向越走越远。</p>
+<p>很多录友说“AI 写代码不稳定”，根源不是它每一行代码都差。</p>
+<p>而是你只给了它一个 prompt，却没有给它一个能稳定工作的闭环。</p>
+<h2 id="二-loop-到底是什么">二、Loop 到底是什么？</h2>
+<p>Loop 不是玄学。</p>
+<p>也不是让 AI 一直自动跑，跑到天荒地老。</p>
+<p>一个最小的 Agent Loop，大概是这样：</p>
+<p><strong>目标 → 计划 → 执行 → 观察 → 验证 → 反馈 → 下一步</strong></p>
+<p>如果验证通过，就停止。</p>
+<p>如果验证失败，就把失败信息带回去，重新计划。</p>
+<p>如果触碰边界，就暂停，让人决策。</p>
+<p>这才叫 loop。</p>
+<p><img alt="Agent Loop 的最小闭环结构图" src="https://file1.kamacoder.com/i/web/20260609100830_claude_code_loop_02_minimal_loop_compressed.png" /></p>
+<p>你看，这和普通 prompt 的差别很大。</p>
+<p>普通 prompt 更像是：</p>
+<p>“我说一句，你答一句。”</p>
+<p>Loop 更像是：</p>
+<p>“我给你目标、工具、规则和验收标准，你自己推进，但每一步都要留下证据。”</p>
+<p>这也是为什么 Claude Code 这类工具和网页聊天框差别很大。</p>
+<p>网页聊天框里，你主要是在和模型对话。</p>
+<p>Claude Code 里，模型不是只回答你。</p>
+<p>它会读文件、搜代码、改文件、跑命令、看报错、继续修。</p>
+<p>这些动作串起来，才是 Agent Loop。</p>
+<p>所以 Boris 说“不写 prompt，写 loop”，不是说一句提示词都不写了。</p>
+<p>而是说：<strong>不要把 AI 编程理解成“我怎么问得更好”，要理解成“我怎么设计一个可执行的闭环”。</strong></p>
+<h2 id="三-坏-loop-比坏-prompt-更危险">三、坏 Loop 比坏 Prompt 更危险</h2>
+<p>这里我要泼点冷水。</p>
+<p>Loop 听起来高级，但坏 loop 很危险。</p>
+<p>一个坏 prompt，最多就是回答不理想。</p>
+<p>一个坏 loop，可能会一直跑、一直改、一直消耗 token，还可能把项目改乱。</p>
+<p>很多人第一次用 Agent 工具，容易上来就说：</p>
+<p>“你自己看着办，直到修好为止。”</p>
+<p>这句话听起来很潇洒。</p>
+<p>但对 Agent 来说，这就是一个危险指令。</p>
+<p>因为“修好”没有被定义。</p>
+<p>没有测试。</p>
+<p>没有验收标准。</p>
+<p>没有权限边界。</p>
+<p>没有停止条件。</p>
+<p>那它只能自己脑补。</p>
+<p>脑补就会出事。</p>
+<p><img alt="坏 Loop 和好 Loop 的差异路径图" src="https://file1.kamacoder.com/i/web/20260609100832_claude_code_loop_03_bad_vs_good_loop_compressed.png" /></p>
+<p>好的 loop 至少要有四个东西：</p>
+<p><strong>第一，有明确目标。</strong></p>
+<p>不是“优化一下性能”，而是“让接口 P95 从 800ms 降到 300ms 以内，不能改变返回结构”。</p>
+<p><strong>第二，有可执行工具。</strong></p>
+<p>不能只让它想。</p>
+<p>要能读代码、跑测试、看日志、查文档、调用脚本。</p>
+<p><strong>第三，有验证反馈。</strong></p>
+<p>测试结果、lint 结果、构建结果、接口返回、日志差异，这些都要能回到上下文里。</p>
+<p><strong>第四，有停止条件。</strong></p>
+<p>什么时候算完成？</p>
+<p>什么时候算失败？</p>
+<p>什么时候必须停下来问人？</p>
+<p>这四个东西缺一个，loop 就会变成“AI 自己猜自己对不对”。</p>
+<p>这种用法，不是先进。</p>
+<p>是危险。</p>
+<h2 id="四-prompt-工程和-loop-工程不是一回事">四、Prompt 工程和 Loop 工程不是一回事</h2>
+<p>很多录友之前学 prompt engineering，重点是怎么把一句话写清楚。</p>
+<p>比如：</p>
+<ul>
+<li>给角色</li>
+<li>给背景</li>
+<li>给输出格式</li>
+<li>给示例</li>
+<li>给约束</li>
+</ul>
+<p>这些还要不要？</p>
+<p>当然要。</p>
+<p>但在 Agent 场景里，这些只是第一层。</p>
+<p>更重要的是 loop engineering。</p>
+<p>它关心的是：</p>
+<ul>
+<li>任务怎么拆</li>
+<li>信息怎么进上下文</li>
+<li>工具怎么调用</li>
+<li>失败怎么反馈</li>
+<li>规则怎么长期保存</li>
+<li>验收怎么自动化</li>
+<li>权限怎么限制</li>
+<li>成本怎么控制</li>
+</ul>
+<p>你会发现，这已经不是“文案能力”了。</p>
+<p>这更像工程能力。</p>
+<p><img alt="Prompt 工程和 Loop 工程的能力边界对比图" src="https://file1.kamacoder.com/i/web/20260609100834_claude_code_loop_04_prompt_vs_loop_engineering_compressed.png" /></p>
+<p>举个例子。</p>
+<p>你让 Claude Code 修改一个支付回调 bug。</p>
+<p>只写 prompt 的人会说：</p>
+<p>“帮我修一下支付回调偶尔失败的问题，注意代码质量。”</p>
+<p>这太虚了。</p>
+<p>会写 loop 的人会这样给任务：</p>
+<p>“先从支付回调入口开始读，不要修改数据库迁移文件。定位失败原因后，给出改动计划。修改完成后跑支付模块单测，如果测试失败，优先根据错误日志修复；如果涉及幂等逻辑或金额计算，先停下来说明风险，不要直接改核心规则。”</p>
+<p>你看，这里不是提示词更华丽。</p>
+<p>而是它把 loop 的关键部件放进去了：</p>
+<ul>
+<li>搜索入口</li>
+<li>禁止修改范围</li>
+<li>计划阶段</li>
+<li>测试反馈</li>
+<li>错误恢复</li>
+<li>高风险暂停点</li>
+</ul>
+<p>这就是差别。</p>
+<p><strong>Prompt 工程解决“模型怎么回答”。</strong></p>
+<p><strong>Loop 工程解决“任务怎么被可靠完成”。</strong></p>
+<h2 id="五-claude-code-为什么天然适合-loop">五、Claude Code 为什么天然适合 Loop？</h2>
+<p>Claude Code 的价值，不是它把 Claude 模型搬进了终端。</p>
+<p>如果只是终端里聊天，那没什么稀奇。</p>
+<p>它真正厉害的地方，是把 AI 编程常见动作做成了可循环执行的系统。</p>
+<p>一个真实的 Claude Code 工作流大概是这样：</p>
+<p>你给一个目标。</p>
+<p>它先读项目规则，比如 <code>CLAUDE.md</code>。</p>
+<p>然后用搜索工具找入口。</p>
+<p>读相关文件。</p>
+<p>形成修改计划。</p>
+<p>改代码。</p>
+<p>跑命令。</p>
+<p>看输出。</p>
+<p>如果报错，就把错误日志作为新证据，继续修。</p>
+<p>如果测试通过，就收束改动，给你结果。</p>
+<p><img alt="Claude Code 从读代码到验证结果的 Agent Loop 工作流图" src="https://file1.kamacoder.com/i/web/20260609100836_claude_code_loop_05_claude_code_workflow_compressed.png" /></p>
+<p>这套东西看起来像“AI 会自己干活”。</p>
+<p>但拆开看，里面都是工程问题：</p>
+<p>搜索准不准。</p>
+<p>上下文有没有污染。</p>
+<p>工具返回值够不够清楚。</p>
+<p>测试命令能不能跑。</p>
+<p>错误信息有没有被正确利用。</p>
+<p>权限边界有没有卡住。</p>
+<p>所以我一直说，Claude Code 不是一个“更聪明的聊天框”。</p>
+<p>它是一个 Agent 执行环境。</p>
+<p>你写 prompt，是在给模型一句话。</p>
+<p>你写 loop，是在给 Agent 一套工作方式。</p>
+<h2 id="六-没有验证的-ai-编程-都是表面完成">六、没有验证的 AI 编程，都是表面完成</h2>
+<p>AI 编程最容易骗过人的地方是什么？</p>
+<p>不是代码写得差。</p>
+<p>而是它很会“看起来完成了”。</p>
+<p>它会给你一个很完整的解释。</p>
+<p>会列出改了哪些文件。</p>
+<p>会告诉你问题已经修复。</p>
+<p>甚至还能把理由说得很顺。</p>
+<p>但如果没有测试、构建、日志、人工验收这些反馈，它说“完成了”没有意义。</p>
+<p><strong>AI 的完成感，不等于工程上的完成。</strong></p>
+<p><img alt="没有验证反馈的 AI 编程为什么容易表面完成图" src="https://file1.kamacoder.com/i/web/20260609100838_claude_code_loop_06_validation_failure_compressed.png" /></p>
+<p>真实项目里，我们判断一个改动能不能交付，不是看它解释得多漂亮。</p>
+<p>而是看：</p>
+<ul>
+<li>单测有没有过</li>
+<li>构建有没有过</li>
+<li>关键路径有没有回归</li>
+<li>日志有没有异常</li>
+<li>用户行为有没有变化</li>
+<li>边界条件有没有覆盖</li>
+</ul>
+<p>这些东西，就是 loop 的“眼睛”。</p>
+<p>没有它们，Agent 只能靠语言自信。</p>
+<p>语言自信是最不值钱的。</p>
+<p>很多录友做 AI 项目，喜欢把重点放在 prompt 模板上。</p>
+<p>我建议你换个角度：</p>
+<p><strong>先问自己，这个任务有没有反馈信号。</strong></p>
+<p>没有反馈信号，就不要轻易让 Agent 自动循环。</p>
+<p>它不知道什么叫对。</p>
+<p>不知道什么叫错。</p>
+<p>那就只能越跑越玄学。</p>
+<h2 id="七-开发者不是被替代了-而是位置变了">七、开发者不是被替代了，而是位置变了</h2>
+<p>看到“不写 prompt，写 loop”，有些人会紧张：</p>
+<p>那是不是以后开发者不用写代码，只写规则？</p>
+<p>没这么简单。</p>
+<p>更准确地说，开发者的工作位置在变化。</p>
+<p>以前你亲手写每一行代码。</p>
+<p>后来你开始用 AI 生成代码，但你还要一直盯着它、提醒它、复制粘贴错误。</p>
+<p>再往后，你要把这些反复提醒，沉淀成规则、测试、脚本、文档和权限边界。</p>
+<p>也就是把“人盯人”变成“系统约束”。</p>
+<p><img alt="开发者从盯着 AI 到设计规则闭环的角色迁移图" src="https://file1.kamacoder.com/i/web/20260609100839_claude_code_loop_07_human_role_shift_compressed.png" /></p>
+<p>比如以前你会反复提醒：</p>
+<p>“别改这个文件。”</p>
+<p>现在你应该把它写进项目规则，或者用权限拦住。</p>
+<p>以前你会反复说：</p>
+<p>“改完跑测试。”</p>
+<p>现在你应该让测试命令成为默认验证步骤。</p>
+<p>以前你会在聊天里解释项目结构。</p>
+<p>现在你应该把关键入口写进 <code>CLAUDE.md</code>。</p>
+<p>以前你靠肉眼判断它有没有改对。</p>
+<p>现在你要补测试、补脚本、补验收样例。</p>
+<p>这不是开发者价值下降。</p>
+<p>恰恰相反。</p>
+<p><strong>越是 Agent 能干活，越需要懂工程的人来定义什么叫干对。</strong></p>
+<p>不会写代码的人，很难写出好的 loop。</p>
+<p>因为他不知道哪里危险，不知道哪里要验证，不知道什么改动会引发连锁问题。</p>
+<p>所以别把 loop 理解成“AI 替我做所有事”。</p>
+<p>它更像是：</p>
+<p><strong>开发者把自己的工程判断，外化成 Agent 可以执行的闭环。</strong></p>
+<h2 id="八-未来开发者到底要写什么">八、未来开发者到底要写什么？</h2>
+<p>如果说过去开发者主要写代码。</p>
+<p>现在开发者开始写 prompt。</p>
+<p>那再往后，开发者会越来越多地写这些东西：</p>
+<ul>
+<li>任务目标</li>
+<li>项目规则</li>
+<li>测试用例</li>
+<li>验收标准</li>
+<li>工具接口</li>
+<li>权限边界</li>
+<li>错误恢复策略</li>
+<li>监控和评估指标</li>
+</ul>
+<p>这些东西合在一起，就是 loop 的骨架。</p>
+<p><img alt="AI Coding 时代人、Agent、模型、工具的新分工图" src="https://file1.kamacoder.com/i/web/20260609100841_claude_code_loop_08_new_division_compressed.png" /></p>
+<p>模型负责生成。</p>
+<p>Agent 负责执行。</p>
+<p>工具负责连接真实环境。</p>
+<p>测试和日志负责反馈。</p>
+<p>人负责目标、边界和最终判断。</p>
+<p>这个分工如果看懂了，你就不会再纠结“提示词该怎么写得更神”。</p>
+<p>你会开始关心：</p>
+<p><strong>我的项目有没有足够清楚的规则？</strong></p>
+<p><strong>我的任务有没有可验证的完成标准？</strong></p>
+<p><strong>我的测试能不能给 Agent 稳定反馈？</strong></p>
+<p><strong>我的工具返回值能不能让模型看懂？</strong></p>
+<p><strong>我的权限边界会不会让 Agent 乱动生产资源？</strong></p>
+<p>这些问题，才是 AI 编程真正开始工程化之后的核心问题。</p>
+<h2 id="九-普通开发者怎么开始写-loop">九、普通开发者怎么开始写 Loop？</h2>
+<p>如果你现在还只是偶尔让 AI 写点代码，不需要一下子搞很复杂。</p>
+<p>从几个小动作开始就行。</p>
+<p><strong>第一，别只写目标，要写验收。</strong></p>
+<p>不要只说“修复登录问题”。</p>
+<p>加一句：</p>
+<p>“修完后跑登录模块测试，并说明失败用例是否恢复。”</p>
+<p><strong>第二，别只让它改，要让它先定位。</strong></p>
+<p>不要上来就说“直接改”。</p>
+<p>先让它：</p>
+<p>“先找登录入口、认证中间件和错误日志位置，列出可能原因，再改。”</p>
+<p><strong>第三，给它边界。</strong></p>
+<p>比如：</p>
+<p>“不要修改数据库 schema。”</p>
+<p>“不要改公开 API 返回结构。”</p>
+<p>“不要调整鉴权策略，除非先说明风险。”</p>
+<p><strong>第四，把反复说的话写进项目规则。</strong></p>
+<p>如果你每次都提醒同一件事，就别再靠聊天提醒了。</p>
+<p>写进 <code>CLAUDE.md</code>。</p>
+<p>这就是从 prompt 走向 loop 的第一步。</p>
+<p><strong>第五，优先补反馈信号。</strong></p>
+<p>没有测试的项目，用 Agent 会很累。</p>
+<p>不是不能用。</p>
+<p>但你会一直靠人工判断。</p>
+<p>一旦补了测试、lint、构建脚本，Agent 才有东西可以观察，loop 才跑得起来。</p>
+<h2 id="十-最后">十、最后</h2>
+<p>Boris 这句话真正值得关注的地方，不是“不写 prompt”这四个字。</p>
+<p>而是它提醒我们：</p>
+<p><strong>AI 编程正在从对话技巧，进入工程闭环。</strong></p>
+<p>Prompt 是入口。</p>
+<p>Loop 是系统。</p>
+<p>只会写 prompt，你最多让模型回答得更像你想要的样子。</p>
+<p>会写 loop，你才能让 Agent 在真实项目里持续推进、自动验证、出错纠偏、边界内行动。</p>
+<p>这就是差距。</p>
+<p>以后 AI 编程里最值钱的能力，不是会不会喊 AI 干活。</p>
+<p>而是你能不能把一个模糊任务，拆成一个可执行、可验证、可停止的闭环。</p>
+<p>这才是工程能力。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="claude_code_large_codebase.html"><span class="k">← 上一篇</span><span class="v">Claude Code怎么读懂大代码库？Agent搜索、CLAUDE.md、Hooks、Skills、MCP和LSP一篇讲明白</span></a><a class="nx" href="claude_code_toolkit_guide.html"><span class="k">下一篇 →</span><span class="v">Claude Code完整使用指南：CLAUDE.md、Skills、Subagents、MCP、Hooks、Plugins怎么配置</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#claude-code作者说-不写prompt-写loop-ai编程从提示词到agent闭环到底变了什么">Claude Code作者说“不写Prompt，写Loop”：AI编程从提示词到Agent闭环到底变了什么</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/claude/claude_code_loop.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

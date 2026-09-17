@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude Code完整使用指南：CLAUDE.md、Skills、Subagents、MCP、Hooks、Plugins怎么配置 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><a href="../../../docs/llm/claude/README.html">claude</a><span class="sep">›</span><span>claude_code_toolkit_guide</span></div>
+      <h1 id="claude-code完整使用指南-claude-md-skills-subagents-mcp-hooks-plugins怎么用">Claude Code完整使用指南：CLAUDE.md、Skills、Subagents、MCP、Hooks、Plugins怎么用</h1>
+<p>前面我们讲过 <a href="../intro/ai-coding-three-layers.html">Claude Code 和 Claude.ai 的区别</a>：<strong>模型负责思考，Agent 内核负责读文件、改代码、跑命令和验证结果。</strong></p>
+<p>也单独拆过 <a href="./claude_md.html">CLAUDE.md 到底怎么写</a>、<a href="./claude_code_large_codebase.html">Claude Code 怎么读懂大代码库</a>。</p>
+<p>但很多录友学到这里，又被一串新名词卡住了：</p>
+<p><code>CLAUDE.md</code>、Skills、Subagents、MCP、Hooks、Plugins，都是“给 Claude Code 加能力”，为什么要分六套？</p>
+<p>如果一个项目全都要用，应该先配谁、后配谁？</p>
+<p>这篇不按功能清单念文档。</p>
+<p>我们先说它们为什么出现，再逐个讲是什么、怎么用，最后把六件东西装进同一个真实项目。</p>
+<p><img alt="Claude Code扩展能力封面" src="https://file1.kamacoder.com/i/web/20260729153227_claude_code_toolkit_01_cover-compressed.jpg" /></p>
+<p>这张图讲的是：Claude Code 从来不是靠一个“万能 Prompt”变强，而是靠一套分工清楚的工作系统。长期规则、专项流程、独立角色、外部能力、自动门禁和团队分发，各自解决一类问题。</p>
+<h2 id="一-为什么只会和-claude-code-聊天-迟早会乱">一、为什么只会和 Claude Code 聊天，迟早会乱？</h2>
+<p>刚开始用 Claude Code，临时聊天完全够用。</p>
+<p>“这个项目用 pnpm。”</p>
+<p>“改完记得跑单测。”</p>
+<p>“不要直接改数据库。”</p>
+<p>“发版前按我们的清单检查。”</p>
+<p>问题是，真实项目不会只聊三轮。</p>
+<p>Claude 要读几十个文件、跑一堆命令、处理测试失败，还可能经历上下文压缩。<strong>你临时说过的话，会和越来越多的新信息挤在同一个上下文里。</strong></p>
+<p>团队协作更麻烦。</p>
+<p>你告诉过 Claude 的规则，换个同事、换台电脑、换个项目，又要从头再讲一遍。</p>
+<p><img alt="临时聊天规则被新消息淹没" src="https://file1.kamacoder.com/i/web/20260729153229_claude_code_toolkit_02_background-compressed.jpg" /></p>
+<p>这张图讲的是：<strong>聊天适合表达当前任务，不能承载整套工程制度。</strong> 规则只存在聊天里，任务一长就容易被稀释；经验只存在个人会话里，团队就无法复用。</p>
+<p>所以 Claude Code 的扩展能力，本质上都在回答下面六个问题：</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>应该用什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每次进入项目都应该知道什么？</td>
+<td><code>CLAUDE.md</code></td>
+</tr>
+<tr>
+<td>某类任务应该按什么方法做？</td>
+<td>Skills</td>
+</tr>
+<tr>
+<td>哪些工作需要独立上下文或独立角色？</td>
+<td>Subagents</td>
+</tr>
+<tr>
+<td>怎么访问仓库外的系统和数据？</td>
+<td>MCP</td>
+</tr>
+<tr>
+<td>哪些动作命中事件就必须执行？</td>
+<td>Hooks</td>
+</tr>
+<tr>
+<td>怎么把整套能力发给其他项目和队友？</td>
+<td>Plugins</td>
+</tr>
+</tbody>
+</table>
+<p>先记住一句：</p>
+<p><strong>CLAUDE.md 管常驻规则，Skill 管按需方法，Subagent 管独立干活，MCP 管外部连接，Hook 管确定性动作，Plugin 管打包分发。</strong></p>
+<p>下面逐个拆。</p>
+<h2 id="二-claude-md-先让-claude-知道-这个项目怎么干">二、CLAUDE.md：先让 Claude 知道“这个项目怎么干”</h2>
+<h3 id="1-claude-md-是什么">1. CLAUDE.md 是什么？</h3>
+<p><code>CLAUDE.md</code> 是 Claude Code 会自动读取的项目说明文件。</p>
+<p>它适合放<strong>稳定、长期、几乎每次任务都用得上的信息</strong>：</p>
+<ul>
+<li>项目用什么技术栈；</li>
+<li>构建、测试、格式化命令；</li>
+<li>核心目录和模块边界；</li>
+<li>编码规范和命名约定；</li>
+<li>哪些文件不能改；</li>
+<li>团队已经踩过、又很容易重踩的坑。</li>
+</ul>
+<p>你可以把它理解成给新成员看的“上岗说明书”。</p>
+<p>README 面向人，重点是项目是什么、怎么启动。</p>
+<p><code>CLAUDE.md</code> 面向 Agent，重点是<strong>接到任务以后应该怎么行动</strong>。</p>
+<p><img alt="CLAUDE.md项目说明书" src="https://file1.kamacoder.com/i/web/20260729153231_claude_code_toolkit_03_claude_md-compressed.jpg" /></p>
+<p>这张图讲的是：长期规则不该靠程序员一遍遍口头提醒。把命令、架构和禁区写成项目说明书，Claude 每次进项目就有稳定起点。</p>
+<h3 id="2-claude-md-放在哪里">2. CLAUDE.md 放在哪里？</h3>
+<p>最常用的四个位置是：</p>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>作用范围</th>
+<th>适合放什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>~/.claude/CLAUDE.md</code></td>
+<td>你本机的所有项目</td>
+<td>个人偏好、通用工作习惯</td>
+</tr>
+<tr>
+<td><code>项目根目录/CLAUDE.md</code></td>
+<td>当前项目，团队共享</td>
+<td>技术栈、命令、全局规则</td>
+</tr>
+<tr>
+<td><code>项目根目录/CLAUDE.local.md</code></td>
+<td>当前项目，仅自己使用</td>
+<td>本地地址、个人测试习惯</td>
+</tr>
+<tr>
+<td><code>某个子目录/CLAUDE.md</code></td>
+<td>进入该模块时按需加载</td>
+<td>模块命令、局部架构和禁区</td>
+</tr>
+</tbody>
+</table>
+<p>项目级文件应该提交到 Git。</p>
+<p><code>CLAUDE.local.md</code> 通常加入 <code>.gitignore</code>，不要把个人环境信息发给全团队。</p>
+<p>大仓库不要把所有模块规则都塞进根文件。根目录管全局，前端、支付、数据等模块各放自己的 <code>CLAUDE.md</code>。</p>
+<h3 id="3-claude-md-怎么写">3. CLAUDE.md 怎么写？</h3>
+<p>先从最小版本开始：</p>
+<div class="codehilite"><pre><span></span><code><span class="gu">## Project instructions</span>
+
+<span class="gu">## Commands</span>
+
+<span class="k">-</span><span class="w"> </span>Install: <span class="sb">`pnpm install`</span>
+<span class="k">-</span><span class="w"> </span>Test: <span class="sb">`pnpm test`</span>
+<span class="k">-</span><span class="w"> </span>Build: <span class="sb">`pnpm build`</span>
+
+<span class="gu">## Architecture</span>
+
+<span class="k">-</span><span class="w"> </span><span class="sb">`apps/web/`</span> is the frontend.
+<span class="k">-</span><span class="w"> </span><span class="sb">`services/api/`</span> is the API service.
+<span class="k">-</span><span class="w"> </span>Shared types live in <span class="sb">`packages/types/`</span>.
+
+<span class="gu">## Rules</span>
+
+<span class="k">-</span><span class="w"> </span>Use pnpm, never npm.
+<span class="k">-</span><span class="w"> </span>Add tests for every bug fix.
+<span class="k">-</span><span class="w"> </span>Do not edit generated files under <span class="sb">`dist/`</span>.
+<span class="k">-</span><span class="w"> </span>Never run database migrations without explicit approval.
+</code></pre></div>
+
+<p>判断一条内容该不该写进去，问三个问题：</p>
+<ol>
+<li>以后还会反复用到吗？</li>
+<li>它会改变 Claude 的行动吗？</li>
+<li>它是否值得每个会话都占上下文？</li>
+</ol>
+<p>三个答案都是“是”，再写。</p>
+<p>发布清单、安全审查步骤、几十页 API 文档，不要全塞进来。那是 Skill 的活。</p>
+<h3 id="4-claude-md-不是安全边界">4. CLAUDE.md 不是安全边界</h3>
+<p>这一点很重要。</p>
+<p><code>CLAUDE.md</code> 是行为指导，不是强制执行器。</p>
+<p>“不要执行危险命令”写在里面，能降低误操作概率，但不能提供绝对保证。</p>
+<p><strong>真正必须阻止的动作，要交给权限设置或 <code>PreToolUse</code> Hook。</strong></p>
+<p>如果 Claude 没按规则做，先运行 <code>/memory</code>，确认文件是否真的加载，再检查是不是规则太模糊、太长或者彼此冲突。</p>
+<p>更完整的拆分方法，可以继续看 <a href="./claude_md.html">CLAUDE.md 项目记忆与上下文管理</a>。</p>
+<h2 id="三-skills-把重复方法做成-按需工具箱">三、Skills：把重复方法做成“按需工具箱”</h2>
+<h3 id="1-skill-解决什么问题">1. Skill 解决什么问题？</h3>
+<p>假设团队有一套发布流程：</p>
+<ol>
+<li>检查工作区；</li>
+<li>跑测试；</li>
+<li>生成变更说明；</li>
+<li>检查数据库变更；</li>
+<li>给出回滚方案。</li>
+</ol>
+<p>这套流程很重要，但你写普通业务代码时不需要它。</p>
+<p>如果塞进 <code>CLAUDE.md</code>，Claude 每个会话都要背着它。</p>
+<p><strong>Skill 的价值，就是只在相关任务出现时加载专项知识和流程。</strong></p>
+<p>它既可以由你用 <code>/skill-name</code> 主动触发，也可以由 Claude 根据 <code>description</code> 自动判断。</p>
+<p><img alt="Claude Code按需加载Skill" src="https://file1.kamacoder.com/i/web/20260729153233_claude_code_toolkit_04_skills-compressed.jpg" /></p>
+<p>这张图讲的是：Skill 不是把所有资料永久堆在桌面，而是面对发布、评审、排障等具体任务时，只拿当前需要的工具箱。</p>
+<h3 id="2-一个-skill-长什么样">2. 一个 Skill 长什么样？</h3>
+<p>项目级 Skill 放在：</p>
+<div class="codehilite"><pre><span></span><code>.claude/skills/release-check/
+├── SKILL.md
+├── checklist.md
+└── scripts/
+    └── verify.sh
+</code></pre></div>
+
+<p>其中 <code>SKILL.md</code> 是入口：</p>
+<div class="codehilite"><pre><span></span><code>---
+name: release-check
+description: Check whether the current changes are ready for release. Use for release preparation, pre-deployment review, or rollback planning.
+<span class="gu">disable-model-invocation: true</span>
+<span class="gu">---</span>
+
+<span class="gu">## Release check</span>
+
+<span class="k">1.</span> Read <span class="sb">`checklist.md`</span>.
+<span class="k">2.</span> Inspect the current git diff.
+<span class="k">3.</span> Run <span class="sb">`scripts/verify.sh`</span>.
+<span class="k">4.</span> Report blockers, risks, and rollback steps.
+
+Do not deploy. Only produce a release-readiness report.
+</code></pre></div>
+
+<p>这里有几个关键点：</p>
+<ul>
+<li><code>description</code> 不是写给人看的广告，而是告诉 Claude <strong>什么时候该加载它</strong>；</li>
+<li><code>disable-model-invocation: true</code> 表示只能由用户主动调用；</li>
+<li>大段参考资料放到单独文件，<code>SKILL.md</code> 只做入口和导航；</li>
+<li>脚本负责确定性检查，Claude 负责结合现场解释结果。</li>
+</ul>
+<p>调用时输入：</p>
+<div class="codehilite"><pre><span></span><code>/release-check
+</code></pre></div>
+
+<p>个人通用 Skill 可以放在 <code>~/.claude/skills/</code>，项目共享 Skill 放在 <code>.claude/skills/</code>。</p>
+<h3 id="3-什么时候该做-skill">3. 什么时候该做 Skill？</h3>
+<p>最实用的信号不是“这个知识很高级”，而是：</p>
+<ul>
+<li>同一段说明已经复制了三次；</li>
+<li><code>CLAUDE.md</code> 里某一节越来越像操作手册；</li>
+<li>一个任务有固定输入、步骤和输出格式；</li>
+<li>这套方法需要模板、示例或脚本；</li>
+<li>多个角色都要复用同一套知识。</li>
+</ul>
+<p>Skill 不是越多越好。</p>
+<p>描述写得过宽，会在不相关任务里乱触发；内容太大，加载后一样会挤占上下文。</p>
+<p>关于 Skill 的分类、渐进式披露和团队实践，可以继续看 <a href="./claude_skills.html">Claude Skills 实战</a>。</p>
+<h2 id="四-subagents-把复杂工作交给独立角色">四、Subagents：把复杂工作交给独立角色</h2>
+<h3 id="1-为什么有-skill-还需要-subagent">1. 为什么有 Skill 还需要 Subagent？</h3>
+<p>Skill 给当前 Agent 加一套方法，但工作仍然发生在<strong>当前上下文</strong>。</p>
+<p>安全审查、全仓探索、测试排查这类任务，会读很多文件、产生大量中间输出。</p>
+<p>如果全部塞进主会话，主 Agent 的上下文很快变脏。</p>
+<p>更麻烦的是，让写代码的 Agent 再审自己的代码，容易产生“我已经改好了，所以应该没问题”的自我认可。</p>
+<p>Subagent 的价值是：<strong>另开一个独立上下文，让一个专门角色完成任务，只把结论和证据带回来。</strong></p>
+<p><img alt="Claude Code Subagents独立分工" src="https://file1.kamacoder.com/i/web/20260729153234_claude_code_toolkit_05_subagents-compressed.jpg" /></p>
+<p>这张图讲的是：探索、测试和审查可以由独立角色分别完成。过程噪音留在各自上下文，主 Agent 只接收有证据的结果。</p>
+<h3 id="2-怎么创建一个-subagent">2. 怎么创建一个 Subagent？</h3>
+<p>项目级 Subagent 放在 <code>.claude/agents/</code>：</p>
+<div class="codehilite"><pre><span></span><code>---
+name: security-reviewer
+description: Review code changes for authentication, authorization, injection, secret exposure, and unsafe data handling.
+tools: Read, Grep, Glob, Bash
+model: inherit
+skills:
+<span class="gu">  - secure-coding</span>
+<span class="gu">---</span>
+
+You are an independent security reviewer.
+
+Review changes without modifying business code.
+
+For every finding, report:
+
+<span class="k">1.</span> file and location;
+<span class="k">2.</span> trigger condition;
+<span class="k">3.</span> impact;
+<span class="k">4.</span> evidence;
+<span class="k">5.</span> recommended fix.
+
+If no issue is found, list what you checked. Do not return only "looks good".
+</code></pre></div>
+
+<p>使用时可以直接说：</p>
+<div class="codehilite"><pre><span></span><code>让 security-reviewer 独立审查这次登录模块改动，只返回带证据的结论。
+</code></pre></div>
+
+<p>也可以运行 <code>/agents</code> 查看和管理。</p>
+<h3 id="3-什么任务适合拆-subagent">3. 什么任务适合拆 Subagent？</h3>
+<p>适合拆的任务通常有一个共同点：<strong>过程很长，但主会话只需要结果。</strong></p>
+<p>例如：</p>
+<ul>
+<li>只读探索大代码库；</li>
+<li>安全、性能、测试独立复核；</li>
+<li>多个互不依赖模块的并行调查；</li>
+<li>需要不同角色从相反角度挑错；</li>
+<li>希望给角色限制工具、模型或权限。</li>
+</ul>
+<p>不适合拆的情况也很明显：</p>
+<ul>
+<li>一个文件的小修改；</li>
+<li>强依赖主会话大量隐含信息；</li>
+<li>多个子任务不断互相等待；</li>
+<li>拆分成本比任务本身还高。</li>
+</ul>
+<p><strong>Skill 是方法，Subagent 是拿着方法独立干活的角色。</strong></p>
+<p>两者可以组合：在 Subagent 的 <code>skills</code> 字段里预加载安全规范或测试方法。</p>
+<h2 id="五-mcp-让-claude-code-接上仓库外的世界">五、MCP：让 Claude Code 接上仓库外的世界</h2>
+<h3 id="1-mcp-到底是什么">1. MCP 到底是什么？</h3>
+<p>Claude Code 自带的文件和终端工具，擅长处理当前工作区。</p>
+<p>但真实开发还要访问很多外部系统：</p>
+<ul>
+<li>GitHub 或其他代码托管平台；</li>
+<li>Jira、Linear 等工单系统；</li>
+<li>Sentry 和日志平台；</li>
+<li>数据库、数据仓库；</li>
+<li>内部文档、发布平台和业务后台；</li>
+<li>浏览器或设计工具。</li>
+</ul>
+<p>MCP，全称 Model Context Protocol，解决的是<strong>AI 应用如何用统一方式发现和调用外部工具与数据</strong>。</p>
+<p>你不需要给每个 Agent 单独手写一套集成。</p>
+<p>MCP Server 把能力暴露出来，Claude Code 作为 MCP Client 连接并调用。</p>
+<p><img alt="Claude Code通过MCP连接外部系统" src="https://file1.kamacoder.com/i/web/20260729153236_claude_code_toolkit_06_mcp-compressed.jpg" /></p>
+<p>这张图讲的是：MCP 像受控转接器，让 Claude Code 够到仓库外的代码平台、数据库和浏览器；权限钥匙仍然应该掌握在人和系统策略手里。</p>
+<h3 id="2-怎么给-claude-code-添加-mcp-server">2. 怎么给 Claude Code 添加 MCP Server？</h3>
+<p>添加远程 HTTP Server：</p>
+<div class="codehilite"><pre><span></span><code>claude<span class="w"> </span>mcp<span class="w"> </span>add<span class="w"> </span>--transport<span class="w"> </span>http<span class="w"> </span>issue-tracker<span class="w"> </span>https://mcp.example.com/mcp
+</code></pre></div>
+
+<p>添加本地 stdio Server：</p>
+<div class="codehilite"><pre><span></span><code>claude<span class="w"> </span>mcp<span class="w"> </span>add<span class="w"> </span>--transport<span class="w"> </span>stdio<span class="w"> </span>my-tools<span class="w"> </span>--<span class="w"> </span>node<span class="w"> </span>./tools/mcp-server.js
+</code></pre></div>
+
+<p>常用检查命令：</p>
+<div class="codehilite"><pre><span></span><code>claude<span class="w"> </span>mcp<span class="w"> </span>list
+claude<span class="w"> </span>mcp<span class="w"> </span>get<span class="w"> </span>issue-tracker
+</code></pre></div>
+
+<p>进入 Claude Code 后，用 <code>/mcp</code> 查看连接和认证状态。</p>
+<p>团队共享的项目级 MCP 配置可以写进 <code>.mcp.json</code>。从仓库拉下来的配置需要经过信任和审批，不要因为文件进了 Git 就默认它安全。</p>
+<h3 id="3-mcp-最容易踩什么坑">3. MCP 最容易踩什么坑？</h3>
+<p><strong>第一，权限给太大。</strong></p>
+<p>查询数据库就用只读账号，不要上来就给生产库写权限。</p>
+<p>代码评审只需要读 PR，就别顺手给删仓库权限。</p>
+<p><strong>第二，工具太多。</strong></p>
+<p>一口气接几十个 Server、暴露几百个工具，会增加选择成本，也会污染上下文。</p>
+<p>先接最常用、返回结果最干净的能力。</p>
+<p><strong>第三，把 MCP 当成工作方法。</strong></p>
+<p>MCP 只负责“能连接、能调用”。</p>
+<p>至于查询什么、怎么判断、输出什么格式，仍然应该交给 <code>CLAUDE.md</code>、Skill 或 Subagent。</p>
+<p>所以最常见的组合是：</p>
+<p><strong>MCP 提供手和眼，Skill 提供做事方法。</strong></p>
+<p>想继续理解协议层，可以看 <a href="../app/mcp_protocol.html">MCP 协议详解</a>。</p>
+<h2 id="六-hooks-让关键动作不再依赖-记得">六、Hooks：让关键动作不再依赖“记得”</h2>
+<h3 id="1-hook-和提醒-claude-有什么区别">1. Hook 和提醒 Claude 有什么区别？</h3>
+<p>你在 <code>CLAUDE.md</code> 里写：</p>
+<p>“每次改完文件都要格式化。”</p>
+<p>这是提醒。</p>
+<p>你配置 <code>PostToolUse</code> Hook，在编辑成功后自动运行格式化命令。</p>
+<p>这是确定性动作。</p>
+<p>Hooks 会在 Claude Code 生命周期的特定事件上触发，比如：</p>
+<ul>
+<li>会话开始时注入环境信息；</li>
+<li>工具执行前检查或拦截；</li>
+<li>文件修改后自动格式化；</li>
+<li>工具失败后记录诊断信息；</li>
+<li>Claude 等待确认时发桌面通知；</li>
+<li>上下文压缩前保存关键状态。</li>
+</ul>
+<p><img alt="Claude Code Hooks自动门禁" src="https://file1.kamacoder.com/i/web/20260729153237_claude_code_toolkit_07_hooks-compressed.jpg" /></p>
+<p>这张图讲的是：格式化、测试和危险命令检查不该靠人追着提醒。Hook 像自动门禁，命中事件就执行，该通过的通过，该拦的拦住。</p>
+<h3 id="2-怎么配置一个-hook">2. 怎么配置一个 Hook？</h3>
+<p>Hooks 通常写在 <code>.claude/settings.json</code> 或用户级 <code>~/.claude/settings.json</code>。</p>
+<p>下面这个例子在 Claude 使用 <code>Edit</code> 或 <code>Write</code> 后运行格式化命令：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"hooks"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"PostToolUse"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Edit|Write"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"hooks"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">          </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"command"</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"jq -r '.tool_input.file_path' | xargs npx prettier --write"</span>
+<span class="w">          </span><span class="p">}</span>
+<span class="w">        </span><span class="p">]</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">]</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>配置后运行 <code>/hooks</code>，确认事件、匹配器和命令是否加载。</p>
+<p>真实项目里，建议把复杂逻辑放进独立脚本：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"command"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">".claude/hooks/check-edited-file.sh"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这样脚本能进 Git、能单独测试，也不用把一长串 shell 塞进 JSON。</p>
+<h3 id="3-hook-怎么用才不会变成新坑">3. Hook 怎么用才不会变成新坑？</h3>
+<p>Hook 是自动执行的，所以要比普通 Prompt 更谨慎。</p>
+<ul>
+<li>匹配范围尽量窄，不要什么事件都用 <code>.*</code>；</li>
+<li>默认快速执行，重任务不要卡住每次编辑；</li>
+<li>脚本要有明确退出码和错误信息；</li>
+<li>不要在 Hook 里偷偷做发布、删除、推送等高风险动作；</li>
+<li>先手动运行脚本，再接入 Hook；</li>
+<li>需要复杂判断时，用 Skill 或独立审查 Agent，不要堆一坨 shell。</li>
+</ul>
+<p>最适合 Hook 的，是“发生到这里就必须做”的动作。</p>
+<p>最不适合 Hook 的，是需要阅读大量上下文、权衡多个方案的开放问题。</p>
+<h2 id="七-plugins-把一套能力变成团队可安装的产品">七、Plugins：把一套能力变成团队可安装的产品</h2>
+<h3 id="1-plugin-不是第七种能力">1. Plugin 不是第七种能力</h3>
+<p>很多录友把 Plugin 理解成“又一个工具”。</p>
+<p>其实它更像<strong>包装和分发格式</strong>。</p>
+<p>一个 Plugin 可以同时带上：</p>
+<ul>
+<li>Skills；</li>
+<li>Subagents；</li>
+<li>Hooks；</li>
+<li>MCP Server 配置；</li>
+<li>LSP 配置；</li>
+<li>其他可复用组件。</li>
+</ul>
+<p>你在一个项目的 <code>.claude/</code> 目录里做实验，适合快速迭代。</p>
+<p>当这套配置已经稳定，需要跨项目、跨团队安装、升级和版本管理时，再把它做成 Plugin。</p>
+<p><img alt="Claude Code Plugin团队分发" src="https://file1.kamacoder.com/i/web/20260729153239_claude_code_toolkit_08_plugins-compressed.jpg" /></p>
+<p>这张图讲的是：Plugin 把零散的 Skill、Agent、Hook 和 MCP 配置装进同一个团队工具包。一份维护、多人复用，才不会每台电脑手工配一遍。</p>
+<h3 id="2-怎么安装-plugin">2. 怎么安装 Plugin？</h3>
+<p>在 Claude Code 里输入：</p>
+<div class="codehilite"><pre><span></span><code>/plugin
+</code></pre></div>
+
+<p>可以打开插件面板，浏览、安装和管理插件。</p>
+<p>安装官方市场中的插件：</p>
+<div class="codehilite"><pre><span></span><code>/plugin install github@claude-plugins-official
+</code></pre></div>
+
+<p>先看清插件提供什么组件、需要什么权限、会连接哪些外部系统。</p>
+<p>安装插件不是给它无限授权。</p>
+<h3 id="3-一个自定义-plugin-长什么样">3. 一个自定义 Plugin 长什么样？</h3>
+<p>最小目录可以是：</p>
+<div class="codehilite"><pre><span></span><code>team-toolkit/
+├── .claude-plugin/
+│   └── plugin.json
+├── skills/
+│   └── release-check/
+│       └── SKILL.md
+├── agents/
+│   └── security-reviewer.md
+├── hooks/
+│   └── hooks.json
+└── .mcp.json
+</code></pre></div>
+
+<p><code>plugin.json</code> 描述插件身份：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"team-toolkit"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Shared release and review workflows for our engineering team"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1.0.0"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>本地开发时，可以用 <code>--plugin-dir</code> 加载：</p>
+<div class="codehilite"><pre><span></span><code>claude<span class="w"> </span>--plugin-dir<span class="w"> </span>./team-toolkit
+</code></pre></div>
+
+<p>先在一两个项目里把组件跑稳，再发布到团队市场。</p>
+<p><strong>Plugin 解决的是分发，不会自动修复里面写得很差的 Skill、过宽的 Hook 或权限过大的 MCP。</strong></p>
+<h2 id="八-六种能力怎么组合-看一个真实项目">八、六种能力怎么组合？看一个真实项目</h2>
+<p>假设录友正在给电商系统增加“退款审批”功能。</p>
+<p>这个功能涉及业务规则、数据库、权限、测试、工单和发布。</p>
+<p>正确做法不是把所有要求塞进一个超级 Prompt，而是按问题分层。</p>
+<h3 id="1-claude-md-放每次都要知道的稳定事实">1. CLAUDE.md：放每次都要知道的稳定事实</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>Money is stored in cents as integer values.
+<span class="k">-</span><span class="w"> </span>Refund APIs must be idempotent.
+<span class="k">-</span><span class="w"> </span>All approval actions require an audit log.
+<span class="k">-</span><span class="w"> </span>Run <span class="sb">`pnpm test:payments`</span> after changing the payment module.
+<span class="k">-</span><span class="w"> </span>Never run production migrations without explicit approval.
+</code></pre></div>
+
+<p>这些规则和某一次任务无关，任何支付改动都应该知道。</p>
+<h3 id="2-skill-保存退款评审方法">2. Skill：保存退款评审方法</h3>
+<p>创建 <code>refund-review</code> Skill，里面放：</p>
+<ul>
+<li>幂等检查清单；</li>
+<li>金额精度规则；</li>
+<li>审批状态机说明；</li>
+<li>审计字段要求；</li>
+<li>测试模板；</li>
+<li>输出报告格式。</li>
+</ul>
+<p>以后每次做退款功能，不用重新复制几十行要求。</p>
+<h3 id="3-subagent-独立做安全复核">3. Subagent：独立做安全复核</h3>
+<p>让 <code>payment-security-reviewer</code> 只读检查：</p>
+<ul>
+<li>是否能越权审批；</li>
+<li>重放请求会不会重复退款；</li>
+<li>日志是否泄露敏感信息；</li>
+<li>状态转换是否能绕过；</li>
+<li>有没有带证据的测试。</li>
+</ul>
+<p>主 Agent 不参与它的推理，只接收结论，再决定怎么改。</p>
+<h3 id="4-mcp-连接真实工程系统">4. MCP：连接真实工程系统</h3>
+<p>通过 MCP：</p>
+<ul>
+<li>读取退款工单；</li>
+<li>查询错误平台中的历史异常；</li>
+<li>查看代码托管平台上的 PR；</li>
+<li>用只读账号查询测试环境数据。</li>
+</ul>
+<p>连接负责拿到真实信息，判断规则仍然来自项目说明和 Skill。</p>
+<h3 id="5-hooks-自动执行硬检查">5. Hooks：自动执行硬检查</h3>
+<ul>
+<li>修改支付代码后自动跑格式化和静态扫描；</li>
+<li>执行数据库命令前检查环境；</li>
+<li>准备提交时确认关键测试是否通过；</li>
+<li>Claude 等待审批时给开发者发送通知。</li>
+</ul>
+<p>不用指望 Agent 每次都“自觉记住”。</p>
+<h3 id="6-plugin-把成熟方案发给全团队">6. Plugin：把成熟方案发给全团队</h3>
+<p>当退款 Skill、安全 Subagent、Hooks 和 MCP 配置都跑稳后，打包成 <code>payment-engineering</code> Plugin。</p>
+<p>新同事安装以后，拿到的是同一套能力，不是某个人口口相传的经验。</p>
+<p>这时候六层的关系就很清楚了：</p>
+<div class="codehilite"><pre><span></span><code>CLAUDE.md：告诉 Claude 这个项目长期怎么做
+Skill：告诉 Claude 这类任务具体怎么做
+Subagent：安排一个独立角色去做
+MCP：给这个角色接上外部工具和数据
+Hook：在关键节点自动检查和拦截
+Plugin：把前面几层打包给团队
+</code></pre></div>
+
+<h2 id="九-从零开始-应该按什么顺序配置">九、从零开始，应该按什么顺序配置？</h2>
+<p>不要第一天就安装几十个 Plugin、接十几个 MCP、开一队 Subagents。</p>
+<p>配置越多，冲突、权限和上下文成本也越高。</p>
+<p>建议按问题出现的顺序来：</p>
+<h3 id="第一步-先把根-claude-md-写到能用">第一步：先把根 CLAUDE.md 写到能用</h3>
+<p>只写命令、架构、禁区和最常见的坑。</p>
+<p>运行 <code>/memory</code> 确认它被加载。</p>
+<h3 id="第二步-把重复出现的流程做成一个-skill">第二步：把重复出现的流程做成一个 Skill</h3>
+<p>从最常复制的发布、评审或排障流程开始。</p>
+<p>运行 <code>/skills</code> 检查描述和作用域。</p>
+<h3 id="第三步-给-必须发生-的动作加-hook">第三步：给“必须发生”的动作加 Hook</h3>
+<p>先接格式化、lint、危险命令拦截这类确定动作。</p>
+<p>运行 <code>/hooks</code> 检查配置，手动验证成功和失败路径。</p>
+<h3 id="第四步-只为明确场景创建-subagent">第四步：只为明确场景创建 Subagent</h3>
+<p>优先做安全审查或大范围只读探索。</p>
+<p>运行 <code>/agents</code> 检查它能用哪些工具、模型和 Skills。</p>
+<h3 id="第五步-按真实需求接-mcp">第五步：按真实需求接 MCP</h3>
+<p>先接一个高频系统，给最小权限。</p>
+<p>运行 <code>/mcp</code> 查看认证和连接状态。</p>
+<h3 id="第六步-稳定以后再做-plugin">第六步：稳定以后再做 Plugin</h3>
+<p>先证明这套能力在项目里真的有用，再考虑跨项目分发。</p>
+<p>插件化太早，只会把还没想清楚的配置更快地复制出去。</p>
+<p>遇到配置不生效，还可以运行：</p>
+<div class="codehilite"><pre><span></span><code>/doctor
+/status
+/permissions
+</code></pre></div>
+
+<p>先确认“有没有加载、从哪里加载、最终权限是什么”，再怀疑模型。</p>
+<h2 id="十-最容易配错的六个地方">十、最容易配错的六个地方</h2>
+<h3 id="1-把-claude-md-写成百科全书">1. 把 CLAUDE.md 写成百科全书</h3>
+<p>问题：每轮都占上下文，真正重要的规则反而不突出。</p>
+<p>改法：稳定事实留下，专项流程移到 Skill，长资料按需加载。</p>
+<h3 id="2-skill-的-description-写得太空">2. Skill 的 description 写得太空</h3>
+<p>问题：“帮助开发”这种描述什么都能匹配，也等于什么都没说。</p>
+<p>改法：写清任务、触发语境和不适用范围。</p>
+<h3 id="3-为了-并行-滥用-subagents">3. 为了“并行”滥用 Subagents</h3>
+<p>问题：拆任务、传上下文、汇总结果都要成本。</p>
+<p>改法：只有任务能独立完成，或者过程噪音确实需要隔离时再拆。</p>
+<h3 id="4-mcp-一上来就连生产写权限">4. MCP 一上来就连生产写权限</h3>
+<p>问题：接入范围扩大，误操作半径也跟着扩大。</p>
+<p>改法：只读优先、最小权限、敏感动作保留人工确认。</p>
+<h3 id="5-hook-做得又重又宽">5. Hook 做得又重又宽</h3>
+<p>问题：每次编辑都卡住，还可能对不相关文件误执行。</p>
+<p>改法：缩小 matcher，把复杂逻辑放到可测试脚本，重任务改成按需 Skill。</p>
+<h3 id="6-把-plugin-当-装得越多越强">6. 把 Plugin 当“装得越多越强”</h3>
+<p>问题：组件可能互相冲突，工具列表膨胀，权限来源也变得难审计。</p>
+<p>改法：只安装能解决明确问题的插件，定期用诊断命令检查来源。</p>
+<h2 id="十一-几个高频问题">十一、几个高频问题</h2>
+<h3 id="claude-md-和自动-memory-有什么区别">CLAUDE.md 和自动 Memory 有什么区别？</h3>
+<p><code>CLAUDE.md</code> 是团队明确维护的项目规则，可以进 Git、可以评审。</p>
+<p>自动 Memory 是 Claude 在使用过程中积累的本机经验，适合保存调试发现和个人工作习惯。</p>
+<p>团队制度写进 <code>CLAUDE.md</code>，不要等自动 Memory 自己猜。</p>
+<h3 id="skill-和-hook-到底怎么选">Skill 和 Hook 到底怎么选？</h3>
+<p>需要结合上下文判断、执行一套方法，用 Skill。</p>
+<p>命中事件就必须执行，而且结果应该稳定可验证，用 Hook。</p>
+<p>例如“按团队标准审查 PR”是 Skill，“编辑后自动格式化”是 Hook。</p>
+<h3 id="skill-和-subagent-到底怎么选">Skill 和 Subagent 到底怎么选？</h3>
+<p>希望给当前上下文补知识，用 Skill。</p>
+<p>希望把长过程隔离出去，只拿结果回来，用 Subagent。</p>
+<p>如果一个安全角色需要固定审查方法，就让 Subagent 预加载对应 Skill。</p>
+<h3 id="mcp-和-plugin-到底是什么关系">MCP 和 Plugin 到底是什么关系？</h3>
+<p>MCP 是连接协议，解决“Claude 怎么调用外部系统”。</p>
+<p>Plugin 是分发包，解决“怎么把 MCP 配置连同 Skills、Agents、Hooks 一起发给别人”。</p>
+<h3 id="配齐六件套-就一定更好吗">配齐六件套，就一定更好吗？</h3>
+<p>不一定。</p>
+<p>这些能力不是等级勋章。</p>
+<p>一个小项目可能只需要 30 行 <code>CLAUDE.md</code> 和一个格式化 Hook。只有重复流程出现了，才加 Skill；只有上下文需要隔离，才加 Subagent；只有仓库外能力确实要用，才接 MCP。</p>
+<p><strong>最好的 Claude Code 配置，不是组件最多，而是每一层都在解决真实问题。</strong></p>
+<h2 id="参考链接">参考链接</h2>
+<ul>
+<li>Claude Code 官方文档（扩展能力总览）：https://code.claude.com/docs/en/features-overview</li>
+<li>Claude Code 官方文档（CLAUDE.md 与 Memory）：https://code.claude.com/docs/en/memory</li>
+<li>Claude Code 官方文档（Skills）：https://code.claude.com/docs/en/slash-commands</li>
+<li>Claude Code 官方文档（Subagents）：https://code.claude.com/docs/en/sub-agents</li>
+<li>Claude Code 官方文档（MCP）：https://code.claude.com/docs/en/mcp</li>
+<li>Claude Code 官方文档（Hooks）：https://code.claude.com/docs/en/hooks-guide</li>
+<li>Claude Code 官方文档（Plugins）：https://code.claude.com/docs/en/plugins</li>
+</ul>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="claude_code_loop.html"><span class="k">← 上一篇</span><span class="v">Claude Code作者说“不写Prompt，写Loop”：AI编程从提示词到Agent闭环到底变了什么</span></a><a class="nx" href="claude_md.html"><span class="k">下一篇 →</span><span class="v">CLAUDE.md到底怎么写？Claude Code项目记忆、团队规范和上下文管理一篇讲明白</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#claude-code完整使用指南-claude-md-skills-subagents-mcp-hooks-plugins怎么用">Claude Code完整使用指南：CLAUDE.md、Skills、Subagents、MCP、Hooks、Plugins怎么用</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/claude/claude_code_toolkit_guide.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

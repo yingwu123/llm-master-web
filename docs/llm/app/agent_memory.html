@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent的记忆：短期记忆、长期记忆、RAG到底什么关系 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>app</span><span class="sep">›</span><span>agent_memory</span></div>
+      <h1 id="agent的记忆-短期-长期-rag到底什么关系">Agent的记忆：短期、长期、RAG到底什么关系？</h1>
+<p><a href="https://programmercarl.com/other/project_kamaClaude.html">
+  <img src="https://file1.kamacoder.com/i/web/2026-06-16_14-36-54.jpg" style="width:100%;cursor:pointer;" alt="KamaClaude">
+</a></p>
+<p>上一篇我们讲了 <a href="./agent_failure_modes.html">Agent 为什么容易翻车</a>。</p>
+<p>核心就一句话：<strong>Agent 能自主行动，就必须有工程护栏。</strong></p>
+<p>死循环、误调用、上下文污染、权限越界，本质上都和“状态管理”有关。</p>
+<p>一个 Agent 如果不知道自己做过什么、当前做到哪一步、哪些信息是真的、哪些只是猜测，那它就很容易跑偏。</p>
+<p>所以这一篇，我们继续往下讲：</p>
+<p><strong>Agent 的记忆到底怎么设计。</strong></p>
+<p>很多录友一听 Agent 记忆，第一反应是：</p>
+<p>“是不是把所有聊天记录都存起来，下次再塞给模型？”</p>
+<p>不是。</p>
+<p>这理解太粗了。</p>
+<p>如果你真这么做，系统很快就会遇到三个问题：</p>
+<ul>
+<li>上下文塞不下</li>
+<li>噪音越来越多</li>
+<li>旧信息和新信息互相打架</li>
+</ul>
+<p>所以先记住一句话：</p>
+<p><strong>Agent 记忆不是把历史全塞进 Prompt，而是把有价值的信息用合适的方式保存、检索、更新和遗忘。</strong></p>
+<p>这篇我们就把短期记忆、长期记忆、RAG、Session State 之间的关系讲清楚。</p>
+<p><img alt="Agent 记忆分层与上下文污染关系" src="https://file1.kamacoder.com/i/web/20260526175836_agent_memory_01_memory_layers_compressed.png" /></p>
+<h2 id="一-先搞清楚-agent-为什么需要记忆">一、先搞清楚：Agent 为什么需要记忆</h2>
+<p>普通问答系统，不一定需要复杂记忆。</p>
+<p>用户问一句。</p>
+<p>模型答一句。</p>
+<p>结束。</p>
+<p>但 Agent 不一样。</p>
+<p>Agent 往往要做多步任务。</p>
+<p>比如用户说：</p>
+<p>“帮我分析这个项目的技术债，然后按优先级给修复建议。”</p>
+<p>Agent 可能要：</p>
+<ol>
+<li>先看项目目录。</li>
+<li>再看核心模块。</li>
+<li>再找复杂函数。</li>
+<li>再看测试覆盖。</li>
+<li>再总结优先级。</li>
+</ol>
+<p>这个过程中，它必须记住：</p>
+<ul>
+<li>用户最初的目标是什么</li>
+<li>已经看过哪些目录</li>
+<li>哪些文件有问题</li>
+<li>哪些证据支撑当前判断</li>
+<li>哪些步骤失败了</li>
+<li>哪些结论只是临时假设</li>
+</ul>
+<p>如果没有记忆，Agent 就会边做边忘。</p>
+<p>前面刚查到的证据，后面忘了。</p>
+<p>前面已经失败的工具，后面继续调用。</p>
+<p>用户强调过的要求，后面又忽略。</p>
+<p>这就是很多 Agent 看起来“不稳定”的原因之一。</p>
+<p><strong>它不是单纯不会推理，而是缺少可管理的任务记忆。</strong></p>
+<h2 id="二-agent-记忆至少分四类">二、Agent 记忆至少分四类</h2>
+<p>讲 Agent 记忆，不要上来就说向量数据库。</p>
+<p>先按用途分清楚。</p>
+<p>一个比较实用的划分是四类：</p>
+<p><strong>短期记忆、Session State、长期记忆、外部知识库。</strong></p>
+<p>它们解决的问题不一样。</p>
+<h3 id="1-短期记忆-当前对话里刚发生了什么">1. 短期记忆：当前对话里刚发生了什么</h3>
+<p>短期记忆通常就是当前对话上下文。</p>
+<p>比如最近几轮聊天、最近几次工具调用、最近拿到的结果。</p>
+<p>它的特点是：</p>
+<ul>
+<li>生命周期短</li>
+<li>和当前任务强相关</li>
+<li>通常放在上下文窗口里</li>
+<li>容易被窗口长度限制</li>
+</ul>
+<p>比如用户前面说：</p>
+<p>“我的项目是 Java 后端，主要用 Spring Boot。”</p>
+<p>后面又问：</p>
+<p>“那我这个简历项目怎么写？”</p>
+<p>模型需要记住前面这句话。</p>
+<p>这就是短期记忆。</p>
+<h3 id="2-session-state-当前任务进行到哪一步">2. Session State：当前任务进行到哪一步</h3>
+<p>Session State 不是聊天记录。</p>
+<p>它是结构化状态。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"goal"</span><span class="p">:</span><span class="w"> </span><span class="s2">"分析仓库技术债"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"completed_steps"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"读取目录结构"</span><span class="p">,</span><span class="w"> </span><span class="s2">"定位核心模块"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"failed_steps"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"step"</span><span class="p">:</span><span class="w"> </span><span class="s2">"读取测试覆盖报告"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"文件不存在"</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"evidence"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"core/payment/PayService.java 方法过长"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"missing_info"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"缺少测试覆盖率数据"</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>你看，它不是把聊天原文堆起来。</p>
+<p>它是在记录任务状态。</p>
+<p>这对 Agent 特别重要。</p>
+<p>因为 Agent 做多步任务时，最怕“做到一半开始总结”。</p>
+<p>Session State 可以提醒它：</p>
+<p>你哪些步骤完成了。</p>
+<p>哪些证据拿到了。</p>
+<p>哪些信息还缺。</p>
+<p>现在能不能交付。</p>
+<h3 id="3-长期记忆-跨会话保留的稳定信息">3. 长期记忆：跨会话保留的稳定信息</h3>
+<p>长期记忆是跨会话存在的。</p>
+<p>比如用户长期偏好：</p>
+<ul>
+<li>用户主要写 Java</li>
+<li>用户准备秋招</li>
+<li>用户简历希望突出项目难点</li>
+<li>用户不喜欢太书面腔</li>
+</ul>
+<p>再比如某个业务 Agent 的长期状态：</p>
+<ul>
+<li>某客户属于高优先级客户</li>
+<li>某项目常用的排查入口</li>
+<li>某团队的代码规范</li>
+</ul>
+<p>长期记忆的特点是：</p>
+<ul>
+<li>不一定每次都用</li>
+<li>必须经过筛选再写入</li>
+<li>需要更新和遗忘</li>
+<li>不能把临时信息当成长期事实</li>
+</ul>
+<p>长期记忆最怕什么？</p>
+<p><strong>把所有聊天都存进去。</strong></p>
+<p>这样最后不是记忆。</p>
+<p>是垃圾堆。</p>
+<h3 id="4-外部知识库-agent-可以查的资料">4. 外部知识库：Agent 可以查的资料</h3>
+<p>外部知识库常常用 RAG 实现。</p>
+<p>比如：</p>
+<ul>
+<li>公司文档</li>
+<li>API 文档</li>
+<li>产品手册</li>
+<li>代码仓库</li>
+<li>面试题库</li>
+<li>运维手册</li>
+</ul>
+<p>它不是“用户记忆”。</p>
+<p>它是外部知识来源。</p>
+<p>Agent 在需要时检索相关资料，再放进上下文。</p>
+<p>所以 RAG 更像是：</p>
+<p><strong>Agent 的外部资料库。</strong></p>
+<p>而长期记忆更像是：</p>
+<p><strong>Agent 对用户、任务、历史经验的持久记录。</strong></p>
+<p><img alt="Agent 短期记忆、Session State、长期记忆和外部知识库四类记忆对比" src="https://file1.kamacoder.com/i/web/20260526175837_agent_memory_02_four_types_compressed.png" /></p>
+<h2 id="三-短期记忆不是越长越好">三、短期记忆不是越长越好</h2>
+<p>很多录友会觉得：</p>
+<p>“上下文窗口越大，短期记忆越强。”</p>
+<p>这话只对一半。</p>
+<p>上下文窗口大，确实能放更多历史。</p>
+<p>但放得多，不代表效果一定好。</p>
+<p>因为上下文里有很多噪音：</p>
+<ul>
+<li>用户的临时猜测</li>
+<li>工具返回的无关日志</li>
+<li>已经被证伪的方向</li>
+<li>过期的中间结论</li>
+<li>重复的对话内容</li>
+</ul>
+<p>如果这些都堆进去，模型反而会被干扰。</p>
+<p>上一篇我们讲过上下文污染。</p>
+<p>短期记忆越长，越容易污染。</p>
+<p>所以短期记忆要做两件事。</p>
+<p><strong>第一，保留当前任务相关信息。</strong></p>
+<p>比如目标、约束、最近工具结果、关键证据。</p>
+<p><strong>第二，丢掉不再有用的信息。</strong></p>
+<p>比如重复对话、无关日志、已经证伪的假设。</p>
+<p>短期记忆不是聊天记录全文。</p>
+<p>它应该更像一份“当前任务摘要”。</p>
+<p><img alt="短期记忆从长对话中过滤关键任务摘要的过程" src="https://file1.kamacoder.com/i/web/20260526175838_agent_memory_03_short_memory_filter_compressed.png" /></p>
+<p>举个例子。</p>
+<p>用户让 Agent 排查接口变慢。</p>
+<p>原始对话可能很长：</p>
+<ul>
+<li>用户猜是数据库问题</li>
+<li>Agent 查了数据库</li>
+<li>数据库没问题</li>
+<li>Agent 查了发布记录</li>
+<li>发现 22:05 有发布</li>
+<li>Agent 查了日志</li>
+<li>发现第三方回调超时</li>
+</ul>
+<p>短期记忆里真正该保留的是：</p>
+<p>“目标：定位接口变慢原因。数据库方向已排除。22:05 有发布。22:10 后第三方回调超时增加。下一步应确认发布是否引入回调重试逻辑。”</p>
+<p>这比把全部聊天原文塞进去更有用。</p>
+<h2 id="四-session-state-比聊天记录更适合多步任务">四、Session State 比聊天记录更适合多步任务</h2>
+<p>Agent 做多步任务时，最重要的不是“记住说过什么”。</p>
+<p>而是“记住任务进展”。</p>
+<p>这就是 Session State 的价值。</p>
+<p>比如一个故障排查 Agent，可以维护这样的状态：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"goal"</span><span class="p">:</span><span class="w"> </span><span class="s2">"定位支付接口变慢原因"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"current_hypothesis"</span><span class="p">:</span><span class="w"> </span><span class="s2">"第三方支付回调超时可能导致接口变慢"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"confirmed_facts"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">"22:10 后 /api/pay P95 从 300ms 升到 3.8s"</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">"22:05 发布了 payment-service v2.3.1"</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"rejected_hypotheses"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">"数据库慢查询导致接口变慢"</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"next_actions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">"检查 v2.3.1 是否改动回调重试逻辑"</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">"查询第三方支付回调错误码分布"</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这比一段长聊天有用得多。</p>
+<p>因为它把信息分成了：</p>
+<ul>
+<li>目标</li>
+<li>假设</li>
+<li>事实</li>
+<li>已排除方向</li>
+<li>下一步动作</li>
+</ul>
+<p>Agent 每一步都能对照它推进。</p>
+<p>而不是靠模型自己在长上下文里找重点。</p>
+<p><img alt="Session State 记录目标、假设、事实和下一步动作" src="https://file1.kamacoder.com/i/web/20260526175840_agent_memory_04_session_state_compressed.png" /></p>
+<p>很多生产系统里的 Agent，其实都要做状态管理。</p>
+<p>否则一旦任务超过三五步，就很容易跑散。</p>
+<p>特别是这些场景：</p>
+<ul>
+<li>故障排查</li>
+<li>代码库分析</li>
+<li>长文档总结</li>
+<li>数据分析报告</li>
+<li>多轮客服处理</li>
+<li>面试辅导和简历修改</li>
+</ul>
+<p>只靠 conversation buffer，不够。</p>
+<p>要有结构化状态。</p>
+<h2 id="五-长期记忆不能直接写入-必须过筛">五、长期记忆不能直接写入，必须过筛</h2>
+<p>长期记忆听起来很诱人。</p>
+<p>用户说过什么都记住。</p>
+<p>下次再来就像老朋友一样。</p>
+<p>但工程上最怕这件事：</p>
+<p><strong>把临时信息写成长期事实。</strong></p>
+<p>比如用户今天说：</p>
+<p>“我最近在看 Go。”</p>
+<p>这是不是长期记忆？</p>
+<p>不一定。</p>
+<p>可能只是今天临时问一下。</p>
+<p>再比如用户说：</p>
+<p>“我可能想投后端。”</p>
+<p>这是不是长期记忆？</p>
+<p>也不一定。</p>
+<p>它是一个不稳定意向。</p>
+<p>如果 Agent 直接记成“用户目标是后端开发”，后面就可能持续误导。</p>
+<p>所以长期记忆写入前，必须过筛。</p>
+<p>至少要问四个问题：</p>
+<p><strong>第一，这个信息是否长期稳定？</strong></p>
+<p>比如“用户主要使用 Java”比“用户今天问了 Go”更适合长期记忆。</p>
+<p><strong>第二，这个信息以后是否有用？</strong></p>
+<p>比如“用户喜欢口语化讲解”有用。</p>
+<p>“用户今天晚上 9 点问了一个问题”通常没用。</p>
+<p><strong>第三，这个信息是否被确认过？</strong></p>
+<p>用户明确说“我主要投 Java 后端”，比模型猜“用户可能投 Java”可靠。</p>
+<p><strong>第四，这个信息是否涉及隐私或敏感信息？</strong></p>
+<p>敏感信息不能随便写。</p>
+<p>需要权限、用途和删除机制。</p>
+<p><img alt="长期记忆写入前的稳定性、有用性、确认和合规筛选" src="https://file1.kamacoder.com/i/web/20260526175841_agent_memory_05_write_gate_compressed.png" /></p>
+<p>长期记忆要像数据库写入。</p>
+<p>不是像聊天记录自动追加。</p>
+<p>它应该有写入规则、更新规则、删除规则。</p>
+<p>否则越用越乱。</p>
+<h2 id="六-长期记忆怎么检索-不是全量塞回上下文">六、长期记忆怎么检索：不是全量塞回上下文</h2>
+<p>长期记忆存起来以后，下一步是怎么用。</p>
+<p>很多人又会犯一个错：</p>
+<p>“既然有长期记忆，那每次都把用户全部记忆塞进 Prompt。”</p>
+<p>不行。</p>
+<p>这和把全部聊天记录塞进去是一个问题。</p>
+<p>长期记忆也要按需检索。</p>
+<p>比如用户问：</p>
+<p>“帮我优化这个简历项目。”</p>
+<p>这时有用的长期记忆可能是：</p>
+<ul>
+<li>用户目标是 Java 后端</li>
+<li>用户准备校招</li>
+<li>用户希望项目描述更像面试表达</li>
+<li>用户已有 Redis 项目经历</li>
+</ul>
+<p>但下面这些就没必要：</p>
+<ul>
+<li>用户上次问过 MCP</li>
+<li>用户曾经问过 C++ 智能指针</li>
+<li>用户喜欢某个模型产品</li>
+</ul>
+<p>所以长期记忆使用流程应该是：</p>
+<ol>
+<li>根据当前任务生成检索意图。</li>
+<li>从长期记忆里找相关条目。</li>
+<li>过滤过期和低置信度记忆。</li>
+<li>只把关键记忆放进上下文。</li>
+<li>生成回答后，根据需要更新记忆。</li>
+</ol>
+<p><img alt="长期记忆按当前任务检索、过滤、使用和更新的流程" src="https://file1.kamacoder.com/i/web/20260526175843_agent_memory_06_memory_retrieval_compressed.png" /></p>
+<p>这和 RAG 很像。</p>
+<p>但对象不一样。</p>
+<p>长期记忆检索的是用户偏好、历史任务、稳定状态。</p>
+<p>RAG 检索的是外部知识、文档、资料。</p>
+<p>这就是它们的区别。</p>
+<h2 id="七-rag-不是-agent-的长期记忆">七、RAG 不是 Agent 的长期记忆</h2>
+<p>这点很重要。</p>
+<p>很多人会把 RAG 和长期记忆混为一谈。</p>
+<p>“我把历史聊天记录存到向量数据库里，再检索出来，这不就是长期记忆吗？”</p>
+<p>不完全是。</p>
+<p>向量数据库只是存储和检索方式。</p>
+<p>不等于记忆设计。</p>
+<p>如果你把所有聊天记录原文扔进向量库，后面检索出来一堆碎片。</p>
+<p>那只是“历史记录检索”。</p>
+<p>不一定是“长期记忆”。</p>
+<p>长期记忆应该是经过提炼的信息。</p>
+<p>比如原始对话是：</p>
+<p>“我现在主要准备 Java 后端，项目是一个网盘系统，希望简历不要写得太像流水账。”</p>
+<p>长期记忆应该写成：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"user_profile"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"用户主要准备 Java 后端方向"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"confidence"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.95</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"source"</span><span class="p">:</span><span class="w"> </span><span class="s2">"用户明确表达"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"updated_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-05-26"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>而不是把整段聊天原文丢进去。</p>
+<p>RAG 更适合做外部知识库：</p>
+<ul>
+<li>公司文档</li>
+<li>产品说明</li>
+<li>API 手册</li>
+<li>代码仓库</li>
+<li>运维手册</li>
+<li>面试题库</li>
+</ul>
+<p>长期记忆更适合记录：</p>
+<ul>
+<li>用户偏好</li>
+<li>用户目标</li>
+<li>历史任务结论</li>
+<li>已确认的项目背景</li>
+<li>Agent 自己需要跨会话保留的状态</li>
+</ul>
+<p><img alt="RAG 外部知识库和 Agent 长期记忆的边界区别" src="https://file1.kamacoder.com/i/web/20260526175844_agent_memory_07_rag_vs_memory_compressed.png" /></p>
+<p>所以面试时别说：</p>
+<p>“我们用向量数据库实现长期记忆。”</p>
+<p>这句话太浅。</p>
+<p>你要补一句：</p>
+<p>“向量数据库只是检索层。长期记忆还要设计写入规则、记忆类型、置信度、更新时间、冲突处理和删除机制。”</p>
+<p>这才像工程回答。</p>
+<h2 id="八-记忆也要会忘">八、记忆也要会忘</h2>
+<p>记忆不是越多越好。</p>
+<p>Agent 也要会忘。</p>
+<p>否则长期记忆会出现三个问题。</p>
+<h3 id="1-过期">1. 过期</h3>
+<p>用户去年准备 Java 后端。</p>
+<p>今年转向大模型应用。</p>
+<p>如果 Agent 还一直按 Java 后端给建议，就错了。</p>
+<h3 id="2-冲突">2. 冲突</h3>
+<p>用户之前说想投算法。</p>
+<p>后来明确说不投算法，转投应用开发。</p>
+<p>旧记忆和新记忆冲突。</p>
+<p>这时不能都塞给模型。</p>
+<p>要更新或降权旧记忆。</p>
+<h3 id="3-噪音">3. 噪音</h3>
+<p>长期记忆里存了太多低价值信息。</p>
+<p>检索时就容易召回一堆无关内容。</p>
+<p>所以记忆系统要有“遗忘机制”。</p>
+<p>至少包括：</p>
+<ul>
+<li>过期时间</li>
+<li>置信度</li>
+<li>更新时间</li>
+<li>冲突合并</li>
+<li>用户删除</li>
+<li>低价值记忆清理</li>
+</ul>
+<p><img alt="Agent 长期记忆过期、冲突和噪音的更新遗忘机制" src="https://file1.kamacoder.com/i/web/20260526175846_agent_memory_08_forgetting_update_compressed.png" /></p>
+<p>记忆不是仓库。</p>
+<p>不是只进不出。</p>
+<p>它更像一个持续维护的状态系统。</p>
+<h2 id="九-agent-记忆怎么设计更稳">九、Agent 记忆怎么设计更稳</h2>
+<p>如果你真要在项目里设计 Agent 记忆，可以按这个框架来。</p>
+<h3 id="1-先定义记忆类型">1. 先定义记忆类型</h3>
+<p>不要只有一个 <code>memory</code> 表。</p>
+<p>至少区分：</p>
+<ul>
+<li>用户偏好</li>
+<li>用户目标</li>
+<li>项目背景</li>
+<li>任务状态</li>
+<li>历史结论</li>
+<li>外部知识引用</li>
+</ul>
+<p>不同类型的记忆，写入规则不同。</p>
+<p>用户偏好可以长期保存。</p>
+<p>任务状态可能会话结束就清掉。</p>
+<p>外部知识引用应该回到 RAG 文档里。</p>
+<h3 id="2-再定义写入规则">2. 再定义写入规则</h3>
+<p>什么信息可以写？</p>
+<p>什么信息不能写？</p>
+<p>什么信息需要用户确认？</p>
+<p>什么信息只作为临时状态？</p>
+<p>这一步很重要。</p>
+<p>没有写入规则，长期记忆很快会变脏。</p>
+<h3 id="3-检索时按任务筛选">3. 检索时按任务筛选</h3>
+<p>不要全量塞。</p>
+<p>根据当前任务选择相关记忆。</p>
+<p>比如简历优化任务，就检索求职方向、项目背景、写作偏好。</p>
+<p>故障排查任务，就检索服务背景、历史事故、常用排查入口。</p>
+<h3 id="4-使用后更新记忆">4. 使用后更新记忆</h3>
+<p>用户目标变了，要更新。</p>
+<p>旧结论被推翻，要降权。</p>
+<p>低价值记忆长期不用，要清理。</p>
+<p>用户要求删除，要删除。</p>
+<p>这才是完整闭环。</p>
+<p><img alt="Agent 记忆系统从定义类型到写入、检索、使用和遗忘的闭环" src="https://file1.kamacoder.com/i/web/20260526175848_agent_memory_09_memory_lifecycle_compressed.png" /></p>
+<h2 id="十-面试时怎么回答-agent-记忆">十、面试时怎么回答 Agent 记忆</h2>
+<p>Agent 记忆现在面试也越来越容易被问。</p>
+<p>尤其是你简历里写了“长期记忆”“个性化 Agent”“上下文管理”，面试官一定会追。</p>
+<p><strong>面试官问：Agent 的短期记忆和长期记忆有什么区别？</strong></p>
+<p>可以这样答：</p>
+<p>“短期记忆主要服务当前会话和当前任务，比如最近几轮对话、工具调用结果、当前任务摘要，通常受上下文窗口限制；长期记忆是跨会话保留的稳定信息，比如用户偏好、长期目标、项目背景和历史结论。长期记忆不能直接把所有聊天都存起来，需要经过筛选、结构化、更新和遗忘。”</p>
+<p><strong>面试官问：Session State 和聊天记录有什么区别？</strong></p>
+<p>可以这样答：</p>
+<p>“聊天记录是原始对话，噪音比较多；Session State 是结构化任务状态，记录目标、已完成步骤、失败步骤、证据、假设和下一步动作。Agent 做多步任务时，Session State 比单纯 conversation buffer 更可靠，因为它能防止任务中断、重复调用和提前交付。”</p>
+<p><strong>面试官问：RAG 和长期记忆是什么关系？</strong></p>
+<p>可以这样答：</p>
+<p>“RAG 通常用于检索外部知识，比如文档、代码、知识库；长期记忆用于保存用户偏好、历史任务和稳定状态。它们都可能用向量检索，但语义不一样。向量数据库只是存储和检索方式，不等于长期记忆本身。长期记忆还要设计写入规则、置信度、更新时间、冲突处理和删除机制。”</p>
+<p><strong>面试官问：长期记忆怎么防止变脏？</strong></p>
+<p>可以这样答：</p>
+<p>“不能把所有对话自动写入长期记忆。写入前要判断信息是否稳定、是否有用、是否被用户确认、是否合规。记忆条目要有类型、来源、置信度、更新时间。新信息和旧信息冲突时，要更新或降权旧记忆，过期和低价值记忆要清理。”</p>
+<p>这套回答基本够用了。</p>
+<h2 id="十一-别把-记住一切-当成智能">十一、别把“记住一切”当成智能</h2>
+<p>很多人对 Agent 记忆有误解。</p>
+<p>觉得记得越多越智能。</p>
+<p>不是。</p>
+<p>真正好的 Agent 记忆，不是记住一切。</p>
+<p>而是：</p>
+<p><strong>该记的记住。</strong></p>
+<p><strong>该查的去查。</strong></p>
+<p><strong>该忘的忘掉。</strong></p>
+<p><strong>该确认的确认。</strong></p>
+<p>短期记忆解决当前对话连续性。</p>
+<p>Session State 解决当前任务进展。</p>
+<p>长期记忆解决跨会话稳定信息。</p>
+<p>RAG 解决外部知识检索。</p>
+<p>这四个东西各司其职。</p>
+<p>混在一起，就会乱。</p>
+<p>所以别再说：</p>
+<p>“长期记忆就是把所有聊天存进向量数据库。”</p>
+<p>这句话太浅了。</p>
+<p>真正靠谱的 Agent 记忆系统，要能写入、检索、使用、更新、遗忘。</p>
+<p>能把这套机制讲清楚，你的 Agent 项目才像真的做过工程设计。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="agent_learning_roadmap.html"><span class="k">← 上一篇</span><span class="v">2026最全AI Agent 学习路线：怎么从零学 Agent 开发，该按什么顺序学</span></a><a class="nx" href="agent_tool_design.html"><span class="k">下一篇 →</span><span class="v">工具设计决定Agent上限：Tool Use、Function Calling、参数Schema和返回值怎么设计</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#agent的记忆-短期-长期-rag到底什么关系">Agent的记忆：短期、长期、RAG到底什么关系？</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/app/agent_memory.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

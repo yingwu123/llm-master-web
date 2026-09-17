@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>手撕Multi-Head Attention：从单头扩展到多头 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>transformer</span><span class="sep">›</span><span>mha_code</span></div>
+      <h1 id="手撕multi-head-attention-从单头扩展到多头">手撕Multi-Head Attention：从单头扩展到多头</h1>
+<p>上一篇文章我们从零实现了最基础的 Attention，走完了 Q、K、V → Softmax → 加权求和的完整流程。</p>
+<p>这篇文章我们把<strong>单头 Attention 扩展成 Multi-Head Attention，</strong>一行一行写出来，每一步都打印 shape 验证。</p>
+<p>如果你还记得上篇的结论——单头 Attention 的问题是"视角太单一"，一次计算只能关注一种语义关系。多头的解法是把维度切开，让多个头并行各司其职。</p>
+<p>现在我们就把这个过程真正"手撕"出来。</p>
+<hr />
+<h2 id="多头比单头多了哪几步">多头比单头多了哪几步？</h2>
+<p>单头 Attention 的流程是：</p>
+<div class="codehilite"><pre><span></span><code>X → (W_Q, W_K, W_V) → Q, K, V → Attention → 输出
+</code></pre></div>
+
+<p>Multi-Head Attention 只多了三步：</p>
+<div class="codehilite"><pre><span></span><code>X → (W_Q, W_K, W_V) → Q, K, V
+  → 拆分成 h 个头（reshape）
+  → 每个头独立跑 Attention
+  → 拼接（concat）
+  → 乘输出投影矩阵 W_O
+  → 最终输出
+</code></pre></div>
+
+<p>就这四个新动作：<strong>拆分 → 并行计算 → 拼接 → 输出投影</strong>。</p>
+<hr />
+<h2 id="第一步-线性层映射-生成-q-k-v">第一步：线性层映射，生成 Q、K、V</h2>
+<p>这一步和单头完全一样。输入 X 分别乘三个权重矩阵，得到 Q、K、V。</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="c1"># 超参数设置</span>
+<span class="n">L</span> <span class="o">=</span> <span class="mi">7</span>        <span class="c1"># 序列长度（"远方有颗苹果树"，7个字）</span>
+<span class="n">d_model</span> <span class="o">=</span> <span class="mi">8</span>  <span class="c1"># embedding 维度（实际是512，这里用8方便演示）</span>
+<span class="n">h</span> <span class="o">=</span> <span class="mi">2</span>        <span class="c1"># 注意力头数（实际常用8或16）</span>
+<span class="n">d_k</span> <span class="o">=</span> <span class="n">d_model</span> <span class="o">//</span> <span class="n">h</span>  <span class="c1"># 每个头的维度 = 8 // 2 = 4</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+
+<span class="c1"># 模拟 embedding 后的输入</span>
+<span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输入 X: </span><span class="si">{</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 8)</span>
+
+<span class="c1"># 三个权重矩阵（实际中是可学习参数）</span>
+<span class="n">W_Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+<span class="n">W_K</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+<span class="n">W_V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+
+<span class="c1"># 线性映射，得到 Q、K、V</span>
+<span class="n">Q</span> <span class="o">=</span> <span class="n">X</span> <span class="o">@</span> <span class="n">W_Q</span>   <span class="c1"># (7, 8) @ (8, 8) = (7, 8)</span>
+<span class="n">K</span> <span class="o">=</span> <span class="n">X</span> <span class="o">@</span> <span class="n">W_K</span>
+<span class="n">V</span> <span class="o">=</span> <span class="n">X</span> <span class="o">@</span> <span class="n">W_V</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Q: </span><span class="si">{</span><span class="n">Q</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 8)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"K: </span><span class="si">{</span><span class="n">K</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 8)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"V: </span><span class="si">{</span><span class="n">V</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 8)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入 X: (7, 8)
+Q: (7, 8)
+K: (7, 8)
+V: (7, 8)
+</code></pre></div>
+
+<p>Q、K、V 的形状都是 <code>(L, d_model)</code>，和单头完全一样。
+<strong>区别在于下一步：单头直接拿去算 Attention，多头要先把它"切开"。</strong></p>
+<p><img alt="Multi-Head Attention分头计算代码输出图" src="https://file1.kamacoder.com/i/algo/article11_419_p1.png" /></p>
+<h2 id="第二步-head-拆分-把-d_model-切成-h-份">第二步：Head 拆分——把 d_model 切成 h 份</h2>
+<p>这是多头和单头最关键的差异所在。</p>
+<p>以 $d_model=8、h=2 $为例，每个头拿到$d_k = 8 ÷ 2 = 4$ 维：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># reshape: (L, d_model) → (L, h, d_k)</span>
+<span class="n">Q_split</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">d_k</span><span class="p">)</span>
+<span class="n">K_split</span> <span class="o">=</span> <span class="n">K</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">d_k</span><span class="p">)</span>
+<span class="n">V_split</span> <span class="o">=</span> <span class="n">V</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">d_k</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">拆分后："</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Q_split: </span><span class="si">{</span><span class="n">Q_split</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>   <span class="c1"># (7, 2, 4)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"K_split: </span><span class="si">{</span><span class="n">K_split</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>   <span class="c1"># (7, 2, 4)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"V_split: </span><span class="si">{</span><span class="n">V_split</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>   <span class="c1"># (7, 2, 4)</span>
+
+<span class="c1"># 转置为 (h, L, d_k)，方便每个头独立计算</span>
+<span class="n">Q_heads</span> <span class="o">=</span> <span class="n">Q_split</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">K_heads</span> <span class="o">=</span> <span class="n">K_split</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">V_heads</span> <span class="o">=</span> <span class="n">V_split</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">转置后（便于并行计算）："</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Q_heads: </span><span class="si">{</span><span class="n">Q_heads</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (2, 7, 4)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"K_heads: </span><span class="si">{</span><span class="n">K_heads</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (2, 7, 4)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"V_heads: </span><span class="si">{</span><span class="n">V_heads</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (2, 7, 4)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>拆分后：
+Q_split: (7, 2, 4)
+K_split: (7, 2, 4)
+V_split: (7, 2, 4)
+
+转置后（便于并行计算）：
+Q_heads: (2, 7, 4)
+K_heads: (2, 7, 4)
+V_heads: (2, 7, 4)
+</code></pre></div>
+
+<p><strong>怎么理解这个 reshape？</strong></p>
+<p>原来的 Q 是 <code>(7, 8)</code>，也就是 7 个 token，每个 token 8 维。</p>
+<p>拆成 <code>(7, 2, 4)</code> 之后，变成：7 个 token，每个 token 有 2 个视角，每个视角 4 维。</p>
+<p>转置成 <code>(2, 7, 4)</code> 之后，变成：2 个头，每个头看 7 个 token，每个 token 4 维。</p>
+<p>这样第 0 个头和第 1 个头就可以<strong>独立并行地做 Attention 计算</strong>了。</p>
+<p><img alt="Multi-Head Attention拼接合并代码输出图" src="https://file1.kamacoder.com/i/algo/article11_419_p2.png" /></p>
+<h2 id="第三步-每个头独立跑-attention">第三步：每个头独立跑 Attention</h2>
+<p>拆分好之后，每个头的计算和单头完全一样：QKᵀ → 缩放 → Softmax → 加权 V。</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">softmax</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">e</span> <span class="o">/</span> <span class="n">e</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">single_head_attention</span><span class="p">(</span><span class="n">Q</span><span class="p">,</span> <span class="n">K</span><span class="p">,</span> <span class="n">V</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""单个头的 Attention，输入输出都是 (L, d_k)"""</span>
+    <span class="n">d_k</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">scores</span> <span class="o">=</span> <span class="n">Q</span> <span class="o">@</span> <span class="n">K</span><span class="o">.</span><span class="n">T</span>               <span class="c1"># (L, L)</span>
+    <span class="n">scores</span> <span class="o">=</span> <span class="n">scores</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">d_k</span><span class="p">)</span> <span class="c1"># 缩放</span>
+    <span class="n">weights</span> <span class="o">=</span> <span class="n">softmax</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span>      <span class="c1"># (L, L)</span>
+    <span class="k">return</span> <span class="n">weights</span> <span class="o">@</span> <span class="n">V</span>             <span class="c1"># (L, d_k)</span>
+
+<span class="c1"># 对每个头分别计算</span>
+<span class="n">head_outputs</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">h</span><span class="p">):</span>
+    <span class="n">out_i</span> <span class="o">=</span> <span class="n">single_head_attention</span><span class="p">(</span><span class="n">Q_heads</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">K_heads</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">V_heads</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+    <span class="n">head_outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">out_i</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Head </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> 输出: </span><span class="si">{</span><span class="n">out_i</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 4)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>Head 0 输出: (7, 4)
+Head 1 输出: (7, 4)
+</code></pre></div>
+
+<p>2 个头，每个头输出 <code>(7, 4)</code>。注意：<strong>每个头看到的是同一个句子，但是在不同的 4 维子空间里理解它</strong>，所以结果是不同的。</p>
+<h2 id="第四步-concat-拼接-把多个头合并回来">第四步：Concat 拼接——把多个头合并回来</h2>
+<p>2 个头算完了，怎么合并？<strong>横向拼接</strong>，沿着最后一个维度 concat。</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 先把 list 转成数组 (h, L, d_k)</span>
+<span class="n">head_outputs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">head_outputs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">拼接前（stack）: </span><span class="si">{</span><span class="n">head_outputs</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (2, 7, 4)</span>
+
+<span class="c1"># 转置回 (L, h, d_k)，再 reshape 成 (L, d_model)</span>
+<span class="n">head_outputs</span> <span class="o">=</span> <span class="n">head_outputs</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"转置后: </span><span class="si">{</span><span class="n">head_outputs</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 2, 4)</span>
+
+<span class="n">concat_output</span> <span class="o">=</span> <span class="n">head_outputs</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"拼接后（reshape）: </span><span class="si">{</span><span class="n">concat_output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>  <span class="c1"># (7, 8)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>拼接前（stack）: (2, 7, 4)
+转置后: (7, 2, 4)
+拼接后（reshape）: (7, 8)
+</code></pre></div>
+
+<p>两个头各自的 4 维输出拼在一起，重新变回了 8 维。<strong>维度和输入 X 完全一样。</strong></p>
+<h2 id="第五步-输出投影-w_o-让多个头-融合对话">第五步：输出投影 W_O——让多个头"融合对话"</h2>
+<p>拼接之后，还差最后一步：乘输出投影矩阵 $W_O$。</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 输出投影矩阵 W_O: (d_model, d_model)</span>
+<span class="n">W_O</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+
+<span class="c1"># 最终输出</span>
+<span class="n">final_output</span> <span class="o">=</span> <span class="n">concat_output</span> <span class="o">@</span> <span class="n">W_O</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">输出投影后: </span><span class="si">{</span><span class="n">final_output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>   <span class="c1"># (7, 8)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输入 X 形状:  </span><span class="si">{</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>              <span class="c1"># (7, 8)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"形状是否一致: </span><span class="si">{</span><span class="n">final_output</span><span class="o">.</span><span class="n">shape</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>输出投影后: (7, 8)
+输入 X 形状:  (7, 8)
+形状是否一致: True
+</code></pre></div>
+
+<p><strong>为什么还要乘 W_O？</strong></p>
+<p>Concat 之后，8 维向量的前 4 维来自 Head 0，后 4 维来自 Head 1。它们各自是独立计算的，彼此之间还没有"交流"过。</p>
+<p>$W_O$ 做的事，就是让不同头的信息能够<strong>互相混合</strong>，产生一个统一的表示，传给后续的 FFN 子层。</p>
+<h2 id="完整代码-把五步打包成一个函数">完整代码：把五步打包成一个函数</h2>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">multi_head_attention</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">W_Q</span><span class="p">,</span> <span class="n">W_K</span><span class="p">,</span> <span class="n">W_V</span><span class="p">,</span> <span class="n">W_O</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Multi-Head Attention 完整实现</span>
+
+<span class="sd">    参数:</span>
+<span class="sd">        X:    输入矩阵, shape (L, d_model)</span>
+<span class="sd">        W_Q, W_K, W_V: 线性投影矩阵, shape (d_model, d_model)</span>
+<span class="sd">        W_O:  输出投影矩阵, shape (d_model, d_model)</span>
+<span class="sd">        h:    注意力头数</span>
+
+<span class="sd">    返回:</span>
+<span class="sd">        output: shape (L, d_model)</span>
+<span class="sd">    """</span>
+    <span class="n">L</span><span class="p">,</span> <span class="n">d_model</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">d_k</span> <span class="o">=</span> <span class="n">d_model</span> <span class="o">//</span> <span class="n">h</span>
+
+    <span class="c1"># ① 线性映射</span>
+    <span class="n">Q</span> <span class="o">=</span> <span class="n">X</span> <span class="o">@</span> <span class="n">W_Q</span>
+    <span class="n">K</span> <span class="o">=</span> <span class="n">X</span> <span class="o">@</span> <span class="n">W_K</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">X</span> <span class="o">@</span> <span class="n">W_V</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[①线性映射] Q/K/V: </span><span class="si">{</span><span class="n">Q</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># ② 拆分成 h 个头: (L, d_model) → (h, L, d_k)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">split_heads</span><span class="p">(</span><span class="n">M</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">M</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">d_k</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="n">Q_h</span> <span class="o">=</span> <span class="n">split_heads</span><span class="p">(</span><span class="n">Q</span><span class="p">)</span>
+    <span class="n">K_h</span> <span class="o">=</span> <span class="n">split_heads</span><span class="p">(</span><span class="n">K</span><span class="p">)</span>
+    <span class="n">V_h</span> <span class="o">=</span> <span class="n">split_heads</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[②Head拆分] Q_h/K_h/V_h: </span><span class="si">{</span><span class="n">Q_h</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># ③ 每个头独立计算 Attention</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">softmax</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="n">e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">e</span> <span class="o">/</span> <span class="n">e</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">head_outs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">h</span><span class="p">):</span>
+        <span class="n">scores</span> <span class="o">=</span> <span class="n">Q_h</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">@</span> <span class="n">K_h</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">d_k</span><span class="p">)</span>
+        <span class="n">attn</span> <span class="o">=</span> <span class="n">softmax</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span> <span class="o">@</span> <span class="n">V_h</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">head_outs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">attn</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[③并行Attention] 每个head输出: </span><span class="si">{</span><span class="n">head_outs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># ④ Concat 拼接: (h, L, d_k) → (L, d_model)</span>
+    <span class="n">concat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">head_outs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[④Concat拼接] 拼接后: </span><span class="si">{</span><span class="n">concat</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># ⑤ 输出投影</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">concat</span> <span class="o">@</span> <span class="n">W_O</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[⑤输出投影] 最终输出: </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">output</span>
+
+
+<span class="c1"># ——— 运行测试 ———</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+    <span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">h</span> <span class="o">=</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">2</span>
+
+    <span class="n">X</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+    <span class="n">W_Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+    <span class="n">W_K</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+    <span class="n">W_V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+    <span class="n">W_O</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"=== Multi-Head Attention ==="</span><span class="p">)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">multi_head_attention</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">W_Q</span><span class="p">,</span> <span class="n">W_K</span><span class="p">,</span> <span class="n">W_V</span><span class="p">,</span> <span class="n">W_O</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">输入形状:  </span><span class="si">{</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输出形状:  </span><span class="si">{</span><span class="n">out</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"形状一致:  </span><span class="si">{</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">out</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>运行输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>=== Multi-Head Attention ===
+[①线性映射] Q/K/V: (7, 8)
+[②Head拆分] Q_h/K_h/V_h: (2, 7, 4)
+[③并行Attention] 每个head输出: (7, 4)
+[④Concat拼接] 拼接后: (7, 8)
+[⑤输出投影] 最终输出: (7, 8)
+
+输入形状:  (7, 8)
+输出形状:  (7, 8)
+形状一致:  True
+</code></pre></div>
+
+<hr />
+<h2 id="五步流程">五步流程</h2>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>操作</th>
+<th>输入形状</th>
+<th>输出形状</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>① 线性映射</td>
+<td>X 乘 $W_Q / W_K / W_V$</td>
+<td>$(L, d_model)$</td>
+<td>$(L, d_model)$</td>
+</tr>
+<tr>
+<td>② Head 拆分</td>
+<td>reshape + transpose</td>
+<td>$ (L, d_model) $</td>
+<td>$(h, L, d_k)$</td>
+</tr>
+<tr>
+<td>③ 并行 Attention</td>
+<td>每个头独立跑完整 Attention</td>
+<td>$(L, d_k) × h$</td>
+<td>$(L, d_k) × h$</td>
+</tr>
+<tr>
+<td>④ Concat 拼接</td>
+<td>transpose + reshape</td>
+<td>$(h, L, d_k)$</td>
+<td>$(L, d_model)$</td>
+</tr>
+<tr>
+<td>⑤ 输出投影</td>
+<td>乘 $W_O$</td>
+<td>($L, d_model)$</td>
+<td>$(L, d_model)$</td>
+</tr>
+</tbody>
+</table>
+<p>从头到尾，输入是 $(L, d_model)$，输出还是 $(L, d_model)$。中间经历了一次维度的"分家"再"合并"，但整体维度始终保持一致，这也是 Transformer 能一层层堆叠的基础。</p>
+<hr />
+<p>这篇文章我们把 Multi-Head Attention 的五个步骤完整手撕了一遍，代码加注释不到 60 行。</p>
+<p>核心只有一句话：</p>
+<blockquote>
+<p><strong>多头不是"用更多参数"，而是"用同样的参数，在多个子空间里并行理解语言"。</strong></p>
+</blockquote>
+<p>下一篇文章，<strong>我们将带大家手撕FFN</strong>，大家可以点个关注不迷路哦～</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="mha.html"><span class="k">← 上一篇</span><span class="v">Multi-Head Attention详解：为什么一个头不够，多头怎么拆分和拼接</span></a><a class="nx" href="pos_encode.html"><span class="k">下一篇 →</span><span class="v">位置编码详解：Transformer为什么必须知道Token顺序，正弦编码原理</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#手撕multi-head-attention-从单头扩展到多头">手撕Multi-Head Attention：从单头扩展到多头</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/transformer/mha_code.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

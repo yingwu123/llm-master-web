@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude Code 高效使用指南：别把它当聊天框，5 件事把它调教成一个会自己干活的团队 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><a href="../../../docs/llm/claude/README.html">claude</a><span class="sep">›</span><span>claude_code_efficient_guide</span></div>
+      <h1 id="claude-code-高效使用指南-别把它当聊天框-5-件事把它调教成一个会自己干活的团队">Claude Code 高效使用指南：别把它当聊天框，5 件事把它调教成一个会自己干活的团队</h1>
+<p>录友们好，今天聊一个用的人多、但用对的人少的工具：<strong>Claude Code</strong>。</p>
+<p>我观察了一圈，绝大多数人装好 Claude Code 之后，就把它当成一个「会写代码的聊天框」——打开终端，问一句，答一句，复制粘贴，关掉。</p>
+<p>这么用没错，但没发挥他的价值。</p>
+<p>Claude Code 真正的价值不在「它能写代码」，而在于：你能把它从一个<strong>每次都得从头解释一遍的临时工</strong>，调教成一个<strong>懂你项目、能自己干活、还能并行开多线程的团队</strong>。这中间差的，就是下面这几件事。</p>
+<p>前面我们专门讲过 <a href="./claude_md.html">CLAUDE.md 到底怎么写</a>、<a href="./claude_code_loop.html">Claude Code 作者说"不写 Prompt，写 Loop"</a>、<a href="./claude_prompt_cache.html">Claude Code 为什么快</a>，那几篇是单点深挖。这一篇把它们串起来，给你一条「从能用到用得高效」的完整路线。</p>
+<p>如果你还分不清 CLAUDE.md、Skills、Subagents、MCP、Hooks、Plugins 各自管什么，先看这篇 <a href="./claude_code_toolkit_guide.html">Claude Code 扩展能力完整指南</a>，里面给了目录、配置和组合案例。</p>
+<!-- drawio源文件: ./drawio/14_claude_code_solidify_ladder.drawio -->
+
+<p><img alt="Claude Code 高效使用的逐级固化阶梯：从聊天框到 CLAUDE.md、Skill、Hooks、子代理与动态工作流，越往上自动化程度越高越省心" src="https://file1.kamacoder.com/i/web/20260624112225.png" /></p>
+<p>这张图回答的是：<strong>怎么把 Claude Code 从「聊天框」一步步用高效</strong>。底座那个红色「聊天框」就是大多数人停留的浅用法——问一句答一句、每次从零解释。往上每一级，都是把一类「重复劳动」固化下来：项目规则固化进 CLAUDE.md、专项流程固化成 Skill、必做动作固化成 Hooks、大任务固化成并行编排。固化得越多，你要操的心越少。下面就顺着这条阶梯一级一级讲。</p>
+<h2 id="第一件事-别让它每次都-从零认识你的项目">第一件事：别让它每次都「从零认识你的项目」</h2>
+<p>新会话里的 Claude Code，是<strong>失忆</strong>的。它不知道你用什么技术栈、不知道你的代码规范、不知道这个项目哪几个坑不能踩。</p>
+<p>你每次都口头交代一遍，就是在重复劳动。<strong>正确的做法是把这些写进 <code>CLAUDE.md</code></strong>——放在项目根目录的一个 markdown 文件，Claude Code 每次开会话都会先读它。编码规范、架构决策、常用命令、踩过的坑，全写进去。</p>
+<p>光这一步，就能把「它写出来的东西不符合我项目习惯」这类问题砍掉一大半。</p>
+<p>更省心的是，Claude 干活时还会自己攒<strong>自动内存</strong>——构建命令、调试发现这些东西，它会跨会话记住，不用你写。怎么把 CLAUDE.md 写得既管用又不臃肿，<a href="./claude_md.html">这一篇</a>讲得很细，这里不重复。</p>
+<p><strong>一句话：CLAUDE.md 是你给 Claude 的「项目说明书」，写一次，每个会话都受益。</strong></p>
+<h2 id="第二件事-把-每次都要解释一遍的流程-封成-skill">第二件事：把「每次都要解释一遍的流程」封成 Skill</h2>
+<p>CLAUDE.md 解决的是「always-on 的项目规则」，但有些活儿是<strong>特定场景才用</strong>的——比如「发版前怎么写 release notes」「我们团队的 PR 评审清单」「部署到 staging 的固定步骤」。</p>
+<p>这些东西塞进 CLAUDE.md，会把它撑爆、还白占上下文。<strong>它们该被封成 Skill。</strong></p>
+<p>Skill 是<strong>按需加载的专项能力</strong>：平时不占上下文，Claude 判断这次任务用得上，才把它调起来，像 <code>/review-pr</code>、<code>/deploy-staging</code> 这样一键触发。而且 Skill 不是一个 markdown 文件，是一个<strong>文件夹</strong>——可以带脚本、带模板、带参考资料。</p>
+<p>Anthropic 内部已经在用<strong>几百个 Skill</strong>，他们总结的实战经验我单独写过一篇 <a href="./claude_skills.html">Claude Skills 实战</a>，想认真用 Skill 的录友建议读一下。</p>
+<p><strong>一句话：重复三次以上的流程，就该封成 Skill，让团队共享。</strong></p>
+<h2 id="第三件事-把-每次都得手动做的事-交给-hooks-自动跑">第三件事：把「每次都得手动做的事」交给 Hooks 自动跑</h2>
+<p>有些事不是「让 Claude 决定做不做」，而是<strong>每次都必须做</strong>——比如每次改完文件自动格式化、提交前必须跑一遍 lint。</p>
+<p>这种事靠你盯着、靠提醒 Claude，都不靠谱。<strong>这是 Hooks 的活儿。</strong></p>
+<p>Hooks 让你在 Claude Code 动手<strong>之前或之后</strong>自动执行 shell 命令。配一条「文件编辑后自动 format」、一条「commit 前先 lint」，从此这些动作脱离「人的注意力」，变成确定性发生的流程。</p>
+<p><strong>Skill 和 Hooks 的区别记住这一句：Skill 是「需要时才调的能力」，Hooks 是「每次都确定触发的动作」。</strong></p>
+<h2 id="第四件事-大活儿别一个人扛-子代理和动态工作流">第四件事：大活儿别一个人扛——子代理和动态工作流</h2>
+<p>深度调研、安全审计、大范围重构这种活儿，让<strong>一个</strong> Claude 从头干到尾，上下文很快就撑满，还容易跑偏、偷懒、自夸。</p>
+<p>Claude Code 的解法是<strong>开一队 Claude 并行</strong>：</p>
+<ul>
+<li><strong>子代理（sub-agents）</strong>：主代理把任务拆成几块，分给多个子代理同时干，最后自己汇总合并。每个子代理有独立上下文，互不污染。</li>
+<li><strong>动态工作流（Dynamic Workflows）</strong>：更进一步，Claude 针对你<strong>当前这个任务</strong>，现场写一套专属的编排（扇出汇总、对抗验证、锦标赛等模式），把活儿拆给一队 Claude 去跑。</li>
+</ul>
+<p>这套「为什么要拆、怎么拆」的工程思路，我在 <a href="./managed_agents.html">Managed Agents</a> 和 <a href="./dynamic_workflows.html">动态工作流详解</a> 两篇里讲透了。</p>
+<p><strong>一句话：上下文是稀缺资源，活儿大就拆开并行，别让一个 Claude 硬扛。</strong></p>
+<h2 id="第五件事-跳出聊天框-cli-管道-定时任务">第五件事：跳出聊天框——CLI 管道 + 定时任务</h2>
+<p>很多录友只在「交互式聊天」里用 Claude Code，其实它遵循 Unix 哲学，<strong>是可以管道化、能塞进脚本和 CI 的</strong>。</p>
+<p>用 <code>claude -p</code>（print 模式）就能把它当成命令行里的一环：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 盯日志，发现异常就 Slack 我</span>
+tail<span class="w"> </span>-200<span class="w"> </span>app.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>claude<span class="w"> </span>-p<span class="w"> </span><span class="s2">"如果发现任何异常就 Slack 通知我"</span>
+
+<span class="c1"># 批量审查改动文件的安全问题</span>
+git<span class="w"> </span>diff<span class="w"> </span>main<span class="w"> </span>--name-only<span class="w"> </span><span class="p">|</span><span class="w"> </span>claude<span class="w"> </span>-p<span class="w"> </span><span class="s2">"审查这些改动文件有没有安全问题"</span>
+</code></pre></div>
+
+<p>再往上一层是<strong>定时任务</strong>，让重复的活儿自动发生：早晨 PR 审查、夜里跑 CI 失败分析、每周依赖审计。</p>
+<ul>
+<li>终端里临时轮询，用 <a href="./claude_code_loop.html"><code>/loop</code></a>（这背后就是「写 Loop 不写 Prompt」那套思路）；</li>
+<li>想要<strong>电脑关机也照跑</strong>的，用 <strong>Routines</strong>——它跑在 Anthropic 托管的基础设施上，还能被 API 调用或 GitHub 事件触发。</li>
+</ul>
+<p><strong>一句话：能用一句话提问，也能塞进管道和定时任务无人值守地跑——后者才是效率的天花板。</strong></p>
+<h2 id="最后-换个地方接着干">最后：换个地方接着干</h2>
+<p>Claude Code 不绑死在一个界面。终端、VS Code / JetBrains、桌面 App、网页，背后是<strong>同一个引擎</strong>——你的 CLAUDE.md、设置、MCP 服务器在哪儿都通用。</p>
+<p>离开工位，用手机或浏览器<strong>远程接管</strong>正在跑的会话；网页或 iOS 上起一个长任务，回头用 <code>claude --teleport</code> 把它拽回终端继续。<strong>工作跟着你走，不跟着设备走。</strong></p>
+<p>说到底，高效用 Claude Code 就一条主线：<strong>把"每次都要重复的东西"一层层固化下来</strong>——项目规则固化进 CLAUDE.md，专项流程固化成 Skill，必做动作固化成 Hooks，大任务固化成并行编排。固化得越多，你要操的心越少。</p>
+<h2 id="参考链接">参考链接</h2>
+<ul>
+<li>Claude Code 官方文档（概述）：https://code.claude.com/docs/zh-CN/overview</li>
+<li>Claude Code 官方文档（常见工作流）：https://code.claude.com/docs/zh-CN/common-workflows</li>
+</ul>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="claude_code_400k_sessions.html"><span class="k">← 上一篇</span><span class="v">Anthropic分析40万次Claude Code会话：领域能力、Agent成功率与程序员职业变化</span></a><a class="nx" href="claude_code_extensions_evolution.html"><span class="k">下一篇 →</span><span class="v">深入理解 Claude Code：从 CLAUDE.md 到 Hooks、Skills、Subagents</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#claude-code-高效使用指南-别把它当聊天框-5-件事把它调教成一个会自己干活的团队">Claude Code 高效使用指南：别把它当聊天框，5 件事把它调教成一个会自己干活的团队</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/claude/claude_code_efficient_guide.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

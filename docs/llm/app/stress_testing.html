@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>大模型服务怎么压测？TTFT、TPOT、P99、吞吐、Goodput与容量规划 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>app</span><span class="sep">›</span><span>stress_testing</span></div>
+      <h1 id="大模型服务怎么压测-吞吐最高不等于能上线">大模型服务怎么压测？吞吐最高不等于能上线</h1>
+<p><a href="https://programmercarl.com/other/project_kamaClaude.html">
+  <img src="https://file1.kamacoder.com/i/web/2026-06-16_14-36-54.jpg" style="width:100%;cursor:pointer;" alt="KamaClaude">
+</a></p>
+<p>上一篇<a href="./model_quantization.html">《量化不是只看4bit/8bit：权重、激活和KV Cache怎么选》</a>讲了：模型文件变小，不代表推理一定更快。量化方案最后仍要回到真实负载，比较质量、延迟、吞吐和成本。</p>
+<p>这一步，就是压测。</p>
+<p>面试官问：“你们的大模型服务能支撑多少并发？”</p>
+<p>很多录友会回答：“压到100并发没报错，TPS有3000，所以能支撑100并发。”</p>
+<p>这个结论签不了字。</p>
+<ul>
+<li>100并发时，输入和输出分别多长？</li>
+<li>请求是一次性灌入，还是按线上速率到达？</li>
+<li>3000 TPS指输入、输出还是两者相加？</li>
+<li>P99 TTFT、TPOT、超时和错误率有没有过SLO？</li>
+<li>测试结束后，队列是不是还积着一批请求？</li>
+</ul>
+<p><strong>压测不是把GPU跑满，而是找出真实负载下，系统还能稳定兑现SLO的最大容量。</strong></p>
+<h2 id="简要回答">简要回答</h2>
+<ul>
+<li>先固定模型、硬件、引擎和服务配置，再用线上输入长度、输出长度、前缀复用和到达间隔构造负载；</li>
+<li>闭环压测固定并发，适合观察“并发—延迟—吞吐”关系；开放压测按独立到达率发请求，更容易暴露排队和过载；</li>
+<li>延迟至少拆成TTFT、TPOT或ITL、端到端延迟和队列时间，并同时看P50、P95、P99，不能只报平均值；</li>
+<li>吞吐要分请求吞吐、输入Token吞吐和输出Token吞吐，还要记录超时、取消、错误率与KV Cache占用；</li>
+<li>Goodput只统计在SLO内成功完成的请求。上线容量取Goodput和SLO达标率仍稳定的拐点，不取原始TPS峰值。</li>
+</ul>
+<p>一句话：<strong>先让负载像生产，再用尾延迟和Goodput找容量边界。</strong></p>
+<h2 id="详细回答">详细回答</h2>
+<h3 id="压测前-先固定什么">压测前，先固定什么？</h3>
+<p>公开跑分可以帮你筛候选，不能直接变成自己的容量结论。</p>
+<p>至少固定这些变量：</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>为什么必须记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型、Tokenizer、聊天模板</td>
+<td>同一句文本可能得到不同Token数，模板也会改变真实输入</td>
+</tr>
+<tr>
+<td>精度、量化、并行方式</td>
+<td>直接影响权重占用、Kernel和跨卡通信</td>
+</tr>
+<tr>
+<td>GPU型号、数量、驱动和引擎版本</td>
+<td>换硬件或版本后，结果不能直接横向比较</td>
+</tr>
+<tr>
+<td>最大上下文、KV Cache配置、调度参数</td>
+<td>决定长请求容量、Batch和排队行为</td>
+</tr>
+<tr>
+<td>流式模式、采样参数、停止条件</td>
+<td>影响TTFT测量、输出长度和实际计算量</td>
+</tr>
+<tr>
+<td>网关、网络和客户端位置</td>
+<td>决定测的是纯引擎，还是完整生产链路</td>
+</tr>
+</tbody>
+</table>
+<p>建议分两层测。</p>
+<p>第一层是<strong>引擎基准</strong>，去掉业务网关和公网波动，定位GPU、KV Cache与调度上限。</p>
+<p>第二层是<strong>端到端压测</strong>，保留鉴权、路由、流式协议、网络和超时，回答用户实际会等多久。</p>
+<p>两层数据都要留。只测引擎，容易把网关和网络问题漏掉；只测端到端，又很难定位时间花在哪一层。</p>
+<h3 id="为什么不能只生成固定长度的随机token">为什么不能只生成固定长度的随机Token？</h3>
+<p>大模型请求不是“每个包都差不多大”。</p>
+<p>一次请求的主要工作量，至少由输入Token和输出Token共同决定。长输入会放大Prefill与TTFT，长输出会占用更久的Decode时间和KV Cache。把所有请求都写成<code>输入512、输出128</code>，得到的只是这个规格的容量。</p>
+<p>更可靠的做法，是从脱敏后的生产日志提取联合分布：</p>
+<ul>
+<li>输入和输出Token的P50、P95、P99，而不是只取平均值；</li>
+<li>短问答、长文档、代码生成等业务类型的占比；</li>
+<li>多轮对话带来的历史长度；</li>
+<li>共享System Prompt、RAG前缀和Prefix Cache命中比例；</li>
+<li>突发流量、租户热点、取消和超时行为。</li>
+</ul>
+<p>注意“联合分布”四个字。</p>
+<p>如果线上恰好是长输入配短输出、短输入配长输出，分别随机采样输入和输出会制造出不存在的组合。最稳妥的是回放脱敏请求，或者按业务类型分别建流量桶。</p>
+<p>固定输出长度、忽略EOS适合做可重复的引擎对比；做上线容量测试时，还要补一轮遵守真实停止条件的流量回放。</p>
+<h3 id="开放压测和闭环压测有什么区别">开放压测和闭环压测有什么区别？</h3>
+<p><strong>闭环压测</strong>固定N个并发客户端。一个请求结束后，同一客户端才发送下一个请求。</p>
+<p>它适合回答：“并发从1、2、4、8一路增加时，吞吐和单请求体验怎么变化？”</p>
+<p>但它有一个盲点：服务越慢，客户端下一次请求发得越晚，实际到达率会自动下降。系统已经变慢，压测端反而替它踩了刹车，排队风险可能被掩盖。</p>
+<p><strong>开放压测</strong>按独立到达率发送请求，不等上一条完成。固定RPS、泊松到达或生产流量回放都属于这类思路。</p>
+<p>它更适合回答：“线上每秒真的来这么多请求时，队列会不会持续增长？”</p>
+<p>如果到达率高于服务率，未完成请求会不断累积。因此开放压测必须设置最大在途请求、超时和停止条件，并同时报告：</p>
+<div class="codehilite"><pre><span></span><code>目标到达率 → 实际发送率 → 完成率 → Goodput
+</code></pre></div>
+
+<p>两个模型都要测：先用闭环扫描并发区间，再用开放模型验证目标峰值和突发流量。不要把“并发100”和“100 RPS”当成一回事。</p>
+<h3 id="ttft-tpot和itl到底在量什么">TTFT、TPOT和ITL到底在量什么？</h3>
+<p>一条流式请求可以粗略拆成：</p>
+<div class="codehilite"><pre><span></span><code>客户端发出请求
+→ 网络 / 网关
+→ 服务端排队
+→ Prefill处理输入
+→ 返回首Token
+→ Decode逐Token生成
+→ 返回最后一个Token
+</code></pre></div>
+
+<p><strong>TTFT（Time to First Token）</strong>是请求发出到收到第一个有效Token的时间。端到端口径里，它不只包含Prefill，还可能包含网络、网关和排队。</p>
+<p>所以TTFT突然变差，不要直接下结论说“Prompt太长”。先看服务端队列时间。如果输入长度没变、GPU执行时间也没明显变化，但队列持续上升，真正的问题是系统接近饱和。</p>
+<p><strong>TPOT（Time Per Output Token）</strong>常用下面的平均口径：</p>
+<div class="codehilite"><pre><span></span><code>TPOT =（端到端延迟 - TTFT）/（输出Token数 - 1）
+</code></pre></div>
+
+<p>它描述首Token之后的平均生成节奏。<strong>ITL（Inter-Token Latency）</strong>更强调相邻Token之间的时间间隔，可以继续统计P95、P99和最大停顿。</p>
+<p>不同工具对TPOT、ITL和首Token是否计入平均值的定义可能不同。比较两份报告前，先对齐公式，别只对齐指标名。</p>
+<p><strong>端到端延迟</strong>是从发出请求到收到最后一个Token。对摘要、结构化输出和非流式任务，它往往比“首字很快”更重要。</p>
+<p>SLO也不要照抄固定数字。对话、代码补全、离线摘要和Agent任务的等待容忍度完全不同。先从产品体验与下游超时预算定阈值，再压测。</p>
+<h3 id="为什么平均延迟最容易骗人">为什么平均延迟最容易骗人？</h3>
+<p>假设100个请求里，95个在1秒内返回，另外5个因为长Prompt排队了20秒。平均值可能还能看，但那5个用户已经明确感知到故障。</p>
+<p>因此至少同时报告P50、P95和P99：</p>
+<ul>
+<li>P50看典型体验；</li>
+<li>P95看高峰和混合负载；</li>
+<li>P99看长请求、排队、抖动和少数坏路径；</li>
+<li>最大值用于排查，不适合单独当稳定容量指标。</li>
+</ul>
+<p>分位数还必须带样本量和测试时长。只发100个请求时，P99几乎只由最慢的一两个样本决定；压测时间太短，又可能只测到冷启动或一个偶然Batch。</p>
+<p>每个负载档位都要经过预热、稳态和冷却。统计稳态窗口，同时确认测试结束时队列已回落，不能把积压留到下一档。</p>
+<h3 id="tps为什么高-不代表服务能上线">TPS为什么高，不代表服务能上线？</h3>
+<p>先把TPS说清楚。</p>
+<p>大模型报告里常见三种Token吞吐：</p>
+<ul>
+<li>输入Token/s，反映Prefill处理量；</li>
+<li>输出Token/s，反映系统为所有请求生成Token的总速度；</li>
+<li>总Token/s，把输入和输出相加。</li>
+</ul>
+<p>它们不能混着比较。两个方案都显示3000 Token/s，一个可能擅长吞长Prompt，另一个可能擅长持续Decode。</p>
+<p>随着并发升高，Continuous Batching通常会让GPU利用率和总吞吐先上升。继续加压后，吞吐逐渐饱和，排队时间、TTFT和TPOT却会快速变差。</p>
+<p>这就是延迟—吞吐取舍。</p>
+<!-- drawio源文件: ./drawio/stress_testing_01_capacity_knee.drawio -->
+
+<p><img alt="推理服务容量拐点" src="https://file1.kamacoder.com/i/web/20260827092345.png" /></p>
+<p>这张图回答的是：并发上升后，为什么原始吞吐的最高点不是上线容量。容量拐点之前，批处理收益能同时抬高吞吐与Goodput；越过拐点后，排队和资源争用让越来越多请求违反SLO，即使GPU仍在吐Token，业务可用容量已经下降。</p>
+<h3 id="goodput怎么计算">Goodput怎么计算？</h3>
+<p>先给每类请求定义SLO，例如：</p>
+<div class="codehilite"><pre><span></span><code>对话请求：TTFT、TPOT、端到端延迟、错误率
+结构化任务：端到端延迟、Schema通过、错误率
+</code></pre></div>
+
+<p>然后按统一口径计算：</p>
+<div class="codehilite"><pre><span></span><code>Goodput = 测试窗口内满足全部SLO的成功请求数 / 测试时长
+SLO达标率 = 满足全部SLO的成功请求数 / 实际发送请求数
+</code></pre></div>
+
+<p>假设某档负载完成20 req/s，但只有70%的请求同时满足TTFT和TPOT目标，那么这档负载的Goodput最多只有14 req/s。继续加压把总吞吐推高到22 req/s，如果达标率跌到40%，Goodput反而只剩8.8 req/s。</p>
+<p>这组数字只是说明计算方法，不是通用阈值。</p>
+<p>还要防一个指标漏洞：Goodput不能鼓励系统主动丢弃“已经来不及”的请求。超时、错误、取消和未完成请求必须单独报告，业务质量也要作为上线前置门槛，而不是靠丢请求把Goodput做漂亮。</p>
+<h3 id="一次完整压测应该怎么跑">一次完整压测应该怎么跑？</h3>
+<p>可以按下面六步执行。</p>
+<p><strong>第一步，定义场景和SLO。</strong> 把对话、摘要、代码、RAG或Agent分开，明确每类请求的长度分布、比例、质量门槛和延迟目标。</p>
+<p><strong>第二步，建立单请求基线。</strong> 在并发1下记录TTFT、TPOT、端到端延迟、显存和GPU利用率，先排除模型或配置本身就不达标。</p>
+<p><strong>第三步，闭环扫描负载。</strong> 按逐步增大的并发档位测试，每档经历预热和足够长的稳态窗口，采集吞吐、分位延迟、队列、KV Cache与错误。</p>
+<p><strong>第四步，寻找容量拐点。</strong> 找到吞吐增益开始变小、P95/P99和队列开始明显抬升、Goodput不再增长的位置。缩小步长，在拐点附近复测。</p>
+<p><strong>第五步，开放模型验证。</strong> 用目标平均RPS、峰值RPS、泊松到达和短时突发回放，观察积压能否在可接受时间内消退。</p>
+<p><strong>第六步，做耐久与故障测试。</strong> 长时间运行，覆盖缓存冷热变化、请求取消、单副本故障和恢复。短跑不OOM，不代表几小时后没有内存泄漏、碎片或长尾恶化。</p>
+<p>每次只改一个主要变量。引擎、量化、并行、Batch参数和流量模型一起变，最终即使TPS提高，也解释不了收益来自哪里。</p>
+<h3 id="压测报告最后应该写什么">压测报告最后应该写什么？</h3>
+<p>不要只贴一张TPS截图。上线结论至少要回答：</p>
+<ul>
+<li>测试对象：模型、精度、硬件、引擎版本和关键配置；</li>
+<li>负载口径：请求类型、输入输出分布、缓存命中、开放或闭环模型；</li>
+<li>SLO口径：哪些指标、哪些分位、超时和错误如何计数；</li>
+<li>容量结论：单副本可持续RPS或并发、Goodput和达标率；</li>
+<li>风险边界：长请求、突发、单租户热点和故障时会发生什么；</li>
+<li>扩容依据：预测峰值、冗余目标和单副本故障后剩余容量。</li>
+</ul>
+<p>成本也要落到成功请求：</p>
+<div class="codehilite"><pre><span></span><code>每个SLO合格请求的GPU成本
+≈ GPU数量 × 每小时成本 /（Goodput × 3600）
+</code></pre></div>
+
+<p>真实TCO还要加CPU、网络、存储、网关和运维。这和前文<a href="./deployment_options.html">《云API、托管推理还是自部署？》</a>的判断一致：<strong>比较的不是“每秒吐了多少Token”，而是每个合格任务花了多少钱。</strong></p>
+<h2 id="知识拓展">知识拓展</h2>
+<p><strong>Q1：并发数、Batch Size和RPS有什么区别？</strong></p>
+<p>并发数是在途请求数量；Batch Size是引擎某一轮实际一起计算的请求或Token规模；RPS是单位时间到达或完成的请求数。并发高不代表每轮Batch同样大，RPS也会随单请求耗时变化。</p>
+<p><strong>Q2：TTFT高，一定是Prefill慢吗？</strong></p>
+<p>不一定。TTFT还可能包含网络、网关和队列。输入长度与Prefill执行时间没变，但TTFT随负载快速上升时，优先检查排队和调度干扰。</p>
+<p><strong>Q3：为什么要把输入和输出吞吐分开？</strong></p>
+<p>Prefill和Decode的计算特征不同。业务流量的输入输出比例一变，总Token/s相同的两个方案，用户延迟和可承载请求数可能完全不同。</p>
+<p><strong>Q4：压测时要不要开启Prefix Cache？</strong></p>
+<p>先跑关闭或冷缓存基线，再按线上真实共享前缀和命中率复测。全量命中会高估容量，全量关闭又会漏掉真实收益。Prefix Cache的机制可以回看<a href="./kv_cache_paged_attention.html">《KV Cache为什么会吃光显存？》</a>。</p>
+<p><strong>Q5：CPU、GPU利用率越高越好吗？</strong></p>
+<p>利用率是诊断信号，不是上线目标。GPU长期接近满载但P99和Goodput仍过线，可以接受；利用率很高却大量排队，只说明资源忙，不说明服务好。</p>
+<p><strong>Q6：面试里怎么回答“能支撑多少并发”？</strong></p>
+<p>先报负载条件，再报SLO和容量：“在某模型、硬件和输入输出分布下，闭环扫描找到拐点，再用目标RPS与突发流量验证；最终单副本在P99、错误率和Goodput门槛内可持续承载多少。”没有条件的并发数字没有意义。</p>
+<p>本文指标定义与压测方法核验于2026年8月，参考<a href="https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html">NVIDIA NIM压测指标文档</a>、<a href="https://docs.nvidia.com/nim/benchmarking/llm/latest/parameters.html">NVIDIA负载参数与最佳实践</a>、<a href="https://github.com/sgl-project/sglang/blob/main/docs/developer_guide/bench_serving.md">SGLang在线服务压测文档</a>、<a href="https://www.usenix.org/conference/osdi24/presentation/zhong-yinmin">DistServe论文</a>和<a href="https://arxiv.org/abs/2410.14257">Goodput指标反思论文</a>。</p>
+<p>别再拿“压到100并发没报错”当容量结论。</p>
+<p><strong>能说清什么负载、什么SLO、哪个拐点，才算真正做过大模型压测。</strong></p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="streaming_output.html"><span class="k">← 上一篇</span><span class="v">大模型同步、异步、流式输出怎么选？三种调用方式详解</span></a><a class="nx" href="structured_output.html"><span class="k">下一篇 →</span><span class="v">大模型结构化输出：为什么自然语言不稳定，JSON Schema怎么约束</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#大模型服务怎么压测-吞吐最高不等于能上线">大模型服务怎么压测？吞吐最高不等于能上线</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/app/stress_testing.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

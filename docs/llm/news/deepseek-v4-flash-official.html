@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepSeek V4-Flash正式版上线：Agent跑分82.7，能替代Codex主力模型吗？ · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>deepseek-v4-flash-official</span></div>
+      <h1 id="deepseek-v4-flash正式版上线-agent跑分82-7-能替代codex主力模型吗">DeepSeek V4-Flash正式版上线：Agent跑分82.7，能替代Codex主力模型吗？</h1>
+<p>前面写 <a href="./deepseek-v4.html">DeepSeek V4发布</a>、<a href="./deepseek-v4-price.html">V4 降价实测</a> 时，卡哥的判断一直没变：V4-Flash 便宜，日常任务很香；但碰到长程 Agent 任务，不能只看参数和单次回答。</p>
+<p>现在这件事有了新变量。</p>
+<p>7 月 31 日，DeepSeek 把 V4-Flash 的官方 API 放进公测。模型名还是 <code>deepseek-v4-flash</code>，但实际版本已经更新为 <strong>DeepSeek-V4-Flash-0731</strong>。</p>
+<p><img alt="V4-Flash官方公测公告" src="https://file1.kamacoder.com/i/web/20260801114940.jpg" /></p>
+<p>这次不是 App 或网页端换模型。官方明确说了：<strong>升级的只有 API；V4-Pro API、DeepSeek App 和网页端模型都没变。</strong> 所以你在网页里试几句，不能据此判断这次更新有没有生效。</p>
+<h2 id="跑分很猛-但先看清它测的是什么">跑分很猛，但先看清它测的是什么</h2>
+<p>这次最炸眼的是 Agent 基准。</p>
+<table>
+<thead>
+<tr>
+<th>基准</th>
+<th style="text-align: right;">V4-Flash-0731</th>
+<th style="text-align: right;">V4-Flash-Preview</th>
+<th style="text-align: right;">V4-Pro-Preview</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Terminal Bench 2.1</td>
+<td style="text-align: right;">82.7</td>
+<td style="text-align: right;">61.8</td>
+<td style="text-align: right;">72.1</td>
+</tr>
+<tr>
+<td>NL2Repo</td>
+<td style="text-align: right;">54.2</td>
+<td style="text-align: right;">39.4</td>
+<td style="text-align: right;">38.5</td>
+</tr>
+<tr>
+<td>Cybergym</td>
+<td style="text-align: right;">76.7</td>
+<td style="text-align: right;">38.7</td>
+<td style="text-align: right;">52.7</td>
+</tr>
+<tr>
+<td>DeepSWE</td>
+<td style="text-align: right;">54.4</td>
+<td style="text-align: right;">7.3</td>
+<td style="text-align: right;">12.8</td>
+</tr>
+<tr>
+<td>Toolathlon-Verified</td>
+<td style="text-align: right;">70.3</td>
+<td style="text-align: right;">49.7</td>
+<td style="text-align: right;">55.9</td>
+</tr>
+<tr>
+<td>DSBench-FullStack</td>
+<td style="text-align: right;">68.7</td>
+<td style="text-align: right;">37.0</td>
+<td style="text-align: right;">41.8</td>
+</tr>
+</tbody>
+</table>
+<p>官方原话是，新版在 Agent 能力上显著增强，跑分大幅超过 V4-Pro-Preview。<a href="https://api-docs.deepseek.com/zh-cn/updates">更新日志</a> 也给出了完整数字。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-08-01_15-46-58.jpg" /></p>
+<p><strong>这个提升值得重视，但别把它翻译成“Flash 已经全面超过 Pro，更超过所有顶级模型”。</strong></p>
+<p>原因很简单：这些是官方评测，公开 Code Agent 基准使用的是即将发布的 DeepSeek Harness minimal mode，并且开到 <code>max</code> effort、<code>top_p=0.95</code>、<code>temperature=1.0</code>。它能说明模型在这套 Agent 设定下变强了，不能替代你的仓库、工具链、测试和验收。</p>
+<p>另外，DSBench-FullStack 和 DSBench-Hard 是 DeepSeek 的内部测试集。拿来观察方向可以，不能和公开基准混在一起当成一个绝对排名。</p>
+<p>真正该验证的是：它会不会读错你的代码、工具调用是否稳定、改完能否自己跑测试、失败后会不会带着证据继续找，而不是只看它能不能一次写出一段漂亮代码。</p>
+<h2 id="这次真正值得开发者注意的-是-responses-api">这次真正值得开发者注意的，是 Responses API</h2>
+<p>V4-Flash-0731 原生支持 <strong>Responses API</strong>。这是 Codex 客户端与模型交互使用的接口格式。</p>
+<p>DeepSeek 已经把 Codex 接入文档放出来了：目前只有 <code>deepseek-v4-flash</code> 支持接入 Codex，<code>deepseek-v4-pro</code> 预计 8 月初再支持。你可以按<a href="https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex">官方 Codex 接入文档</a>一键配置，也可以手动配置模型目录和 provider。</p>
+<p>这意味着它不再只是“兼容 OpenAI Chat Completions 的便宜 API”。</p>
+<p>对于已经在 Codex 里跑多轮读代码、改文件、执行命令、验证结果的录友，Flash 现在有了更直接的接入方式。</p>
+<p>不过先别把生产主力一把切掉。</p>
+<p>建议这样试：</p>
+<ul>
+<li>先挑可自动验收的任务：补单测、批量代码扫描、重复性重构、日志归因。</li>
+<li>一次只换一个变量：同一个仓库、同一份任务说明、同一套测试，比较完成率、耗时和 Token 消耗。</li>
+<li>涉及生产、权限、资金、安全的改动，仍然保留人工 review 和 CI；<strong>模型跑分再高，也不是发布审批。</strong></li>
+</ul>
+<p>如果你刚开始做这类工作流，可以先看 <a href="../app/agent_intro.html">Agent 到底是什么</a> 和 <a href="../app/agent_failure_modes.html">Agent 为什么容易翻车</a>。模型能力只是其中一环，工具边界、上下文和验证闭环更决定结果。</p>
+<h2 id="价格没变-峰谷定价要盯住">价格没变，峰谷定价要盯住</h2>
+<p>模型名不变，调用方式也不变：继续填 <code>deepseek-v4-flash</code>，就是最新的 0731 版本。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-08-01_15-48-31.jpg" /></p>
+<p>当前常规价按百万 Token 计算：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th style="text-align: right;">V4-Flash</th>
+<th style="text-align: right;">V4-Pro</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>缓存命中输入</td>
+<td style="text-align: right;">0.02 元</td>
+<td style="text-align: right;">0.025 元</td>
+</tr>
+<tr>
+<td>缓存未命中输入</td>
+<td style="text-align: right;">1 元</td>
+<td style="text-align: right;">3 元</td>
+</tr>
+<tr>
+<td>输出</td>
+<td style="text-align: right;">2 元</td>
+<td style="text-align: right;">6 元</td>
+</tr>
+<tr>
+<td>并发限制</td>
+<td style="text-align: right;">2500</td>
+<td style="text-align: right;">500</td>
+</tr>
+</tbody>
+</table>
+<p>V4-Flash 仍然是这套产品里最适合铺量的一档：输入、输出都低，并发还高。</p>
+<p>但要注意价格页新增了一条规则：DeepSeek <strong>将采用</strong>峰谷定价，高峰时段的所有计费项按常规价两倍收取；目前生效时间仍以官方公告为准。拟定的高峰是北京时间每天 9:00–12:00、14:00–18:00。</p>
+<p>所以别只按“1 元输入、2 元输出”做月度预算。你要是把批处理和子 Agent 都集中在白天跑，价格规则生效后，账单会直接翻倍。能异步的低优先级任务，排到夜间更合理。</p>
+<h2 id="flash-能不能当主力-答案是-先让它干能验收的活">Flash 能不能当主力？答案是：先让它干能验收的活</h2>
+<p>这次 V4-Flash 的位置更清楚了：不是单纯拿来问答、总结、补全的小模型，而是可以进入 Agent 第一轮选型的低成本候选。</p>
+<p>但“能进第一轮测试”和“直接替换最强模型”是两回事。</p>
+<p>低风险、任务量大、结果能跑测试验证的活，优先给 Flash；跨模块排障、架构判断、失败代价高的任务，仍然要给更强模型和人留位置。<strong>把省下来的预算，用在真正需要深度推理和复核的地方。</strong></p>
+<p>这才是这次升级最实在的用法。</p>
+<p>加油</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="deepseek-harness-guide.html"><span class="k">← 上一篇</span><span class="v">DeepSeek Harness安装与使用教程：官方dsh怎么配置API、操作代码仓库、跑Headless任务和高效使用</span></a><a class="nx" href="deepseek-v4-flash-vision-exp.html"><span class="k">下一篇 →</span><span class="v">DeepSeek终于能看图了：V4-Flash-Vision-Exp识图、图表、ASCII和SVG实测，Harness多模态怎么用？</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#deepseek-v4-flash正式版上线-agent跑分82-7-能替代codex主力模型吗">DeepSeek V4-Flash正式版上线：Agent跑分82.7，能替代Codex主力模型吗？</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/deepseek-v4-flash-official.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

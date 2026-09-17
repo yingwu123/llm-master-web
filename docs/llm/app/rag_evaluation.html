@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAG评估体系:检索召回率、精准率、MRR、NDCG与生成质量RAGAS框架详解 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>app</span><span class="sep">›</span><span>rag_evaluation</span></div>
+      <h1 id="rag怎么评估-检索质量和生成质量的度量">RAG怎么评估?检索质量和生成质量的度量</h1>
+<p>上一篇<a href="./rag_optimization.html">《RAG优化思路:Query改写、混合检索、Rerank、父子块检索、Context压缩》</a>讲了Query改写、混合检索、Rerank这些常见优化手段。</p>
+<p>但到了真实项目里,还有一个问题绕不开:<strong>你怎么知道优化有没有效果?</strong></p>
+<p>很多录友做RAG优化全凭感觉——"加了Rerank感觉好多了"、"换了Embedding模型好像更准了"。面试官追问:"你们怎么量化优化效果?",一下就卡壳了。</p>
+<p>面试官问:"你们RAG系统怎么评估?用什么指标?"</p>
+<p>很多录友会回答:"我们看召回率,还会人工抽查一些答案质量。"</p>
+<p>这个回答方向不算错,但问题在于:<strong>召回率具体怎么算?人工抽查的标准是什么?生成质量用什么维度衡量?</strong></p>
+<p>真正做过RAG评估的人会知道,评估分两层:<strong>检索侧评估</strong>和<strong>生成侧评估</strong>。检索侧要看召回率、精准率、排序质量;生成侧要看答案忠实度、相关性、上下文利用率。没有这套完整的评估体系,所有优化都是盲猜。</p>
+<h2 id="简要回答">简要回答</h2>
+<p>RAG评估分为<strong>检索侧评估</strong>和<strong>生成侧评估</strong>两个层次,每一层都有对应的核心指标:</p>
+<p><strong>检索侧评估</strong>:衡量检索系统能不能找到正确的文档片段。</p>
+<ul>
+<li><strong>召回率(Recall@K)</strong>:正确答案在top-K结果中出现的比例,衡量"相关内容有没有被找到"</li>
+<li><strong>精准率(Precision@K)</strong>:top-K结果中相关内容的比例,衡量"找到的内容有多少是相关的"</li>
+<li><strong>MRR(Mean Reciprocal Rank)</strong>:第一个正确结果的排名倒数均值,衡量"最相关的结果排在哪"</li>
+<li><strong>NDCG(Normalized Discounted Cumulative Gain)</strong>:考虑排序位置和相关度等级的综合排序质量指标</li>
+</ul>
+<p><strong>生成侧评估</strong>:衡量最终生成的答案质量。</p>
+<ul>
+<li><strong>忠实度(Faithfulness)</strong>:答案是否忠实于检索到的上下文,有没有幻觉</li>
+<li><strong>答案相关性(Answer Relevancy)</strong>:答案是否真正回答了用户的问题</li>
+<li><strong>上下文相关性(Context Relevancy)</strong>:检索到的上下文对回答问题是否有用</li>
+<li><strong>上下文召回(Context Recall)</strong>:生成答案所需的关键信息是否都在检索到的上下文中</li>
+</ul>
+<p>一句话:<strong>检索侧保证能找到,生成侧保证用得好。没有评估的优化,就是拿着锤子找钉子。</strong></p>
+<h2 id="详细回答">详细回答</h2>
+<h3 id="为什么rag必须有评估体系">为什么RAG必须有评估体系?</h3>
+<p>很多团队做RAG优化是这样的:<strong>换个Embedding模型试试→感觉好点了→上线</strong>。问题出在哪?</p>
+<ol>
+<li><strong>无法量化优化效果</strong>:不知道这次改动让效果提升了5%还是50%,也不知道在哪些场景提升了、哪些场景变差了</li>
+<li><strong>无法对比不同方案</strong>:A方案用混合检索,B方案用Rerank,到底哪个更适合当前业务?没有评估就只能猜</li>
+<li><strong>无法发现退化</strong>:加了新功能后,老场景的效果有没有变差?没有评估就发现不了</li>
+<li><strong>面试答不上</strong>:面试官问"你们怎么验证优化有效",只能说"感觉更好了",这不是工程师的回答</li>
+</ol>
+<p><strong>真正的工程化RAG,必须先建立评估体系,再做优化。</strong> 这是应用开发和"调API玩玩"的本质区别。</p>
+<h3 id="检索侧评估-能不能找到相关内容">检索侧评估:能不能找到相关内容?</h3>
+<p>检索侧评估关注一个核心问题:<strong>用户问题对应的正确答案片段,有没有出现在检索结果里?排在什么位置?</strong></p>
+<!-- drawio源文件: ./drawio/rag_evaluation_01_retrieval_metrics.drawio -->
+
+<p><img alt="检索评估四大指标" src="https://file1.kamacoder.com/i/web/20260721194159_01.png" /></p>
+<p>这张图展示了检索评估的四个核心指标如何从不同角度衡量检索质量:Recall看覆盖、Precision看纯度、MRR看首位、NDCG看排序。</p>
+<h4 id="召回率-recall-k">召回率(Recall@K)</h4>
+<p><strong>定义</strong>:在top-K个检索结果中,正确答案片段出现的比例。</p>
+<p>公式: <code>Recall@K = (检索到的相关chunk数) / (所有相关chunk总数)</code></p>
+<p>举个例子:用户问"公司年假政策是什么?",知识库里有3个chunk包含正确答案。如果检索top-5结果里包含了其中2个,那么<code>Recall@5 = 2/3 = 66.7%</code>。</p>
+<p><strong>Recall的工程意义</strong>:</p>
+<ul>
+<li><strong>Recall低(&lt;70%)说明检索侧有严重问题</strong>,相关内容根本没被找到,后面生成再好也没用</li>
+<li>Recall是检索系统的第一道防线,Recall不够,加Rerank也救不回来</li>
+<li>优化Recall的方向:改进Embedding模型、调整Chunk策略、引入混合检索、扩大top-K</li>
+</ul>
+<p><strong>Recall的局限</strong>:只看"找没找到",不管"找到了多少垃圾"。如果top-100里包含了所有正确答案,Recall@100 = 100%,但这99%的噪声会严重干扰生成质量。</p>
+<h4 id="精准率-precision-k">精准率(Precision@K)</h4>
+<p><strong>定义</strong>:top-K个检索结果中,相关内容占的比例。</p>
+<p>公式: <code>Precision@K = (检索到的相关chunk数) / K</code></p>
+<p>还是上面的例子:top-5结果里有2个相关chunk,那么<code>Precision@5 = 2/5 = 40%</code>。</p>
+<p><strong>Precision的工程意义</strong>:</p>
+<ul>
+<li><strong>Precision低说明噪声太多</strong>,检索结果里大部分是不相关内容,会稀释模型注意力</li>
+<li>Precision和Recall是一对矛盾:扩大K可以提高Recall,但会降低Precision</li>
+<li>优化Precision的方向:加Rerank精排、收紧检索阈值、改进相似度计算</li>
+</ul>
+<p><strong>实际工程中的平衡</strong>:通常会先用较大的K(比如20-50)保证Recall,再通过Rerank把Precision拉回来,最终只传3-5个高质量chunk给LLM。</p>
+<h4 id="mrr-mean-reciprocal-rank">MRR(Mean Reciprocal Rank)</h4>
+<p><strong>定义</strong>:第一个相关结果的排名倒数,在多个查询上取平均。</p>
+<p>公式: <code>MRR = (1/N) * Σ(1/rank_i)</code>,其中<code>rank_i</code>是第i个查询的第一个相关结果的排名。</p>
+<p>举例:3个查询,第一个相关结果分别排在第1、第3、第2位,那么<code>MRR = (1/1 + 1/3 + 1/2) / 3 = 0.611</code>。</p>
+<p><strong>MRR的工程意义</strong>:</p>
+<ul>
+<li><strong>衡量"最相关的结果是否排在前面"</strong>,对用户体验影响很大</li>
+<li>搜索引擎、推荐系统常用这个指标,因为用户往往只看前几条结果</li>
+<li>在RAG场景,如果最相关的chunk排在top-1,模型更容易抓住核心信息</li>
+</ul>
+<p><strong>MRR vs Recall</strong>:Recall关注"有没有找全",MRR关注"最好的有没有排前面"。两者都重要,但侧重不同。</p>
+<h4 id="ndcg-normalized-discounted-cumulative-gain">NDCG(Normalized Discounted Cumulative Gain)</h4>
+<p><strong>定义</strong>:考虑排序位置和相关度等级的综合排序质量指标。</p>
+<p>这是最复杂但也最全面的检索评估指标。核心思想:</p>
+<ol>
+<li><strong>相关度分级</strong>:不是简单的"相关/不相关",而是给每个结果打分(如0-3分,3分最相关)</li>
+<li><strong>位置折扣</strong>:排在前面的结果权重更高,排在后面的被"折扣"</li>
+<li><strong>归一化</strong>:和理想排序(所有相关结果按分数从高到低排列)对比,得到0-1之间的分数</li>
+</ol>
+<p>公式: <code>DCG@K = Σ(rel_i / log2(i+1))</code>,其中<code>rel_i</code>是第i个位置结果的相关度分数。</p>
+<p><code>NDCG@K = DCG@K / IDCG@K</code>,<code>IDCG</code>是理想情况下的DCG。</p>
+<p><strong>NDCG的工程意义</strong>:</p>
+<ul>
+<li><strong>综合评估排序质量</strong>,既考虑相关性,又考虑排序位置</li>
+<li>适合需要精细评估的场景,比如对比不同检索算法、评估Rerank效果</li>
+<li>计算成本高(需要人工标注相关度等级),通常用于离线评估</li>
+</ul>
+<p><strong>什么时候用NDCG</strong>:当你需要精确对比两个检索方案的排序质量差异时。日常监控更多用Recall和MRR,因为标注成本低。</p>
+<h3 id="生成侧评估-答案质量怎么衡量">生成侧评估:答案质量怎么衡量?</h3>
+<p>检索侧保证找到了相关内容,但<strong>最终答案质量如何</strong>,还需要生成侧评估。</p>
+<p>生成侧评估的难点在于:<strong>答案是自然语言,没有标准答案,很难用简单公式衡量。</strong> 早期只能靠人工评估,成本高、不可扩展。</p>
+<p>RAGAS(Retrieval Augmented Generation Assessment)框架提出了一套基于LLM的自动化评估方法,目前已经成为RAG生成评估的事实标准。</p>
+<!-- drawio源文件: ./drawio/rag_evaluation_02_ragas_framework.drawio -->
+
+<p><img alt="RAGAS框架四维度" src="https://file1.kamacoder.com/i/web/20260721194201_02.png" /></p>
+<p>这张图展示了RAGAS框架的四个核心维度如何从不同角度评估生成质量:Faithfulness防幻觉、Answer Relevancy看回答、Context Relevancy看检索、Context Recall看覆盖。</p>
+<h4 id="faithfulness-忠实度">Faithfulness(忠实度)</h4>
+<p><strong>定义</strong>:生成的答案是否忠实于检索到的上下文,有没有编造事实。</p>
+<p><strong>评估方法</strong>:</p>
+<ol>
+<li>把生成的答案拆分成多个陈述(statements)</li>
+<li>用LLM判断每个陈述能否从上下文中推导出来</li>
+<li>计算<code>Faithfulness = (可推导陈述数) / (总陈述数)</code></li>
+</ol>
+<p>举例:</p>
+<ul>
+<li>上下文:"公司年假为10天,工龄满3年增加到15天。"</li>
+<li>生成答案:"公司年假为10天,满3年可增加到15天,满5年可增加到20天。"</li>
+<li>前两个陈述可从上下文推导,第三个陈述("满5年20天")是编造的</li>
+<li><code>Faithfulness = 2/3 = 66.7%</code></li>
+</ul>
+<p><strong>Faithfulness的工程意义</strong>:</p>
+<ul>
+<li><strong>衡量RAG是否真正"Grounded"(有根据的)</strong>,这是RAG相比纯LLM的核心优势</li>
+<li>Faithfulness低说明模型在自由发挥,没有严格基于检索结果回答</li>
+<li>优化方向:改进Prompt约束("请严格根据以下资料回答")、使用更强的模型、减少上下文噪声</li>
+</ul>
+<h4 id="answer-relevancy-答案相关性">Answer Relevancy(答案相关性)</h4>
+<p><strong>定义</strong>:生成的答案是否真正回答了用户的问题,有没有答非所问。</p>
+<p><strong>评估方法</strong>:</p>
+<ol>
+<li>用LLM根据生成的答案,反向生成N个可能的问题</li>
+<li>计算这N个问题和原始问题的语义相似度</li>
+<li>相似度越高,说明答案越切题</li>
+</ol>
+<p>公式: <code>Answer Relevancy = (1/N) * Σ similarity(original_query, generated_query_i)</code></p>
+<p>举例:</p>
+<ul>
+<li>原始问题:"公司年假政策是什么?"</li>
+<li>生成答案:"公司实行弹性工作制,员工可以远程办公。年假为10天。"</li>
+<li>LLM反向生成的问题可能是:"公司工作制度是什么?",和原问题相似度低</li>
+<li>Answer Relevancy低,说明答案偏题了(虽然提到了年假,但重点跑偏了)</li>
+</ul>
+<p><strong>Answer Relevancy的工程意义</strong>:</p>
+<ul>
+<li><strong>衡量答案是否切题</strong>,防止模型给出"相关但不精准"的答案</li>
+<li>低分说明模型理解问题有偏差,或者上下文干扰了判断</li>
+<li>优化方向:优化Prompt明确回答要求、改进Query理解、减少无关上下文</li>
+</ul>
+<h4 id="context-relevancy-上下文相关性">Context Relevancy(上下文相关性)</h4>
+<p><strong>定义</strong>:检索到的上下文中,有多少内容对回答问题是真正有用的。</p>
+<p><strong>评估方法</strong>:</p>
+<ol>
+<li>用LLM从检索到的每个chunk中提取和问题相关的句子</li>
+<li>计算<code>Context Relevancy = (相关句子数) / (总句子数)</code></li>
+</ol>
+<p>举例:</p>
+<ul>
+<li>问题:"公司年假政策?"</li>
+<li>检索到的chunk:"公司成立于2010年,主营业务是软件开发。员工福利包括五险一金、年假10天、节日礼品。公司地址在北京朝阳区。"</li>
+<li>只有"年假10天"这一句相关,其余都是噪声</li>
+<li><code>Context Relevancy = 1/4 = 25%</code></li>
+</ul>
+<p><strong>Context Relevancy的工程意义</strong>:</p>
+<ul>
+<li><strong>衡量检索质量和Chunking质量</strong>,低分说明检索到了很多无关内容</li>
+<li>这是检索侧评估的补充,从生成角度反向评估检索效果</li>
+<li>优化方向:改进Chunking策略(chunk太大会包含太多无关内容)、加Rerank、减少top-K</li>
+</ul>
+<h4 id="context-recall-上下文召回">Context Recall(上下文召回)</h4>
+<p><strong>定义</strong>:ground truth答案中的关键信息,有多少出现在检索到的上下文中。</p>
+<p><strong>评估方法</strong>:</p>
+<ol>
+<li>需要有标注的标准答案(ground truth)</li>
+<li>用LLM判断标准答案中的每个陈述是否能从上下文中推导出来</li>
+<li>计算<code>Context Recall = (可从上下文推导的陈述数) / (标准答案总陈述数)</code></li>
+</ol>
+<p>举例:</p>
+<ul>
+<li>问题:"公司年假政策?"</li>
+<li>标准答案:"基础年假10天,工龄满3年增加到15天。"(2个陈述)</li>
+<li>检索上下文只提到"基础年假10天",没提工龄相关内容</li>
+<li><code>Context Recall = 1/2 = 50%</code></li>
+</ul>
+<p><strong>Context Recall的工程意义</strong>:</p>
+<ul>
+<li><strong>从生成角度评估检索完整性</strong>,补充检索侧Recall指标</li>
+<li>低分说明检索漏掉了关键信息,即使生成效果再好也无法给出完整答案</li>
+<li>优化方向:扩大top-K、改进检索算法、检查索引覆盖</li>
+</ul>
+<h3 id="ragas四个指标的关系">RAGAS四个指标的关系</h3>
+<p>这四个指标从不同角度评估RAG系统:</p>
+<ul>
+<li><strong>Context Recall + Context Relevancy</strong> = 检索质量(从生成角度看)</li>
+<li><strong>Faithfulness + Answer Relevancy</strong> = 生成质量</li>
+</ul>
+<p>理想情况:</p>
+<ul>
+<li>Context Recall高 → 检索找全了关键信息</li>
+<li>Context Relevancy高 → 检索结果干净,噪声少</li>
+<li>Faithfulness高 → 模型忠实基于检索结果回答</li>
+<li>Answer Relevancy高 → 答案切题,没有跑偏</li>
+</ul>
+<p>如果Context Recall低,后面其他指标再高也没用,因为关键信息根本没检索到。</p>
+<p>如果Context Relevancy低,会拉低Faithfulness和Answer Relevancy,因为噪声太多干扰了生成。</p>
+<h3 id="如何构建rag评估集">如何构建RAG评估集?</h3>
+<p>说了这么多指标,但<strong>怎么计算这些指标?</strong>核心是要有一个<strong>评估数据集</strong>。</p>
+<p>评估集需要包含:</p>
+<ol>
+<li><strong>问题(Query)</strong>:用户可能问的问题</li>
+<li><strong>标准答案(Ground Truth)</strong>:可选,用于Context Recall评估</li>
+<li><strong>相关文档片段(Relevant Chunks)</strong>:用于检索侧Recall/Precision评估</li>
+</ol>
+<p><strong>构建评估集的三种方法</strong>:</p>
+<p><strong>方法1:人工构造</strong>(质量最高,成本最高)</p>
+<ul>
+<li>挑选业务中的高频问题</li>
+<li>人工标注每个问题的正确答案和相关chunk</li>
+<li>适合核心业务场景,通常构建50-200条即可建立baseline</li>
+</ul>
+<p><strong>方法2:真实日志采样</strong>(质量中等,成本中等)</p>
+<ul>
+<li>从生产环境日志中采样真实用户问题</li>
+<li>人工标注答案质量(好/中/差)</li>
+<li>适合持续监控,发现线上问题</li>
+</ul>
+<p><strong>方法3:LLM生成</strong>(质量较低,成本最低)</p>
+<ul>
+<li>用LLM根据知识库内容生成问题-答案对</li>
+<li>适合快速验证,但要注意LLM生成的问题可能过于理想化,不代表真实用户行为</li>
+</ul>
+<p><strong>工程实践建议</strong>:</p>
+<ul>
+<li>先用方法3快速搭建评估框架</li>
+<li>再用方法1构建核心场景的高质量评估集(50-100条)</li>
+<li>用方法2持续补充,逐步扩大评估覆盖</li>
+</ul>
+<h3 id="离线评估-vs-在线评估">离线评估 vs 在线评估</h3>
+<p><strong>离线评估</strong>:在测试集上跑指标,优化前后对比。</p>
+<ul>
+<li>优点:可控、可重复、成本低</li>
+<li>缺点:测试集可能不代表真实场景</li>
+</ul>
+<p><strong>在线评估</strong>:真实用户使用时收集反馈。</p>
+<ul>
+<li>显式反馈:用户点赞/点踩、提交纠错</li>
+<li>隐式反馈:用户是否继续追问、是否复制答案、停留时长</li>
+</ul>
+<p><strong>工程实践</strong>:</p>
+<ul>
+<li>用离线评估指导优化方向</li>
+<li>用在线评估验证真实效果</li>
+<li>两者结合,离线评估是必要条件,在线评估是充分条件</li>
+</ul>
+<h4 id="线上采用率-用户真的用了你的答案吗">线上采用率:用户真的用了你的答案吗?</h4>
+<p>离线指标再漂亮,如果用户不采纳答案,就是白搭。<strong>采用率(Adoption Rate)是RAG系统最真实的质量信号。</strong></p>
+<p>常见的线上采用率指标:</p>
+<p><strong>直接采用信号</strong>(强信号):</p>
+<ul>
+<li><strong>复制率</strong>:用户复制了答案内容,说明答案有价值(复制率 = 复制次数 / 总回答次数)</li>
+<li><strong>点赞率</strong>:用户主动点赞(点赞率 = 点赞次数 / 总回答次数)</li>
+<li><strong>引用率</strong>:用户在后续对话或文档中引用了这个答案</li>
+</ul>
+<p><strong>间接采用信号</strong>(弱信号但规模大):</p>
+<ul>
+<li><strong>无追问率</strong>:用户看完答案后没有继续追问,可能说明问题解决了(但也可能是放弃了,需要结合停留时长判断)</li>
+<li><strong>停留时长</strong>:停留3-10秒可能是扫了一眼就关闭,停留30秒以上可能是认真阅读</li>
+<li><strong>跳出率</strong>:用户是否立即关闭页面或切换到其他工具</li>
+</ul>
+<p><strong>负向信号</strong>(问题指标):</p>
+<ul>
+<li><strong>重复提问率</strong>:用户换个问法再问一遍,说明上次答案没解决问题</li>
+<li><strong>点踩率</strong>:用户主动给差评</li>
+<li><strong>人工接管率</strong>:用户选择转人工客服,说明RAG答不上来</li>
+</ul>
+<p><strong>工程实践中的采用率监控</strong>:</p>
+<p>假设你的RAG系统每天回答1000个问题:</p>
+<ul>
+<li>复制率 = 15% → 150个答案被复制,这是强信号</li>
+<li>点赞率 = 8% → 80个点赞</li>
+<li>点踩率 = 3% → 30个差评</li>
+<li>无追问率 = 60% → 600个问题一次解决</li>
+</ul>
+<p>你可以定义一个<strong>综合采用率</strong> = (复制次数 + 点赞次数×2 - 点踩次数×2) / 总回答次数</p>
+<p>为什么点赞/点踩权重×2?因为用户主动点击的成本比复制高,信号更强。</p>
+<p><strong>采用率和离线指标的关系</strong>:</p>
+<p>这是很多团队踩的坑:<strong>离线Recall@5从70%优化到85%,RAGAS Faithfulness从0.75提到0.88,结果上线后采用率反而下降了。</strong></p>
+<p>可能的原因:</p>
+<ol>
+<li><strong>过度优化了测试集</strong>:测试集的问题分布和真实用户不一致</li>
+<li><strong>延迟变长了</strong>:加了Rerank和多轮检索,P95延迟从2秒涨到5秒,用户等不及就关了</li>
+<li><strong>答案变长了</strong>:Faithfulness高是因为把检索到的内容都塞进答案,用户看不完</li>
+<li><strong>语气变硬了</strong>:为了提高Faithfulness,Prompt约束太强,答案变成了"根据资料显示..."的八股文,用户不爱看</li>
+</ol>
+<p><strong>所以线上采用率是最终裁判。</strong> 离线指标是过程指标,采用率是结果指标。</p>
+<h4 id="评估的延迟代价-快和准怎么平衡">评估的延迟代价:快和准怎么平衡?</h4>
+<p>评估不是免费的,每个评估环节都有<strong>延迟成本</strong>。</p>
+<p><strong>RAGAS评估的延迟</strong>:</p>
+<p>RAGAS的四个指标都需要调用LLM做判断,这会带来额外延迟:</p>
+<ul>
+<li>Faithfulness:需要LLM拆分陈述、逐条判断,可能调用2-3次LLM</li>
+<li>Answer Relevancy:需要LLM反向生成问题、计算相似度,可能调用1-2次</li>
+<li>Context Relevancy:需要LLM从每个chunk提取相关句子,调用次数 = chunk数量</li>
+<li>Context Recall:需要LLM判断标准答案的每个陈述,调用1-2次</li>
+</ul>
+<p>假设每次LLM调用平均200ms,评估一个答案可能需要额外1-2秒。<strong>如果在线上实时评估,用户等待时间会显著增加。</strong></p>
+<p><strong>成本代价</strong>:</p>
+<p>除了延迟,评估还有Token成本:</p>
+<ul>
+<li>用户问答:输入500 tokens + 输出200 tokens = 700 tokens</li>
+<li>RAGAS评估:每个指标可能需要1000-2000 tokens</li>
+<li>四个指标下来,评估Token可能是原问答的4-8倍</li>
+</ul>
+<p><strong>线上实时评估 vs 离线批量评估</strong>:</p>
+<p>大多数生产系统的做法:</p>
+<ol>
+<li><strong>线上不做完整评估</strong>:只收集原始数据(问题、检索结果、答案、用户反馈)</li>
+<li><strong>离线批量跑评估</strong>:每天/每周从线上采样1000-5000条,跑完整的RAGAS评估</li>
+<li><strong>线上只做轻量监控</strong>:计算简单指标(答案长度、检索延迟、用户反馈率)</li>
+</ol>
+<p><strong>实时评估的取舍</strong>:</p>
+<p>什么时候值得做实时评估?</p>
+<ul>
+<li><strong>高风险场景</strong>:医疗、法律、金融,答错的代价很高,值得多花1-2秒做Faithfulness检查</li>
+<li><strong>低频高价值场景</strong>:企业级知识库,每天只有几百次查询,但每次查询都很重要</li>
+<li><strong>需要动态调整的场景</strong>:根据实时评估分数,动态决定是否给用户、是否转人工</li>
+</ul>
+<p>什么时候不值得实时评估?</p>
+<ul>
+<li><strong>高并发场景</strong>:客服机器人每秒几百次请求,实时评估会让延迟和成本爆炸</li>
+<li><strong>低风险场景</strong>:内容推荐、闲聊机器人,答得不完美也不会造成严重后果</li>
+</ul>
+<p><strong>工程实践:分级评估策略</strong>:</p>
+<div class="codehilite"><pre><span></span><code>高风险查询(5%) → 实时RAGAS全量评估 → 延迟+2秒可接受
+中风险查询(20%) → 实时Faithfulness单项评估 → 延迟+500ms
+低风险查询(75%) → 仅记录日志,离线评估 → 无额外延迟
+</code></pre></div>
+
+<p>通过风险分级,既保证了核心场景的质量,又控制了整体成本和延迟。</p>
+<p><strong>延迟和质量的权衡公式</strong>:</p>
+<p>面试时如果被问到"评估延迟怎么处理",可以这样答:</p>
+<p>"我们根据查询风险分级。高风险查询(涉及金额、法律条款)实时跑Faithfulness检查,宁可多花500ms也要防幻觉;中低风险查询只记录日志,每天离线采样评估,发现问题后针对性优化。这样既保证了核心场景质量,P95延迟也控制在2秒以内,成本只增加了15%。"</p>
+<p><strong>有数据、有分级、有权衡,这就是工程化的回答。</strong></p>
+<h3 id="评估驱动的优化闭环">评估驱动的优化闭环</h3>
+<p>有了评估体系,RAG优化就不再是盲目试错,而是形成闭环:</p>
+<!-- drawio源文件: ./drawio/rag_evaluation_03_optimization_loop.drawio -->
+
+<p><img alt="评估驱动优化闭环" src="https://file1.kamacoder.com/i/web/20260721194203_03.png" /></p>
+<p>这张图展示了基于评估的RAG优化闭环:从建立baseline开始,通过评估定位问题,针对性优化,再次评估验证,形成数据驱动的迭代循环。</p>
+<p><strong>第一步:建立baseline</strong></p>
+<ul>
+<li>在评估集上跑一遍当前系统,记录所有指标</li>
+<li>这是后续所有优化的对比基准</li>
+</ul>
+<p><strong>第二步:定位瓶颈</strong></p>
+<ul>
+<li>如果Recall@5 &lt; 70%,优先优化检索召回</li>
+<li>如果Recall高但Precision低,加Rerank</li>
+<li>如果Context Relevancy低,优化Chunking或减少top-K</li>
+<li>如果Faithfulness低,改进Prompt约束</li>
+<li>如果Answer Relevancy低,检查Query理解和模型能力</li>
+</ul>
+<p><strong>第三步:针对性优化</strong></p>
+<ul>
+<li>每次只改一个变量(比如只换Embedding模型,其他不动)</li>
+<li>在评估集上重新跑指标</li>
+</ul>
+<p><strong>第四步:对比验证</strong></p>
+<ul>
+<li>新指标比baseline好 → 采纳</li>
+<li>新指标更差或某些场景退化 → 回滚或继续调整</li>
+</ul>
+<p><strong>第五步:持续迭代</strong></p>
+<ul>
+<li>新问题加入评估集</li>
+<li>定期重新评估</li>
+<li>监控线上指标变化</li>
+</ul>
+<p>这才是工程化的RAG优化。</p>
+<h2 id="知识拓展">知识拓展</h2>
+<p><strong>Q1:检索评估一定要人工标注相关chunk吗?</strong></p>
+<p>不一定。如果有标准答案,可以用LLM判断"标准答案能否从某个chunk推导出来",自动化标注相关性。但核心场景建议还是人工标注一部分,作为评估的"黄金标准"。</p>
+<p><strong>Q2:RAGAS评估依赖LLM判断,会不会不准?</strong></p>
+<p>RAGAS用LLM做评估,确实可能有偏差。工程实践是:在核心评估集上对比LLM评估和人工评估的一致性,如果一致性高(比如85%以上),就可以信任LLM评估做大规模自动化。如果一致性低,说明评估Prompt需要调整,或者这个场景确实需要人工介入。</p>
+<p><strong>Q3:Recall和Precision哪个更重要?</strong></p>
+<p>要看业务场景。如果答不上来的代价很高(比如医疗、法律咨询),Recall更重要,宁可多召回一些,也不能漏掉关键信息。如果噪声的代价很高(比如客服机器人给错答案会被投诉),Precision更重要,宁可少答,也不能答错。通常的做法是:用大K保Recall,用Rerank保Precision,两头都要。</p>
+<p><strong>Q4:评估集要多大才够?</strong></p>
+<p>取决于业务复杂度。简单场景(FAQ类),50-100条可以建立可信的baseline。复杂场景(开放域问答),可能需要300-500条才能覆盖主要case。不要贪多,先从核心高频场景开始,逐步扩展。关键是评估集要<strong>有代表性</strong>,而不是一味追求数量。</p>
+<p><strong>Q5:怎么在面试中快速讲清RAG评估?</strong></p>
+<p>按三层结构:<strong>检索侧指标(Recall/Precision/MRR)+ 生成侧指标(RAGAS四维度)+ 评估驱动优化闭环</strong>。先说清楚评估分两侧,每侧核心看什么;再说怎么建评估集、怎么形成优化闭环。最后举个例子:"我们发现Recall@5只有65%,优化Embedding模型后提升到82%,再加Rerank后Precision从30%提升到70%,最终答案的Faithfulness从0.75提升到0.88"——有框架、有数据、有闭环,这就是好回答。</p>
+<p><strong>Q6:线上采用率低但离线指标高,问题出在哪?</strong></p>
+<p>三个最常见的原因:</p>
+<ol>
+<li><strong>测试集偏差</strong>:离线测试集都是"标准问题",但真实用户问法千奇百怪、有错别字、有歧义</li>
+<li><strong>延迟变长</strong>:优化提升了质量,但Rerank、多轮检索让延迟从2秒涨到5秒,用户等不及</li>
+<li><strong>答案不符合阅读习惯</strong>:为了提高Faithfulness,答案变成"根据资料第3条显示..."的机器腔,用户不爱看</li>
+</ol>
+<p><strong>诊断方法</strong>:从采用率最低的100条case里随机抽20条,自己当用户体验一遍,看看是答案质量问题还是交互体验问题。</p>
+<p><strong>Q7:评估成本太高怎么办?</strong></p>
+<p>RAGAS评估一条可能要几千Token,成本是原问答的5-8倍。省钱的办法:</p>
+<ol>
+<li><strong>采样评估</strong>:不是每条都评,每天随机采样1%-5%跑完整评估</li>
+<li><strong>分级评估</strong>:核心场景全量评,边缘场景抽样评</li>
+<li><strong>单项评估</strong>:不是每次都跑四个指标,根据当前优化目标只跑1-2个(比如优化检索时只看Context Recall和Context Relevancy)</li>
+<li><strong>换便宜模型做评估</strong>:Faithfulness等判断任务,用GPT-4o-mini或Claude-Haiku做评估,成本降10倍,准确率只降5%</li>
+</ol>
+<p><strong>Q8:开源工具怎么选?</strong></p>
+<ul>
+<li>检索评估:自己写脚本计算Recall/Precision/MRR比较简单,也可以用<code>ranx</code>库</li>
+<li>RAGAS评估:直接用<code>ragas</code>库,已经实现了四大指标的LLM评估逻辑,支持多种LLM后端</li>
+<li>评估集管理:可以用<code>LangSmith</code>或<code>Weights &amp; Biases</code>做实验跟踪和对比</li>
+</ul>
+<p>没有完美的评估,只有持续改进的评估。从简单指标开始,逐步建立适合自己业务的评估体系,比一上来就想做完美评估更现实。</p>
+<p>别再只说"感觉效果好了"。</p>
+<p>能把Recall、Precision、MRR、RAGAS四大维度讲清楚,能建评估集、能量化优化效果、能形成数据驱动的闭环,<strong>还能说清线上采用率怎么监控、评估延迟成本怎么权衡</strong>,才算真正做过RAG应用。</p>
+<p>离线指标是方向盘,线上采用率是目的地。两个都要看,但别忘了用户才是最终裁判。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="prompt_fewshot_cot_reflection.html"><span class="k">← 上一篇</span><span class="v">Few-shot、CoT与自我反思面试题：示例学习、思维链提示和自检机制怎么选</span></a><a class="nx" href="rag_interview_framework.html"><span class="k">下一篇 →</span><span class="v">面试官怎么问RAG？RAG高频面试题、项目链路、选型优化与指标回答框架</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#rag怎么评估-检索质量和生成质量的度量">RAG怎么评估?检索质量和生成质量的度量</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/app/rag_evaluation.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

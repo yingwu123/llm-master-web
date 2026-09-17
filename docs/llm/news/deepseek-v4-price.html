@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepSeek V4降价75%：我接上Claude Code跑了几天，说说真实感受 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>deepseek-v4-price</span></div>
+      <h1 id="deepseek-v4降价75-我接上claude-code跑了几天-说说真实感受">DeepSeek V4降价75%：我接上Claude Code跑了几天，说说真实感受</h1>
+<p><a href="https://notes.kamacoder.com/qita/0021.gpt-5-6-sol-terra-luna-domestic-guide.html">
+  <img src="https://file1.kamacoder.com/i/web/2026-07-17_15-06-45.jpg" style="width:100%;cursor:pointer;" alt="KamaClaude">
+</a></p>
+<p>前几天<a href="./deepseek-v4.html">DeepSeek V4发布</a>那篇，卡哥写的时候还在吐槽："V4-Pro输出24元/百万token，这不像DeepSeek的风格。"</p>
+<p>结果文章发出去不到一天，DeepSeek官网直接挂了2.5折——输出砍到6元。</p>
+<p><strong>这操作真的很DeepSeek</strong>。</p>
+<p>降价这几天我拿V4-Pro和V4-Flash接上Claude Code实跑了一些项目，说说真实感受，不吹不黑。</p>
+<h2 id="v4-flash-2块钱跑百万token-还要啥自行车">V4-Flash：2块钱跑百万token，还要啥自行车</h2>
+<p>先说结论：<strong>V4-Flash才是这次降价里大多数录友应该关注的。</strong></p>
+<p>不是V4-Pro不好，是V4-Flash太便宜了。每百万token输出2元，缓存命中输入0.2元。这是什么概念？你在Claude Code里让V4-Flash读10个文件、改3处代码、跑一轮测试，算下来可能就几毛钱。同样的事用Claude Sonnet，轻松几块钱。</p>
+<p>V4-Flash直接平替上一代<code>deepseek-chat</code>，性能更强，输出价格反而从3元降到2元。迁移零成本，改个模型名就行。</p>
+<p><strong>我这几天的用法</strong>：简单问答、文件搜索、内容生成、初版代码编写，全丢给V4-Flash。这些场景不需要最强推理，便宜够用就是王道。</p>
+<p>有一点要注意：<code>deepseek-chat</code>和<code>deepseek-reasoner</code>将在7月24日后停用。V4-Flash的模型名是<code>deepseek-v4-flash</code>，尽早切过去。</p>
+<h2 id="v4-pro-便宜归便宜-agent长任务还是差点意思">V4-Pro：便宜归便宜，Agent长任务还是差点意思</h2>
+<p>V4-Pro特惠价确实炸裂——输出6元/百万token，缓存命中输入0.25元。和Claude Opus 4.7的$25输出价相比，差了将近30倍。</p>
+<p><strong>但便宜不等于能替代。</strong></p>
+<p>我接上Claude Code跑了一个比较大的重构任务，让V4-Pro读整个项目、理解架构、重写一个模块。结果怎么说呢——<strong>单步能力没问题，多步连贯性差一截。</strong></p>
+<p>具体表现：第一步读文件、分析结构，做得很好。第二步改代码，也还行。到第三步发现要调整之前的改动，就开始"忘"之前做了什么，改着改着就跑偏了。</p>
+<p>这不是V4独有的问题。在<a href="./deepseek-v4.html">DeepSeek V4发布那篇</a>里我们聊过，Terminal Bench 2.0（测Agent长任务能力）V4-Pro只有67.9，GPT-5.5是82.7。<strong>数字上的差距，到了真实使用里就是"跑着跑着就飞了"。</strong></p>
+<p>所以我现在对V4-Pro的定位很清晰：<strong>干粗活的性价比之王，但不适合跑复杂的Agent长链路。</strong></p>
+<p>代码扫描、安全审计、批量分析——这些一次性的、不需要多步连贯的任务，V4-Pro太合适了。几块钱就能扫描整个项目，同样的事让Claude Opus做，几十块打不住。</p>
+<p>但如果你要的是"让AI自己跑30分钟把整个功能做完"，还是老老实实用Claude Opus 4.7或者GPT-5.5。</p>
+<h2 id="一个实用的搭配思路">一个实用的搭配思路</h2>
+<p><a href="./claude-opus-4-7.html">Opus 4.7那篇</a>结尾我说过，目前我写代码性价比最高的是Claude Agent + CLI + <a href="https://www.bigmodel.cn/glm-coding?ic=L9I20DKWAG">GLM-5.1</a>。V4降价后，这个思路可以扩展一下：</p>
+<p><strong>便宜模型打前站，贵模型把关。</strong></p>
+<p>具体来说：</p>
+<ul>
+<li>前期调研、文件搜索、代码扫描 → V4-Flash或V4-Pro，成本几乎忽略</li>
+<li>安全审计、批量分析 → V4-Pro，便宜且单步能力够</li>
+<li>核心编码、bug修复、长链路Agent → Claude Opus 4.7，贵但稳</li>
+</ul>
+<p>不是非此即彼，是各取所长。<strong>V4-Pro负责"量大管饱"，Claude负责"少而精"。</strong></p>
+<h2 id="全行业涨价-deepseek凭什么降">全行业涨价，DeepSeek凭什么降</h2>
+<p>聊完感受，说说降价背后的事。</p>
+<p>2026年国内云厂商基本都在涨：百度4月18日AI算力上调5-30%，腾讯3月11日和5月9日两轮调价，智谱GLM系列三个月涨了三次。</p>
+<p>DeepSeek不但不涨，反手一刀砍75%。凭什么？</p>
+<p><strong>国产算力。</strong> V4系列首次实现了对华为昇腾NPU的全面适配。DeepSeek在技术论文里披露，细粒度专家并行方案同时在英伟达GPU和昇腾NPU上完成了验证。</p>
+<p>官方API页面有一句话很关键："受限于高端算力，目前V4-Pro的服务吞吐仍有限。预计下半年昇腾950超节点批量上市后，Pro价格会大幅下调。"</p>
+<p><strong>所以这次2.5折更像是预演。</strong> 先用低价验证市场，等昇腾950量产、算力成本真正降下来，这个价位才有望常态化。</p>
+<p>这也是DeepSeek和其他厂商的根本区别——<strong>其他厂商的成本结构在恶化（依赖英伟达GPU，芯片紧缺+电力涨价），DeepSeek的成本结构在改善（国产算力替代，成本持续下降）。</strong> 涨价和降价，都是成本结构决定的。</p>
+<h2 id="几个容易踩的坑">几个容易踩的坑</h2>
+<p><strong>1、1M上下文的模型名别写错。</strong> 开1M上下文要写<code>deepseek-v4-pro[1m]</code>，不是<code>deepseek-v4-pro</code>。搞错了还是128K，白花了1M的钱。</p>
+<p><strong>2、5月5日特惠到期。</strong> 到期后价格大概率回升，但下半年昇腾950量产后有再次降价的预期。现在先用着，别以为这就是永久价。</p>
+<p><strong>3、长上下文检索能力在超128K后会下降。</strong> MRCR评测在100万token下只有83.5，Claude Opus 4.6是92.9。日常用128K以内没影响，但如果你打算把整个代码仓库扔进去分析，要注意。</p>
+<p><strong>4、V4-Pro特惠期间吞吐有限。</strong> 高峰期响应可能比Claude慢，这是算力受限的直接表现，昇腾950量产后应该会改善。</p>
+<h2 id="写在最后">写在最后</h2>
+<p>DeepSeek V4这次降价，放在全行业涨价的背景下，确实震撼。但卡哥还是那句话：<strong>别被价格冲昏头。</strong></p>
+<p>V4-Flash日常用，性价比无敌，这个没什么好犹豫的。V4-Pro特惠期做代码扫描、批量分析，成本几乎忽略，也很香。<strong>但Agent长任务，还是Claude和GPT更稳。</strong> benchmark上的"编码天花板"，到了真实开发场景里，可能只是"编码中等偏上"。这个在<a href="./deepseek-v4.html">DeepSeek V4发布那篇</a>里我说得很直白了。</p>
+<p>趁2.5折充点余额，先把简单任务切过去，省下来的钱够你跑很多次Opus了。</p>
+<p>加油</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="deepseek-v4-official-api-pricing.html"><span class="k">← 上一篇</span><span class="v">DeepSeek V4全系列正式版上线：Flash、Pro新定价，API最高涨12倍</span></a><a class="nx" href="deepseek-v4-pro-permanent-price-cut.html"><span class="k">下一篇 →</span><span class="v">DeepSeek V4-Pro永久降价75%：5月22日悄悄改了API定价页，这不是特惠了</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#deepseek-v4降价75-我接上claude-code跑了几天-说说真实感受">DeepSeek V4降价75%：我接上Claude Code跑了几天，说说真实感受</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/deepseek-v4-price.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

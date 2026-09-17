@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>手撕Tiny Transformer：从零拼出一个完整模型 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>transformer</span><span class="sep">›</span><span>tiny_transformer_code</span></div>
+      <h1 id="手撕tiny-transformer-从零拼出一个完整模型">手撕Tiny Transformer：从零拼出一个完整模型</h1>
+<p>前面几篇文章，我们已经分别手撕了 Attention、Multi-Head Attention、FFN、残差连接和 LayerNorm，以及一个Transformer Blok。</p>
+<p>但到目前为止，它们还只是一个个零件。</p>
+<p>这篇文章我们要做最后一步：把这些零件拼起来，写出一个<strong>最小可运行的 Tiny Transformer</strong>。</p>
+<hr />
+<h2 id="整体结构">整体结构</h2>
+<p>一个最小版 Transformer，可以拆成四层：</p>
+<div class="codehilite"><pre><span></span><code>Token ID
+  ↓ Embedding
+  ↓ Positional Encoding
+  ↓ 多层 Transformer Block
+  ↓ 输出层 Linear
+  ↓ logits
+</code></pre></div>
+
+<p>核心变化只有一个：一开始输入是整数 Token ID，经过 Embedding 后变成向量；之后所有模块都在处理 <code>(L, d_model)</code> 这个矩阵。</p>
+<p><img alt="Tiny Transformer完整结构代码图" src="https://file1.kamacoder.com/i/algo/article14_0428_p1.drawio.png" /></p>
+<h2 id="第一步-embedding">第一步：Embedding</h2>
+<p>模型不能直接理解文字，也不能直接理解 Token ID。比如一句话被切成：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">input_ids</span> <span class="o">=</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">6</span><span class="p">]</span>
+</code></pre></div>
+
+<p>这些数字只是编号，没有语义。</p>
+<p>Embedding 要做的事，就是把每个编号查表，变成一个向量。</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+
+<span class="n">vocab_size</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">L</span> <span class="o">=</span> <span class="mi">4</span>
+<span class="n">d_model</span> <span class="o">=</span> <span class="mi">8</span>
+
+<span class="n">input_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">6</span><span class="p">])</span>
+<span class="n">embedding_table</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">vocab_size</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+
+<span class="n">x</span> <span class="o">=</span> <span class="n">embedding_table</span><span class="p">[</span><span class="n">input_ids</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (4, 8)</span>
+</code></pre></div>
+
+<p>现在，4 个 Token，每个 Token 都变成了 8 维向量。</p>
+<h2 id="第二步-positional-encoding">第二步：Positional Encoding</h2>
+<p>Self-Attention 本身不关心顺序。对它来说，“我喜欢你”和“你喜欢我”如果只看 Token 集合，差别并不明显。</p>
+<p>所以我们要把位置信息加进去。</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">positional_encoding</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">):</span>
+    <span class="n">pe</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">pos</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">L</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="n">pe</span><span class="p">[</span><span class="n">pos</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">pos</span> <span class="o">/</span> <span class="p">(</span><span class="mi">10000</span> <span class="o">**</span> <span class="p">(</span><span class="n">i</span> <span class="o">/</span> <span class="n">d_model</span><span class="p">)))</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="n">d_model</span><span class="p">:</span>
+                <span class="n">pe</span><span class="p">[</span><span class="n">pos</span><span class="p">,</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">pos</span> <span class="o">/</span> <span class="p">(</span><span class="mi">10000</span> <span class="o">**</span> <span class="p">(</span><span class="n">i</span> <span class="o">/</span> <span class="n">d_model</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">pe</span>
+
+<span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">positional_encoding</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (4, 8)</span>
+</code></pre></div>
+
+<p>注意：位置编码不是拼接，而是相加。所以 shape 不变，仍然是 <code>(L, d_model)</code>。</p>
+<h2 id="第三步-transformer-block">第三步：Transformer Block</h2>
+<p>一个 Block 里有两件事：</p>
+<div class="codehilite"><pre><span></span><code>Attention：让 Token 之间交换信息
+FFN：让每个 Token 独立加工信息
+</code></pre></div>
+
+<p>再加上残差连接和 LayerNorm，一个最小 Block 长这样：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TinyBlock</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Wq</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Wk</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Wv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">W1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">d_ff</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">W2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_ff</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">layer_norm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">):</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">std</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">std</span> <span class="o">+</span> <span class="n">eps</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">attention</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">Q</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">Wq</span>
+        <span class="n">K</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">Wk</span>
+        <span class="n">V</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">Wv</span>
+        <span class="n">scores</span> <span class="o">=</span> <span class="n">Q</span> <span class="o">@</span> <span class="n">K</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">weights</span> <span class="o">@</span> <span class="n">V</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">ffn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">hidden</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">hidden</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W2</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b2</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">layer_norm</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">attention</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">layer_norm</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">ffn</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">x</span>
+</code></pre></div>
+
+<p>这段代码没有多头，没有 mask，也没有训练，只保留最核心的数据流。</p>
+<h2 id="第四步-堆多层-block">第四步：堆多层 Block</h2>
+<p>Transformer 的“深度”来自重复堆叠 Block。</p>
+<div class="codehilite"><pre><span></span><code><span class="n">blocks</span> <span class="o">=</span> <span class="p">[</span><span class="n">TinyBlock</span><span class="p">(</span><span class="n">d_model</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">d_ff</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">)]</span>
+
+<span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">blocks</span><span class="p">:</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (4, 8)</span>
+</code></pre></div>
+
+<p>堆两层、六层、十二层，本质都是重复同一个结构。只要每层输入输出 shape 一致，就可以一直往下接。</p>
+<p><img alt="Tiny Transformer前向运行结果图" src="https://file1.kamacoder.com/i/algo/article14_0428_p2.drawio.png" /></p>
+<h2 id="第五步-输出层">第五步：输出层</h2>
+<p>最后一步，要把每个 Token 的隐藏向量映射回词表大小。</p>
+<p>如果词表大小是 <code>vocab_size=10</code>，那输出层就是：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">W_out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">vocab_size</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+<span class="n">b_out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">vocab_size</span><span class="p">)</span>
+
+<span class="n">logits</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="n">W_out</span> <span class="o">+</span> <span class="n">b_out</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (4, 10)</span>
+</code></pre></div>
+
+<p><code>logits[0]</code> 表示第 1 个位置对词表中 10 个 Token 的打分。</p>
+<p>打分最高的 Token，就是模型当前最想输出的结果。</p>
+<h2 id="最小可运行-demo">最小可运行 Demo</h2>
+<p>把所有代码连起来：</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+
+<span class="n">vocab_size</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">L</span> <span class="o">=</span> <span class="mi">4</span>
+<span class="n">d_model</span> <span class="o">=</span> <span class="mi">8</span>
+<span class="n">d_ff</span> <span class="o">=</span> <span class="mi">32</span>
+<span class="n">num_layers</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="n">input_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">6</span><span class="p">])</span>
+<span class="n">embedding_table</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">vocab_size</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+
+<span class="n">x</span> <span class="o">=</span> <span class="n">embedding_table</span><span class="p">[</span><span class="n">input_ids</span><span class="p">]</span>
+
+<span class="c1"># positional encoding</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">positional_encoding</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">):</span>
+    <span class="n">pe</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">pos</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">L</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="n">pe</span><span class="p">[</span><span class="n">pos</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">pos</span> <span class="o">/</span> <span class="p">(</span><span class="mi">10000</span> <span class="o">**</span> <span class="p">(</span><span class="n">i</span> <span class="o">/</span> <span class="n">d_model</span><span class="p">)))</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="n">d_model</span><span class="p">:</span>
+                <span class="n">pe</span><span class="p">[</span><span class="n">pos</span><span class="p">,</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">pos</span> <span class="o">/</span> <span class="p">(</span><span class="mi">10000</span> <span class="o">**</span> <span class="p">(</span><span class="n">i</span> <span class="o">/</span> <span class="n">d_model</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">pe</span>
+
+<span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">positional_encoding</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TinyBlock</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Wq</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Wk</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Wv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">W1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">d_ff</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">W2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_ff</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">d_model</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">layer_norm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">):</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">std</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">std</span> <span class="o">+</span> <span class="n">eps</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">attention</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">Q</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">Wq</span>
+        <span class="n">K</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">Wk</span>
+        <span class="n">V</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">Wv</span>
+        <span class="n">scores</span> <span class="o">=</span> <span class="n">Q</span> <span class="o">@</span> <span class="n">K</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">weights</span> <span class="o">@</span> <span class="n">V</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">ffn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">hidden</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">hidden</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">W2</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b2</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">layer_norm</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">attention</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">layer_norm</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">ffn</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">x</span>
+
+<span class="n">blocks</span> <span class="o">=</span> <span class="p">[</span><span class="n">TinyBlock</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_ff</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_layers</span><span class="p">)]</span>
+
+<span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">blocks</span><span class="p">:</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+<span class="n">W_out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">vocab_size</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.01</span>
+<span class="n">b_out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">vocab_size</span><span class="p">)</span>
+<span class="n">logits</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="n">W_out</span> <span class="o">+</span> <span class="n">b_out</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"最终输出 logits shape:"</span><span class="p">,</span> <span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"每个位置预测的 token:"</span><span class="p">,</span> <span class="n">logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
+</code></pre></div>
+
+<p><strong>输出示例：</strong></p>
+<div class="codehilite"><pre><span></span><code>最终输出 logits shape: (4, 10)
+每个位置预测的 token: [5 5 4 3]
+</code></pre></div>
+
+<p>到这里，一个 Tiny Transformer 就真的跑起来了。</p>
+<p>它还不会写文章，也不会聊天，因为我们没有训练它。但结构已经完整了：Embedding 负责把 ID 变成向量，位置编码负责告诉模型顺序，Block 负责反复加工信息，输出层负责把向量变回词表打分。</p>
+<p>Transformer 最核心的秘密，其实就是这条数据流：</p>
+<div class="codehilite"><pre><span></span><code>ID → 向量 → 加位置 → 多层加工 → 词表打分
+</code></pre></div>
+
+<p>理解了这条线，再看 GPT、BERT、LLaMA，就不再是一团黑盒了。</p>
+<hr />
+<p>至此，我们的手撕代码阶段就告一段落了，接下来，我们将进入BERT / T5 / GPT / MoE的学习阶段，带大家从标准 Transformer 过渡到主流模型家族。可以点个关注不迷路哦~</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="qkv_cal.html"><span class="k">← 上一篇</span><span class="v">Attention计算全过程：从QK转置到Softmax加权求和一步步拆解</span></a><a class="nx" href="transformer_base_1.html"><span class="k">下一篇 →</span><span class="v">为什么所有大模型都绕不开Transformer？RNN和CNN的短板在哪</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#手撕tiny-transformer-从零拼出一个完整模型">手撕Tiny Transformer：从零拼出一个完整模型</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/transformer/tiny_transformer_code.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

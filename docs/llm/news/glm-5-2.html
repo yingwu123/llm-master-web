@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GLM-5.2发布：智谱这次不放跑分表，先让你用上，开源、1M上下文、华为昇腾训练，和Opus 4.8、DeepSeek V4怎么选 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>glm-5-2</span></div>
+      <h1 id="glm-5-2发布-智谱这次不放跑分表-先让你用上-开源-1m上下文-华为昇腾训练">GLM-5.2发布：智谱这次不放跑分表，先让你用上，开源、1M上下文、华为昇腾训练</h1>
+<p><a href="https://notes.kamacoder.com/qita/0021.gpt-5-6-sol-terra-luna-domestic-guide.html">
+  <img src="https://file1.kamacoder.com/i/web/2026-07-17_15-06-45.jpg" style="width:100%;cursor:pointer;" alt="KamaClaude">
+</a></p>
+<p>智谱今天（2026 年 6 月 13 日）发布了 GLM-5.2。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/wecom-temp-152790-fc8c4534ad14ea4d52a7f4f3bdafb702.jpg" /></p>
+<p>算一下节奏：2 月 11 日 GLM-5，4 月 GLM-5.1，今天 GLM-5.2。</p>
+<p>四个月三个版本，国产这边卷得也不轻。</p>
+<p><img alt="GLM 系列迭代节奏：GLM-5、GLM-5.1、GLM-5.2 四个月三个版本" src="https://file1.kamacoder.com/i/web/20260613230327_glm_5_2_timeline.png" /></p>
+<p>但这次发布最让我意外的，不是又快了一个小版本。</p>
+<p>而是另一件事：</p>
+<p><strong>官方发布当天，一张 benchmark 跑分表都没放。</strong></p>
+<p>你没看错。</p>
+<p>没有 SWE-bench，没有 Terminal-Bench，没有那种"我赢了谁几个点"的大表。</p>
+<p>这在 2026 年的大模型发布里，几乎是反常的。</p>
+<p>卡哥觉得这事值得单独说说。</p>
+<h2 id="一-别人比谁分高-智谱直接说先别看分">一、别人比谁分高，智谱直接说先别看分</h2>
+<p>这两年大模型发布几乎是同一个套路。</p>
+<p>先甩一张大表，自己的模型某几项第一，标红加粗。</p>
+<p>我们前面写 <a href="./claude-opus-4-8.html">Claude Opus 4.8</a> 那篇就吐槽过：<strong>大表负责传播，脚注负责真相。</strong> 一个模型换个 harness、换个工具链，分数能差好几个点。</p>
+<p>GLM-5.2 这次干脆把表撤了。</p>
+<p>官方的发布口径很直白：</p>
+<p><strong>先开放给 GLM Coding Plan 的用户用，开源权重和 API 往后放一周，benchmark 也一起延后。</strong></p>
+<p>一句话总结就是：</p>
+<p><strong>Coding Plan 优先，不是跑分优先。</strong></p>
+<p><img alt="GLM-5.2 反常发布顺序：Coding Plan 优先，开源和跑分往后" src="https://file1.kamacoder.com/i/web/20260613230328_glm_5_2_release_order.png" /></p>
+<p>这个顺序很有意思。</p>
+<p>正常发布是：跑分 → 媒体传播 → 开放试用。</p>
+<p>GLM-5.2 反过来：先让付费用户用上 → 一周后放权重和 API → 再补跑分。</p>
+<p>存量 Coding Plan 用户今天就能用，方式简单到离谱——<strong>改一个环境变量，把模型 ID 换成 <code>glm-5.2</code> 就行。</strong></p>
+<p>你不用等评测，自己的活就是最好的评测。</p>
+<h2 id="二-先别急着夸-也别急着骂">二、先别急着夸，也别急着骂</h2>
+<p>我知道有录友看到"不放跑分"会立刻分两派。</p>
+<p>一派说：有底气，敢让你直接用真实任务测，不玩数字游戏。</p>
+<p>一派说：是不是分不好看，藏着掖着？</p>
+<p>卡哥的看法是，<strong>两种解读现在都成立，因为没数据。</strong></p>
+<p>这正是问题所在。</p>
+<p>没有第三方跑分，意味着现在所有对 GLM-5.2 的判断，本质上都是智谱的"意向声明"，不是排行榜实测位置。</p>
+<p>官方说了三句话：</p>
+<ul>
+<li>强大的编码能力</li>
+<li>可用的 1M 上下文</li>
+<li>长程任务继续领先</li>
+</ul>
+<p>注意"可用的 1M"这个措辞。</p>
+<p>这种留有余地的说法，通常说明内部自己也清楚：<strong>1M 上下文能塞进去，和 1M 上下文里每个 token 都管用，是两回事。</strong></p>
+<p>我们在 <a href="./minimax-m3.html">MiniMax M3 评测</a> 里反复强调过这点：长上下文的"能装"和"装了还准"差很远。</p>
+<p>所以我的态度是：</p>
+<p><strong>这次发布值得关注，但现在还不能下"超过谁"的结论。</strong></p>
+<p>等下周权重和 API 放出来，第三方一测，才有真东西可聊。</p>
+<p>在那之前，参考一下它的"出身"会更靠谱。</p>
+<p>GLM-5 当时是 745B 的 MoE，激活 44B，SWE-bench Verified 77.8%，在开源里是头部。GLM-5.1 更狠，SWE-Bench Pro 58.4，反超了 GPT-5.4（57.7）和 Claude Opus 4.6（57.3），编码能力做到了 Opus 4.6 的九成多。</p>
+<p>按这个底子推，GLM-5.2 大概率不会差。</p>
+<p>但"大概率不差"和"实测领先"，还是别混为一谈。</p>
+<h2 id="三-真正的看点-是开源加国产算力">三、真正的看点，是开源加国产算力</h2>
+<p>跑分可以等，但有两件事是 GLM-5.2 实打实的差异化。</p>
+<p><strong>第一，它要开源，而且是 MIT。</strong></p>
+<p>下周放权重，MIT 协议，免费商用。</p>
+<p>这意味着什么？</p>
+<p><strong>任何一家公司，可以把它下下来，跑在自己的服务器上，不用把代码喂给闭源 API。</strong></p>
+<p>Claude Opus 4.8、GPT-5.5 再强，你也只能调它的接口。数据出门，按 token 付费，模型权重你永远摸不到。</p>
+<p>对一部分录友和公司来说，这条线是硬需求：</p>
+<ul>
+<li>代码不能外传的金融、政企项目</li>
+<li>想做私有化部署的团队</li>
+<li>想在开源权重上自己做微调、蒸馏的研究</li>
+</ul>
+<p>这些场景里，闭源前沿模型再强也进不来。开源就是开源，没得替代。</p>
+<p><strong>第二，GLM 这条线是华为昇腾训练的，全程没用 Nvidia。</strong></p>
+<p>从 GLM-5.1 开始，智谱就公开说训练完全跑在华为昇腾上。</p>
+<p>这件事的意义不在跑分，在供应链。</p>
+<p><strong>一个不依赖 Nvidia、权重还开源的前沿模型，本身就是一种确定性。</strong></p>
+<p>在芯片这么敏感的时间点，这个确定性，有时候比多两个点的 SWE-bench 更值钱。</p>
+<h2 id="四-glm-coding-plan-怎么买-值不值">四、GLM Coding Plan 怎么买，值不值</h2>
+<p>GLM-5.2 现在的入口就是 <a href="https://www.bigmodel.cn/glm-coding?ic=L9I20DKWAG">GLM Coding Plan</a>。</p>
+<p>它不是按 token 计费，是按"提示次数"包月的订阅制，分四个档：</p>
+<table>
+<thead>
+<tr>
+<th>档位</th>
+<th>5 小时额度</th>
+<th>周额度</th>
+<th>适合谁</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lite</td>
+<td>~80 次提示</td>
+<td>~400 次</td>
+<td>先评估试用</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td>~400 次提示</td>
+<td>~2,000 次</td>
+<td>日常开发主力</td>
+</tr>
+<tr>
+<td>Max</td>
+<td>~1,600 次提示</td>
+<td>~8,000 次</td>
+<td>高强度重度使用</td>
+</tr>
+<tr>
+<td>Team</td>
+<td>按座位</td>
+<td>组织共享账单</td>
+<td>团队</td>
+</tr>
+</tbody>
+</table>
+<p>价格大概 $18/月 起。</p>
+<p>我的实话实说：</p>
+<p><strong>这套订阅制的性价比，是 GLM 这条线最能打的地方。</strong></p>
+<p>我在 <a href="./deepseek-v4-price.html">DeepSeek V4 降价</a> 那篇就提过，目前我写代码性价比最高的组合之一，就是 Claude 的 Agent + CLI，配 GLM 的 Coding Plan 兜底。</p>
+<p>逻辑很简单：</p>
+<ul>
+<li>用 Claude Code / GLM 自己的 CLI 做交互层</li>
+<li>难任务上 Opus 4.8、GPT-5.5</li>
+<li>大量的日常改代码、补测试、读模块，交给包月的 GLM，跑多少都不心疼</li>
+</ul>
+<p><strong>包月买的是"不用算 token 的安全感"。</strong> 你不会因为多让模型读几遍代码就肉疼，这种心态对写代码很重要。</p>
+<p>不过别冲动。</p>
+<p>先上 Lite 评估，活儿对得上再升 Pro，真到天天重度用再考虑 Max。</p>
+<p>不要一上来就 Max，额度用不满就是浪费。</p>
+<h2 id="五-和-opus-4-8-deepseek-v4-怎么选">五、和 Opus 4.8、DeepSeek V4 怎么选</h2>
+<p>老问题又来了：这么多模型，到底用哪个。</p>
+<p>卡哥的选型逻辑一直没变：<strong>不是站队，是算账。</strong></p>
+<p>按三件事分流：失败成本、能不能自部署、量有多大。</p>
+<p><img alt="模型选型：GLM-5.2 开源、Opus 4.8 攻坚、DeepSeek 跑量怎么选" src="https://file1.kamacoder.com/i/web/20260613230328_glm_5_2_model_choice.png" /></p>
+<p>说具体点：</p>
+<table>
+<thead>
+<tr>
+<th>你的处境</th>
+<th>推荐</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>核心代码、复杂 bug、长链路 Agent，失败成本高</td>
+<td>Claude Opus 4.8 / GPT-5.5</td>
+<td>实测最稳，会验证，工具调用习惯好</td>
+</tr>
+<tr>
+<td>数据不能外传 / 要私有化部署 / 想自己微调</td>
+<td>GLM-5.2（开源权重）</td>
+<td>闭源模型再强也进不来，开源是硬需求</td>
+</tr>
+<tr>
+<td>日常改代码、补测试、读模块，量大</td>
+<td>GLM Coding Plan 包月</td>
+<td>不按 token 算，跑多少不心疼</td>
+</tr>
+<tr>
+<td>批量分析、代码扫描、结果能自动校验</td>
+<td>DeepSeek V4-Pro</td>
+<td>便宜，量大跑得起</td>
+</tr>
+</tbody>
+</table>
+<p>这几个不是互斥的，真实开发里我经常是混着用。</p>
+<ul>
+<li>难的地方上 Opus 4.8</li>
+<li>量大的日常用 GLM 包月或 DeepSeek</li>
+<li>碰到数据敏感、必须本地跑的，GLM-5.2 开源权重是唯一选项</li>
+</ul>
+<p><strong>便宜模型跑量，开源模型保命，顶级模型攻坚。</strong> 三句话基本能覆盖。</p>
+<h2 id="写在最后">写在最后</h2>
+<p>GLM-5.2 这次发布，最值得记住的不是某个跑分。</p>
+<p>是它的打法：</p>
+<p><strong>先让你用上，开源权重跟上，跑分往后放。</strong></p>
+<p>这套打法对开发者其实是友好的——你不用被一屏大表带节奏，自己的真实任务就是最准的 benchmark。</p>
+<p>但也别因为它"不卷跑分"就上头。</p>
+<p>没数据的时候，官方说的每一句都还只是意向，不是结论。</p>
+<p>我的建议很简单：</p>
+<ul>
+<li>已经在用 GLM Coding Plan 的，改个环境变量直接试，用你手头真实的活去测</li>
+<li>要私有化、要自部署的，盯紧下周的开源权重</li>
+<li>没特殊需求的，等下周第三方跑分出来再决定也不迟</li>
+</ul>
+<p>模型选型从来不是追新。</p>
+<p>是看哪个在你的任务上，更稳、更便宜、更可控。</p>
+<p>自己测，按活儿选。</p>
+<p>加油。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="deepseek-v4.html"><span class="k">← 上一篇</span><span class="v">DeepSeek V4发布：1.6万亿参数开源MoE，百万上下文，价格只要GPT-5.5的十分之一</span></a><a class="nx" href="glm-5-3-flash.html"><span class="k">下一篇 →</span><span class="v">GLM-5.3-Flash发布：320B总参数、18B激活、原生多模态，价格只有GLM-5.3十分之一，和DeepSeek V4、Kimi K3怎么选</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#glm-5-2发布-智谱这次不放跑分表-先让你用上-开源-1m上下文-华为昇腾训练">GLM-5.2发布：智谱这次不放跑分表，先让你用上，开源、1M上下文、华为昇腾训练</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/glm-5-2.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GLM-5.3发布：编程涨50%、安全能力意外爆发，和Kimi K3、DeepSeek V4、Claude怎么选 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>glm-5-3</span></div>
+      <h1 id="glm-5-3-发布-基座没变-编程涨-50-安全能力却意外爆发">GLM-5.3 发布：基座没变，编程涨 50%，安全能力却意外爆发</h1>
+<p>前面写 <a href="./glm-5-2.html">GLM-5.2</a> 时，我说它的发布方式很反常：先让 Coding Plan 用户用，跑分和权重后补。</p>
+<p>两个月后，GLM-5.3 来了。</p>
+<p>这次正好反过来。</p>
+<p>大表、公开 benchmark、私有 Code Bench、Token 消耗、安全评测，一次全摊开。</p>
+<p>但最值得聊的，不是又多了一个版本号。</p>
+<p><strong>GLM-5.3 和 GLM-5.2 用的是同一个基座，所有提升都来自后训练。</strong></p>
+<p>下面不是我整理的海报，是 2026 年 8 月 14 日 <a href="https://z.ai/blog/glm-5.3">智谱官方发布页</a> 的首屏截图。</p>
+<p><img alt="GLM-5.3官方发布页" src="https://file1.kamacoder.com/i/web/20260820102252.png" /></p>
+<p>官方把第一句话加了粗：<code>Scaling post-training is all we did for GLM-5.3.</code></p>
+<p>翻成人话：<strong>这次没有换更大的基座，而是把同一个模型放进更多、更长、更接近真实工作的环境里继续练。</strong></p>
+<p>这件事比“参数又涨了多少”更值得开发者看。</p>
+<h2 id="一-先把发布信息说清楚">一、先把发布信息说清楚</h2>
+<p>截至 2026 年 8 月 20 日，GLM-5.3 的状态是：</p>
+<ul>
+<li>API 和 GLM Coding Plan 已经能用</li>
+<li>只支持文本输入</li>
+<li>上下文窗口 100 万 Token</li>
+<li>最大输出 12.8 万 Token</li>
+<li><code>low</code>、<code>high</code>、<code>max</code> 三档思考强度，默认 <code>max</code></li>
+<li>不再支持关闭思考</li>
+<li>权重还没放出，官方承诺发布两周后开放</li>
+</ul>
+<p>最后一条最容易被标题带偏。</p>
+<p>官方称它是“最强开源权重编程模型”，但同一页也写了 Hugging Face <code>Coming Soon</code>。</p>
+<p><strong>所以现在准确的说法是：模型已经发布，API 已上线，权重计划在 8 月 28 日前后开放。</strong></p>
+<p>在权重真正下载到手、许可证也落地之前，先别把“即将开源”写成“已经开源”。</p>
+<h2 id="二-基座没变-编程为什么还能涨-50">二、基座没变，编程为什么还能涨 50%</h2>
+<p>官方给出的答案，是把后训练环境继续往真实工作推。</p>
+<p>过去很多 Coding benchmark，像一道道独立考题。</p>
+<p>GLM-5.3 的训练任务更像真实工程：拿到代码仓、内部文档、计算集群、实验结果，自己找瓶颈、改代码、跑实验，再证明端到端真的变快。</p>
+<p>有些环境，对熟练工程师来说也要做几天。</p>
+<p>难点也随之从“模型会不会写代码”，变成了“训练环境能不能执行、能不能验证、奖励会不会被钻空子”。</p>
+<p>智谱的做法是让研究 Agent 生成长程任务，再让 judge Agent 先跑一遍，检查任务是不是真的有解；验证器还要通过 oracle、no-op 和未完成状态检查，才能产出训练用的二元奖励。</p>
+<p><strong>模型不是多背了几道题，而是多进了很多可运行、可验收的工程现场。</strong></p>
+<p>这背后沿用了 GLM-5.2 的 SAO、长程上下文压缩和 <code>slime</code> 异步强化学习框架。</p>
+<p>官方称系统侧优化让长程 Coding RL 的端到端训练吞吐提高了 2.3 倍以上。</p>
+<p>环境更多、轨迹更长、训练跑得动，才有了这次小版本的大跳跃。</p>
+<h2 id="三-跑分确实涨了-但别只看蓝柱子">三、跑分确实涨了，但别只看蓝柱子</h2>
+<p>先看官方公开图。</p>
+<p><img alt="GLM-5.3公开跑分对比" src="https://file1.kamacoder.com/i/web/20260820102254.png" /></p>
+<p>几个提升很直观：</p>
+<table>
+<thead>
+<tr>
+<th>评测</th>
+<th style="text-align: right;">GLM-5.2</th>
+<th style="text-align: right;">GLM-5.3</th>
+<th style="text-align: right;">变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Terminal-Bench 3.0</td>
+<td style="text-align: right;">4.6</td>
+<td style="text-align: right;">28.3</td>
+<td style="text-align: right;">约 6.2 倍</td>
+</tr>
+<tr>
+<td>DeepSWE v1.1</td>
+<td style="text-align: right;">46.2</td>
+<td style="text-align: right;">66.9</td>
+<td style="text-align: right;">+20.7</td>
+</tr>
+<tr>
+<td>Agents' Last Exam</td>
+<td style="text-align: right;">23.8</td>
+<td style="text-align: right;">28.5</td>
+<td style="text-align: right;">+4.7</td>
+</tr>
+<tr>
+<td>AutomationBench</td>
+<td style="text-align: right;">26.2</td>
+<td style="text-align: right;">48.2</td>
+<td style="text-align: right;">+22.0</td>
+</tr>
+</tbody>
+</table>
+<p>“编程提升 50%”来自智谱自建的 Z.ai Code Bench，不是第三方公开榜。</p>
+<p>它的好处是更贴近真实本地开发环境，也更难被公开训练集污染。</p>
+<p>它的限制也很明显：题目、评分细节和复现环境不完全公开。</p>
+<p><strong>所以 50% 可以证明同一套内部尺子下进步很大，不能直接翻译成“你手里的项目效率必涨 50%”。</strong></p>
+<p>更有意思的是 Token 效率。</p>
+<p><img alt="Agent编程效果与Token关系" src="https://file1.kamacoder.com/i/web/20260820102259.png" /></p>
+<p>在 Z.ai Code Bench 上：</p>
+<ul>
+<li>GLM-5.3 <code>max</code>：34.5%，每题约 7.5 万输出 Token</li>
+<li>GLM-5.2 <code>max</code>：23.4%，每题约 9.6 万输出 Token</li>
+<li>GLM-5.3 <code>high</code>：31.4%，每题约 5 万输出 Token</li>
+<li>Claude Opus 4.8 <code>high</code>：29.5%，每题约 12 万输出 Token</li>
+<li>Claude Fable 5 <code>max</code>：39.5%，仍然最高</li>
+</ul>
+<p>这个结果比“多赢两个点”更实用。</p>
+<p><strong>Agent 写代码不是只付答案的钱，失败重试、无效思考和超长轨迹都要付钱。</strong></p>
+<p>如果同一类任务做得更准、输出还更短，真实账单和等待时间都会一起下降。</p>
+<p>当然，这仍然是官方私有 benchmark。</p>
+<p>拿自己的仓库做 A/B 测试，永远比转发柱状图靠谱。</p>
+<h2 id="四-真正意外的-是安全能力长得太快">四、真正意外的，是安全能力长得太快</h2>
+<p>这次发布标题里没有只写 Coding，还写了 <code>Emergent Cyber Capabilities</code>。</p>
+<p>智谱原本把漏洞发现数据和环境加入后训练，是想让模型更会找漏洞。</p>
+<p>结果继续 Scaling 后，模型不只会指出单点问题，还开始串联漏洞分析、验证和完整利用链。</p>
+<p><img alt="GLM-5.3安全能力跑分" src="https://file1.kamacoder.com/i/web/20260820102301.png" /></p>
+<p>三项数据要分开看：</p>
+<ul>
+<li>CyberGym：84.5%，高于 GLM-5.2 的 77.2%，也略高于 Fable 5 和 GPT-5.6 Sol</li>
+<li>ExploitBench：54.4%，是 GLM-5.2 的 24.4% 的两倍多</li>
+<li>ExploitGym：两小时完成 105 项、六小时 130 项；GLM-5.2 分别是 29 和 39 项</li>
+</ul>
+<p>但越接近真实利用，闭源前沿模型的领先也越明显。</p>
+<p>ExploitBench 上 Fable 5 是 78.0%，GPT-5.6 Sol 是 76.5%；ExploitGym 六小时，Fable 5 完成 247 项。</p>
+<p><strong>GLM-5.3 的结论不是“安全能力全面第一”，而是它在原本差距最大的利用链上，增长速度最快。</strong></p>
+<p>智谱还称，从 GLM-5.2 开始与国内安全团队合作，经过专家复核、筛选和去重，模型在 269 个项目里发现了 2436 个漏洞，其中 1097 个为严重或高危问题。</p>
+<p>这些数字已经被放进 <a href="https://cvd.z.ai/">Z.ai Security Disclosure Ledger</a> 持续披露。</p>
+<p>这也是一个必须正视的边界。</p>
+<p>漏洞发现可以帮维护者提前修复，也可能降低攻击门槛。</p>
+<p>官方因此把权重开放往后放两周，先做安全评估和加固。</p>
+<p>这个等待不是“开源跳票”的小事，是能力真的跨过了一条风险线。</p>
+<h2 id="五-价格没涨-但-api-迁移有一个坑">五、价格没涨，但 API 迁移有一个坑</h2>
+<p>按照 <a href="https://docs.z.ai/guides/overview/pricing">Z.ai 官方价格页</a>，GLM-5.3 和 GLM-5.2 单价相同：</p>
+<table>
+<thead>
+<tr>
+<th>每百万 Token</th>
+<th style="text-align: right;">GLM-5.3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入</td>
+<td style="text-align: right;">1.4 美元</td>
+</tr>
+<tr>
+<td>缓存输入</td>
+<td style="text-align: right;">0.26 美元</td>
+</tr>
+<tr>
+<td>输出</td>
+<td style="text-align: right;">4.4 美元</td>
+</tr>
+</tbody>
+</table>
+<p>价格没变，能力更强、平均输出更少，这才是 5.3 最直接的性价比提升。</p>
+<p>Coding Plan 已经全量切到 5.3，并改成积分额度；工作日 14:00—18:00 是高峰，其他时间和周末按 50% 积分消耗。</p>
+<p>但准备把 API 从 5.2 改到 5.3 的录友，别只换模型 ID。</p>
+<p><img alt="GLM-5.3 API迁移参数" src="https://file1.kamacoder.com/i/web/20260820102304.png" /></p>
+<p>GLM-5.3 强制开启思考。</p>
+<p>如果旧代码还在传：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="nt">"thinking"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"disabled"</span><span class="p">}}</span>
+</code></pre></div>
+
+<p>要先改成：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"model"</span><span class="p">:</span><span class="w"> </span><span class="s2">"glm-5.3"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"thinking"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"enabled"</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"reasoning_effort"</span><span class="p">:</span><span class="w"> </span><span class="s2">"low"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>再切模型 ID，否则请求会直接失败。</p>
+<p>复杂编程任务官方推荐 <code>max</code>；想控制延迟和成本，就从 <code>low</code> 或 <code>high</code> 开始测。</p>
+<p>这三个档位不是越高越好。</p>
+<p>一个能自动验收的批量任务，用 <code>low</code> 跑两次，可能比 <code>max</code> 跑一次更划算。</p>
+<h2 id="六-和-kimi-k3-deepseek-v4-claude-怎么选">六、和 Kimi K3、DeepSeek V4、Claude 怎么选</h2>
+<p>别站队，算三笔账：失败成本、数据边界、任务规模。</p>
+<table>
+<thead>
+<tr>
+<th>你的任务</th>
+<th>更适合谁</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>复杂 Coding Agent，想兼顾能力与 Token 成本</td>
+<td>GLM-5.3</td>
+<td>长程能力涨幅大，官方私榜 Token 效率不错，API 价格不变</td>
+</tr>
+<tr>
+<td>前端视觉、交互和原生多模态</td>
+<td><a href="./kimi-k3.html">Kimi K3</a></td>
+<td>K3 的视觉理解和前端审美更突出，GLM-5.3 当前只支持文本</td>
+</tr>
+<tr>
+<td>高失败成本的最难工程任务</td>
+<td><a href="./claude-fable-5.html">Claude Fable 5</a> / <a href="./gpt-5-6.html">GPT-5.6 Sol</a></td>
+<td>多项前沿评测仍更强，失败一次的代价高时先买成功率</td>
+</tr>
+<tr>
+<td>批量任务、价格敏感、结果可自动验证</td>
+<td><a href="./deepseek-v4.html">DeepSeek V4</a></td>
+<td>重点算吞吐和总成本，不必每一步都上最贵模型</td>
+</tr>
+<tr>
+<td>代码不能外传、必须私有化</td>
+<td>等 GLM-5.3 权重开放后实测</td>
+<td>截至本文写作时权重尚未发布，别拿未来承诺替代当前交付</td>
+</tr>
+</tbody>
+</table>
+<p>如果你已经在用 GLM Coding Plan，直接拿正在做的仓库试 5.3。</p>
+<p>重点看四个指标：一次成功率、总输出 Token、完成时间、人工接管次数。</p>
+<p>如果你等的是私有化部署，先别急。</p>
+<p>等权重、许可证、推理框架支持和第三方量化一起落地，再算显存和吞吐账。</p>
+<h2 id="写在最后">写在最后</h2>
+<p>GLM-5.3 最值得记住的，不是“又一个国产模型刷新跑分”。</p>
+<p>而是它证明了：<strong>基座不变，靠真实环境、可验证奖励和更长的后训练，仍然能把 Agent 能力往上推一大截。</strong></p>
+<p>但安全能力的意外爆发，也提醒所有人：模型越会完成真实工作，能力和风险就越难拆开。</p>
+<p>先拿真实任务测。</p>
+<p>别拿发布会的蓝柱子替你做决定。</p>
+<p>资料核对：</p>
+<ul>
+<li>官方发布页：https://z.ai/blog/glm-5.3   </li>
+<li>模型文档：https://docs.z.ai/guides/llm/glm-5.3 </li>
+<li>API 价格：https://docs.z.ai/guides/overview/pricing </li>
+<li>安全披露台账：https://cvd.z.ai/</li>
+</ul>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="glm-5-3-flash.html"><span class="k">← 上一篇</span><span class="v">GLM-5.3-Flash发布：320B总参数、18B激活、原生多模态，价格只有GLM-5.3十分之一，和DeepSeek V4、Kimi K3怎么选</span></a><a class="nx" href="gpt-5-5.html"><span class="k">下一篇 →</span><span class="v">GPT-5.5发布：OpenAI最强Agent编程模型，稳定自主运行7小时，价格翻倍值不值？</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#glm-5-3-发布-基座没变-编程涨-50-安全能力却意外爆发">GLM-5.3 发布：基座没变，编程涨 50%，安全能力却意外爆发</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/glm-5-3.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

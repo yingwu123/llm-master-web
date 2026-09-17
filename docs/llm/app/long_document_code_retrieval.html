@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>长文档与代码RAG怎么检索？结构化切分、Parent-Child、AST与版本权限过滤 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>app</span><span class="sep">›</span><span>long_document_code_retrieval</span></div>
+      <h1 id="长文档与代码怎么检索-固定切片为什么不够">长文档与代码怎么检索？固定切片为什么不够</h1>
+<p>上一篇<a href="./rag_optimization.html">《RAG优化不是“加个Rerank”就完了》</a>讲了混合检索、Rerank 和 Parent-Child Retrieval。</p>
+<p>但碰到几百页的需求文档，或者几十万行的代码仓库，只知道“父子块”还不够。这里多了三个硬问题：<strong>结构不能断、版本不能错、权限不能漏。</strong></p>
+<p>面试官问：“你们的代码知识库怎么切片？怎么保证搜到的是当前分支，而且用户有权限看？”</p>
+<p>很多录友会回答：“按 512 Token 切，加一点 overlap，再做向量检索。”</p>
+<p>这个回答适合原型，不适合真实系统。固定切片会把标题和正文、函数签名和函数体拆开；不记录分支与提交，可能拿旧代码回答；不在检索前做权限过滤，还可能把受限内容带进候选集。</p>
+<p>真正要解决的不是“Chunk 设多大”，而是：<strong>怎么用小块找准，再按结构拿回完整、当前且有权限的证据。</strong></p>
+<h2 id="简要回答">简要回答</h2>
+<ul>
+<li>长文档按标题、章节、条款建树，代码按类、函数、方法等 AST 节点切分；</li>
+<li>子块负责检索精度，父块负责给模型补齐上下文，两者用 <code>parent_id</code> 关联；</li>
+<li>代码检索要组合语义检索与关键词检索，符号名、路径和错误码不能只靠向量；</li>
+<li>每个块都要携带 <code>repo</code>、<code>branch</code>、<code>commit</code>、路径和 ACL 等元数据；</li>
+<li>在线检索先按身份和目标版本过滤，再召回、Rerank、父级扩展和组装 Context。</li>
+</ul>
+<p>一句话：<strong>检索单位不等于返回单位，相关不等于可用，可用还必须满足完整、当前和有权限。</strong></p>
+<h2 id="详细回答">详细回答</h2>
+<h3 id="固定切片为什么在长文档里容易失效">固定切片为什么在长文档里容易失效？</h3>
+<p><a href="./how_to_chunking.html">《RAG切片策略》</a>已经讲过 Chunk 太大和太小的矛盾。长文档会把这个问题继续放大。</p>
+<p>一份需求文档通常是“章节 → 小节 → 条款 → 表格”的层级。某个子块里只有“退款周期为 7 个工作日”，但适用范围可能写在父标题“企业版年付客户”里。只返回子块，答案缺条件；返回整篇文档，噪声和 Token 又太多。</p>
+<p>所以长文档不能只保存文本，还要保存它在标题树中的位置，例如：</p>
+<div class="codehilite"><pre><span></span><code>产品手册 / 计费规则 / 企业版 / 退款政策
+</code></pre></div>
+
+<p>这条路径既能参与检索和 Rerank，也能在命中后帮助系统找到父章节、相邻条款和表格说明。</p>
+<h3 id="代码为什么不能按字符数硬切">代码为什么不能按字符数硬切？</h3>
+<p>代码的自然边界不是句号和换行，而是模块、类、函数、方法和语句块。</p>
+<p>如果固定切片刚好从函数中间切开，Chunk 里可能只有实现，没有函数名、参数和返回类型；也可能只有调用点，没有被调用函数的定义。向量能判断“语义相似”，却不知道这个片段属于哪个符号。</p>
+<p>更合适的做法是先用解析器生成语法树，再按 AST 节点切分。<a href="https://tree-sitter.github.io/tree-sitter/index.html">Tree-sitter 官方文档</a>说明，它可以为源码构建具体语法树，并在文件编辑后增量更新。</p>
+<p>工程中通常保留这些信息：</p>
+<ul>
+<li>函数或方法签名、注释和函数体；</li>
+<li>所属类、模块、文件路径和符号全名；</li>
+<li>起止行号、语言、导入关系和被调用符号；</li>
+<li>仓库、分支、提交哈希与内容哈希。</li>
+</ul>
+<p>AST 负责“不把结构切坏”，但不负责解决所有检索问题。README、配置、SQL、错误日志仍要用对应的结构解析器或文本切分策略。</p>
+<h3 id="parent-child怎么兼顾找得准和读得懂">Parent-Child怎么兼顾找得准和读得懂？</h3>
+<p>核心做法是建立两级或多级节点：</p>
+<ul>
+<li><strong>Child</strong>：函数、短条款或小段落，用于 Embedding、关键词召回和 Rerank；</li>
+<li><strong>Parent</strong>：类、章节或完整规则，用于最终返回给模型；</li>
+<li><strong>Document</strong>：文件或整篇文档，只在跨章节任务中按需继续向上扩展。</li>
+</ul>
+<p>每个 Child 保存 <code>parent_id</code>，父节点保存在文档存储中。命中 Child 后，不是机械返回整篇文档，而是根据问题取父节点、标题路径、必要的相邻节点。</p>
+<p><a href="https://docs.llamaindex.ai/en/v0.10.18/module_guides/loading/node_parsers/modules.html">LlamaIndex 的层级节点说明</a>也采用粗到细的节点层级：小节点参与检索，在需要时替换或合并为父级上下文。</p>
+<!-- drawio源文件: ./drawio/long_document_code_retrieval_01_hierarchical_flow.drawio -->
+
+<p><img alt="长文档与代码层级检索" src="https://file1.kamacoder.com/i/web/20260828142443.png" /></p>
+<p>这张图回答的是：长文档和代码如何从结构化建索引，到带版本、权限条件检索，再用父级补齐完整证据。主线不是“切得更细”，而是把精准召回、结构补全和访问边界放进同一条链路。</p>
+<h3 id="为什么版本和权限必须进入索引">为什么版本和权限必须进入索引？</h3>
+<p>代码不是一份静态文本。同一路径在 <code>main</code>、功能分支和历史 commit 上可能完全不同。Git 的分支会随提交移动，而 commit 表示确定的快照，相关关系可参考 <a href="https://git-scm.com/docs/gitdatamodel.html">Git 数据模型文档</a>。</p>
+<p>因此索引至少要保存：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"repo"</span><span class="p">:</span><span class="w"> </span><span class="s2">"payment-service"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"src/refund/RefundService.java"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"RefundService.apply"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"branch"</span><span class="p">:</span><span class="w"> </span><span class="s2">"feature/refund-v2"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"commit"</span><span class="p">:</span><span class="w"> </span><span class="s2">"a1b2c3d"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"parent_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"class:RefundService"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"acl"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"team:payment"</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>在线查询时，用户问题必须和当前工作区范围一起进入检索：目标仓库是什么、当前分支或 commit 是什么、调用者属于哪个租户和权限组。</p>
+<p><strong>先过滤，后相似度召回。</strong> 如果先召回再删权限不匹配的结果，受限内容仍可能进入候选缓存、Rerank 服务或调试日志，而且删除后候选数量不足，召回质量也会突然下降。</p>
+<p><a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/document-level-security.html">Elasticsearch 文档级安全说明</a>也是通过查询限制角色可访问的文档。具体产品可以不同，但原则不变：访问控制要在检索边界生效。</p>
+<h3 id="在线检索链路怎么跑">在线检索链路怎么跑？</h3>
+<p>一条可落地的链路通常是：</p>
+<ol>
+<li>从会话或 IDE 获取 <code>repo + branch/commit + user/tenant</code>；</li>
+<li>解析 Query，识别符号名、文件名、错误码和自然语言意图；</li>
+<li>先做版本、路径和 ACL 过滤；</li>
+<li>同时跑向量检索与 BM25，合并候选；</li>
+<li>在 Child 粒度 Rerank，避免大父块稀释相关度；</li>
+<li>根据 <code>parent_id</code> 取父级、标题路径或必要的相邻节点；</li>
+<li>去重并按 Token 预算组装 Context，附带路径、行号和 commit 作为引用。</li>
+</ol>
+<p>这里最容易写反的是第五步和第六步。<strong>先在小块上排序，再向父级扩展。</strong> 如果先把所有 Child 展开成大块再 Rerank，相关信号会被大量父级文本冲淡，延迟也会上升。</p>
+<h3 id="命中子块后-要不要总是返回整个父块">命中子块后，要不要总是返回整个父块？</h3>
+<p>不要。</p>
+<p>父级扩展是一个预算决策，不是固定动作。一个函数只有 30 行，可以返回整个函数；一个类有 3000 行，就只补签名、字段、目标方法和直接依赖。一个章节只有两页，可以返回完整章节；一个章节几十页，就补标题路径和相邻条款。</p>
+<p>可以设置三个门槛：父块最大 Token、允许扩展的层级、相邻节点数量。超过预算时，优先保留定义、约束、输入输出和直接依赖，不要粗暴截断末尾。</p>
+<h2 id="项目里怎么落地和评估">项目里怎么落地和评估？</h2>
+<p>先用最小方案建立 Baseline：结构化切分、Child 混合检索、Parent 补全，以及版本和 ACL 前置过滤。不要一开始就加调用图、摘要树和复杂 Agent。</p>
+<p>评估集要专门覆盖五类问题：跨小节答案、精确符号查找、同文件不同分支、历史 commit、无权限访问。除了 Recall@K、MRR 和答案质量，还要增加：</p>
+<ul>
+<li><strong>父级补全正确率</strong>：命中 Child 后是否拿到了正确父节点；</li>
+<li><strong>版本错误率</strong>：是否引用了目标 commit 之外的内容；</li>
+<li><strong>越权召回率</strong>：无权内容进入候选的比例，目标必须是 0；</li>
+<li><strong>Context有效率</strong>：进入上下文的 Token 中有多少真正支持答案；</li>
+<li><strong>索引新鲜度</strong>：代码更新到可检索之间的延迟。</li>
+</ul>
+<p>索引更新时用 <code>commit + path + content_hash</code> 判断新增、修改和删除，只重建受影响节点及父子关系。否则每次全量重建，代码库一大，成本和更新延迟都会失控。</p>
+<h2 id="知识拓展">知识拓展</h2>
+<p><strong>Q：有了 AST 切分，还需要关键词检索吗？</strong></p>
+<p>需要。函数名、类名、错误码、配置键和路径是精确符号，BM25 或符号索引通常比纯向量更稳；自然语言描述和业务意图再交给向量检索。两路召回后统一 Rerank。</p>
+<p><strong>Q：Parent-Child 和增加 overlap 有什么区别？</strong></p>
+<p>Overlap 只缓解相邻切片的边界断裂，不知道标题、类和函数的真实父子关系。Parent-Child 是显式结构关系，可以跨多个子块补回完整父级，但索引和存储更复杂。</p>
+<p><strong>Q：代码依赖是不是应该全部展开进 Context？</strong></p>
+<p>不是。调用图可能迅速扩散。先返回目标符号，再按问题补一跳直接依赖；只有测试失败分析、跨模块重构等任务，才逐层扩展并设置深度与 Token 上限。</p>
+<p><strong>Q：多个分支会不会让索引膨胀？</strong></p>
+<p>会。常见做法是长期保留默认分支和活跃分支，对历史版本按需构建或设置过期策略；相同内容可按内容哈希去重，但版本、路径和 ACL 关系不能丢。</p>
+<p>别再把“512 Token + overlap”当成长文档和代码检索的完整答案。</p>
+<p>能证明返回的内容找得准、补得全、版本对、权限安全，才算把这套检索系统做完整。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="kv_cache_paged_attention.html"><span class="k">← 上一篇</span><span class="v">KV Cache为什么会吃光显存？PagedAttention、Prefix Cache与大模型推理优化</span></a><a class="nx" href="lora_qlora.html"><span class="k">下一篇 →</span><span class="v">LoRA、QLoRA低秩微调详解：为什么低秩微调这么流行，rank怎么设、显存怎么省</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#长文档与代码怎么检索-固定切片为什么不够">长文档与代码怎么检索？固定切片为什么不够</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/app/long_document_code_retrieval.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

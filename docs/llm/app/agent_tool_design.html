@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>工具设计决定Agent上限：Tool Use、Function Calling、参数Schema和返回值怎么设计 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>app</span><span class="sep">›</span><span>agent_tool_design</span></div>
+      <h1 id="工具设计决定-agent-上限">工具设计决定 Agent 上限</h1>
+<p><a href="https://programmercarl.com/other/project_kamaClaude.html">
+  <img src="https://file1.kamacoder.com/i/web/2026-06-16_14-36-54.jpg" style="width:100%;cursor:pointer;" alt="KamaClaude">
+</a></p>
+<p>前几篇我们把 Agent 的基础逻辑讲清楚了。</p>
+<p><a href="./agent_intro.html">Agent 到底是什么</a>，核心是：<strong>Agent 不是更会聊天，而是能围绕目标持续行动。</strong></p>
+<p><a href="./react_reflection_planning.html">ReAct、Reflection、规划执行</a>，核心是：<strong>Agent 要能边做边判断，做完还要检查。</strong></p>
+<p><a href="./agent_vs_workflow.html">Agent vs Workflow</a>，核心是：<strong>流程能写死，就别硬上 Agent；路径不确定，才让 Agent 动态决策。</strong></p>
+<p>但真正开始做 Agent，很多录友会马上踩下一个坑：</p>
+<p>“我已经给 Agent 接了工具，为什么它还是经常选错、参数乱填、结果看不懂，甚至越跑越偏？”</p>
+<p>这时候别急着怪模型。</p>
+<p>很多 Agent 不是模型不行，而是工具设计太差。</p>
+<p><strong>工具设计，直接决定 Agent 的能力上限。</strong></p>
+<p>你给它一个含糊的工具，它就只能猜。</p>
+<p>你给它一堆粒度混乱的工具，它就会乱选。</p>
+<p>你给它一个返回值全是自然语言的工具，它下一步就没法稳定判断。</p>
+<p>你给它一个没有权限边界的写操作工具，它迟早会把生产系统干出事故。</p>
+<p>这篇就专门讲：<strong>Agent 的工具到底应该怎么设计。</strong></p>
+<p><img alt="工具设计决定 Agent 上限：含糊工具让 Agent 乱猜，清晰工具让 Agent 稳定行动" src="https://file1.kamacoder.com/i/web/20260520110147_agent_tool_design_01_bad_vs_good_tool_compressed.png" /></p>
+<h2 id="一-工具不是-api-列表-而是-agent-的行动边界">一、工具不是 API 列表，而是 Agent 的行动边界</h2>
+<p>很多人一开始做工具调用，思路是这样的：</p>
+<p>“后端已经有一堆接口了，我把这些接口都注册给大模型，不就完事了吗？”</p>
+<p>不完事。</p>
+<p>这也是很多 Agent 项目失控的开始。</p>
+<p>后端 API 是给程序员用的。</p>
+<p>Agent 工具是给模型决策用的。</p>
+<p>这两个东西不是一回事。</p>
+<p>程序员调用 API 时，脑子里知道业务含义、调用时机、参数来源、异常处理。</p>
+<p>模型不知道。</p>
+<p>模型看到的只是工具名、工具描述、参数 Schema 和历史上下文。</p>
+<p>如果你把一堆内部接口原样丢给模型，比如：</p>
+<ul>
+<li><code>queryData</code></li>
+<li><code>getInfo</code></li>
+<li><code>submit</code></li>
+<li><code>updateStatus</code></li>
+<li><code>doAction</code></li>
+</ul>
+<p>那它只能猜。</p>
+<p>它不知道 <code>queryData</code> 查的是订单、用户、日志，还是财务数据。</p>
+<p>它不知道 <code>submit</code> 是提交草稿，还是直接提交审批。</p>
+<p>它不知道 <code>updateStatus</code> 会不会产生真实业务影响。</p>
+<p>所以工具设计的第一条原则是：</p>
+<p><strong>工具不是把 API 暴露给模型，而是把可控动作封装成模型能理解、能选择、能恢复的能力。</strong></p>
+<p>这句话有点长，但很关键。</p>
+<p>一个好工具，至少要回答四个问题：</p>
+<ol>
+<li>这个工具能做什么？</li>
+<li>什么时候应该用它？</li>
+<li>什么时候不应该用它？</li>
+<li>调用完之后，Agent 能不能根据结果继续判断？</li>
+</ol>
+<p>如果这四个问题没回答清楚，Agent 就会开始自由发挥。</p>
+<p>自由发挥听起来很智能。</p>
+<p>放到生产里，就是不稳定。</p>
+<h2 id="二-工具描述-不要只写-查询订单信息">二、工具描述：不要只写“查询订单信息”</h2>
+<p>先讲最容易被忽略的地方：工具描述。</p>
+<p>很多工具描述写得特别随意。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"get_order"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"查询订单信息"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这描述太浅了。</p>
+<p>模型看完只能知道这个工具能查订单。</p>
+<p>但它不知道：</p>
+<ul>
+<li>查的是订单基础信息，还是支付、物流、退款状态？</li>
+<li>用户只提供手机号时能不能用？</li>
+<li>订单不存在时会返回什么？</li>
+<li>这个工具适合排查什么问题？</li>
+<li>它能不能替代退款工具？</li>
+</ul>
+<p>对人来说，“查询订单信息”也许够了。</p>
+<p>对 Agent 来说，不够。</p>
+<p>因为 Agent 要靠描述判断“下一步该不该用它”。</p>
+<p>更好的描述应该这样写：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"get_order_detail"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"根据订单ID查询订单的基础状态、支付状态、发货状态和退款状态。适用于用户询问订单进度、支付是否成功、是否已发货、是否已退款等问题。不用于创建订单、修改订单或发起退款。"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>你看，差别很明显。</p>
+<p>好的工具描述不只是说“能做什么”，还要说清楚“适用边界”。</p>
+<p>尤其要写清楚三类信息：</p>
+<p><strong>第一，工具能解决什么问题。</strong></p>
+<p>比如“查询订单状态”“查询接口延迟”“检索知识库文档”“创建工单草稿”。</p>
+<p>不要写“处理用户请求”这种空话。</p>
+<p><strong>第二，工具不能做什么。</strong></p>
+<p>比如查询工具不能修改数据。</p>
+<p>草稿工具不能直接发送消息。</p>
+<p>库存查询工具不能代表最终可购买数量。</p>
+<p>这个“不做什么”很重要。</p>
+<p>因为 Agent 最怕把相似工具混在一起。</p>
+<p><strong>第三，什么时候优先使用它。</strong></p>
+<p>比如：</p>
+<p>“当用户提供订单ID时优先使用。”</p>
+<p>“当需要定位接口性能问题时，先用该工具确认异常时间段。”</p>
+<p>“当知识库检索无结果时，不要反复调用，应改为询问用户补充信息。”</p>
+<p>这些描述会直接影响模型的工具选择。</p>
+<p>工具描述不是注释。</p>
+<p><strong>工具描述就是 Agent 的使用说明书。</strong></p>
+<p><img alt="工具描述要写出使用边界：能做什么、不能做什么、什么时候优先用" src="https://file1.kamacoder.com/i/web/20260520110153_agent_tool_design_05_description_boundary_compressed.png" /></p>
+<h2 id="三-参数设计-别把脏活都丢给模型">三、参数设计：别把脏活都丢给模型</h2>
+<p>工具描述决定模型会不会选对工具。</p>
+<p>参数设计决定模型能不能把工具用对。</p>
+<p>很多 Agent 工具的参数设计很粗暴：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"search_logs"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"parameters"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"query"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>看起来很灵活。</p>
+<p>实际上很危险。</p>
+<p>因为你把所有脏活都丢给模型了。</p>
+<p>模型要自己决定：</p>
+<ul>
+<li>查哪个服务</li>
+<li>查哪个时间段</li>
+<li>查什么日志级别</li>
+<li>查哪些关键词</li>
+<li>返回多少条</li>
+<li>要不要按 traceId 过滤</li>
+</ul>
+<p>这就很容易出问题。</p>
+<p>它可能把时间写成“昨天晚上”。</p>
+<p>可能把服务名写错。</p>
+<p>可能查了太宽的范围，导致工具超时。</p>
+<p>可能查了太窄的范围，什么都查不到。</p>
+<p>更好的方式，是把参数拆清楚：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"search_service_logs"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"查询指定服务在固定时间范围内的日志，用于排查接口错误、超时和异常调用链。"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"parameters"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"object"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"service_name"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"服务名称，例如 payment-service"</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">"start_time"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"查询开始时间，格式为 YYYY-MM-DD HH:mm:ss"</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">"end_time"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"查询结束时间，格式为 YYYY-MM-DD HH:mm:ss"</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">"level"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"enum"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"ERROR"</span><span class="p">,</span><span class="w"> </span><span class="s2">"WARN"</span><span class="p">,</span><span class="w"> </span><span class="s2">"INFO"</span><span class="p">],</span>
+<span class="w">        </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"日志级别，排查故障时优先使用 ERROR 或 WARN"</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">"keyword"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"可选关键词，例如接口路径、错误码或 traceId"</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">"required"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"service_name"</span><span class="p">,</span><span class="w"> </span><span class="s2">"start_time"</span><span class="p">,</span><span class="w"> </span><span class="s2">"end_time"</span><span class="p">,</span><span class="w"> </span><span class="s2">"level"</span><span class="p">]</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这样 Agent 就不会随便编一个大字符串。</p>
+<p>它必须按结构填参数。</p>
+<p>这就是参数 Schema 的价值。</p>
+<p>它不是为了让接口看起来高级。</p>
+<p><strong>它是为了把模型的自由度约束在合理范围内。</strong></p>
+<p><img alt="参数 Schema 把模型自由度收窄到可控范围" src="https://file1.kamacoder.com/i/web/20260520110154_agent_tool_design_06_parameter_schema_funnel_compressed.png" /></p>
+<p>参数设计有几个很实用的原则。</p>
+<h3 id="1-能枚举就枚举">1. 能枚举就枚举</h3>
+<p>比如日志级别、订单状态、排序方式、操作类型。</p>
+<p>能用 enum，就不要让模型自由填字符串。</p>
+<p>自由字符串看似灵活，但很容易出现：</p>
+<ul>
+<li><code>err</code></li>
+<li><code>error</code></li>
+<li><code>ERROR_LOG</code></li>
+<li><code>fatal</code></li>
+<li><code>错误</code></li>
+</ul>
+<p>后端还要做一堆兼容。</p>
+<p>枚举能减少很多不必要的不稳定。</p>
+<h3 id="2-时间-数量-范围要明确">2. 时间、数量、范围要明确</h3>
+<p>Agent 很喜欢写模糊表达：</p>
+<ul>
+<li>最近</li>
+<li>昨晚</li>
+<li>前几天</li>
+<li>多查一点</li>
+</ul>
+<p>这些对人能理解，对工具不稳定。</p>
+<p>工具参数里最好要求明确格式：</p>
+<ul>
+<li><code>start_time</code></li>
+<li><code>end_time</code></li>
+<li><code>limit</code></li>
+<li><code>page_size</code></li>
+<li><code>sort_by</code></li>
+</ul>
+<p>同时加上默认上限。</p>
+<p>比如日志查询最多返回 100 条。</p>
+<p>检索工具最多返回 5 个文档块。</p>
+<p>监控查询时间范围不能超过 7 天。</p>
+<p>这些限制不是小题大做。</p>
+<p>它们是在防止 Agent 一次调用把系统拖垮。</p>
+<h3 id="3-不要让一个参数承担多个含义">3. 不要让一个参数承担多个含义</h3>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"user_input"</span><span class="p">:</span><span class="w"> </span><span class="s2">"帮我查一下张三昨天的订单"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这个参数就太混乱。</p>
+<p>它里面混了用户、时间、对象和意图。</p>
+<p>工具端还要再做一次理解。</p>
+<p>如果工具本身还要靠大模型再解析，那你就把不确定性叠了两层。</p>
+<p>更好的方式是拆开：</p>
+<ul>
+<li><code>user_name</code></li>
+<li><code>date</code></li>
+<li><code>query_type</code></li>
+</ul>
+<p>参数越清楚，Agent 越稳定。</p>
+<h3 id="4-缺关键参数时-不要让模型硬编">4. 缺关键参数时，不要让模型硬编</h3>
+<p>这个特别重要。</p>
+<p>用户问：</p>
+<p>“帮我查一下订单怎么还没发货？”</p>
+<p>但他没给订单号。</p>
+<p>这时候 Agent 不应该编一个订单号，也不应该直接调用工具。</p>
+<p>更好的工具描述和系统约束应该告诉它：</p>
+<p><strong>缺少必填参数时，先向用户追问。</strong></p>
+<p>比如：</p>
+<p>“需要订单ID才能查询发货状态，请你提供一下订单号。”</p>
+<p>很多 Agent 翻车，就是在关键信息缺失时硬调用。</p>
+<p>它不是在解决问题。</p>
+<p>它是在制造幻觉。</p>
+<h2 id="四-返回值设计-别只返回一段自然语言">四、返回值设计：别只返回一段自然语言</h2>
+<p>很多人只重视工具入参，不重视工具返回值。</p>
+<p>这也很容易出问题。</p>
+<p>比如一个订单查询工具返回：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"result"</span><span class="p">:</span><span class="w"> </span><span class="s2">"订单已经支付成功，目前正在仓库处理中，预计明天发货。"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>人看当然没问题。</p>
+<p>但 Agent 下一步要怎么判断？</p>
+<p>它要不要继续查物流？</p>
+<p>它要不要告诉用户退款入口？</p>
+<p>它怎么知道这是支付成功，还是发货中？</p>
+<p>如果返回值只有一段自然语言，模型又要重新理解一遍。</p>
+<p>这会带来新的不稳定。</p>
+<p>更好的返回值应该结构化：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"order_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"202605190001"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"order_status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PROCESSING"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"payment_status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PAID"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"shipping_status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NOT_SHIPPED"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"refund_status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"estimated_shipping_time"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-05-20"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"evidence"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">"支付流水号 PAY_8891 已确认"</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">"仓库系统状态为待出库"</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这样 Agent 就能稳定判断：</p>
+<ul>
+<li>支付成功了</li>
+<li>还没发货</li>
+<li>没有退款</li>
+<li>可以告诉用户预计发货时间</li>
+<li>如果用户继续问退款，再调用退款规则工具</li>
+</ul>
+<p>这才是能被 Agent 消费的返回值。</p>
+<p>工具返回值设计，至少要包含三类信息。</p>
+<p><img alt="工具返回值要能驱动 Agent 下一步判断" src="https://file1.kamacoder.com/i/web/20260520110156_agent_tool_design_07_return_value_decision_compressed.png" /></p>
+<p><strong>第一，状态字段。</strong></p>
+<p>比如：</p>
+<ul>
+<li><code>success</code></li>
+<li><code>status</code></li>
+<li><code>error_code</code></li>
+<li><code>order_status</code></li>
+<li><code>risk_level</code></li>
+</ul>
+<p>状态字段让 Agent 能做分支判断。</p>
+<p><strong>第二，证据字段。</strong></p>
+<p>比如：</p>
+<ul>
+<li>数据来源</li>
+<li>命中文档</li>
+<li>查询时间范围</li>
+<li>监控指标</li>
+<li>日志片段 ID</li>
+</ul>
+<p>证据字段让 Agent 的最终回答不只是猜。</p>
+<p>它能说“我根据什么得出这个结论”。</p>
+<p><strong>第三，下一步提示。</strong></p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"suggested_next_actions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">"如果用户询问物流单号，可以调用 get_shipping_detail"</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">"如果用户要求取消订单，可以先调用 check_cancel_policy"</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这个字段不是必须，但在复杂 Agent 里很有用。</p>
+<p>它不是替 Agent 做决定，而是给 Agent 一个可靠的行动提示。</p>
+<p>尤其是业务系统里，不同状态对应不同后续动作。</p>
+<p>把这些动作提示写在工具返回里，比让模型凭空猜稳定得多。</p>
+<p><img alt="好工具是一份清晰契约：描述、参数、返回值和错误语义缺一不可" src="https://file1.kamacoder.com/i/web/20260520110149_agent_tool_design_02_tool_contract_compressed.png" /></p>
+<h2 id="五-工具粒度-太细会跑断-太粗会失控">五、工具粒度：太细会跑断，太粗会失控</h2>
+<p>工具粒度，是 Agent 设计里最容易纠结的问题。</p>
+<p>工具应该设计得细一点，还是粗一点？</p>
+<p>答案是：都不能极端。</p>
+<h3 id="1-工具太细-agent-会被迫做大量低级决策">1. 工具太细，Agent 会被迫做大量低级决策</h3>
+<p>比如你给 Agent 这些工具：</p>
+<ul>
+<li><code>get_user_id_by_phone</code></li>
+<li><code>get_order_ids_by_user_id</code></li>
+<li><code>get_order_base_info</code></li>
+<li><code>get_payment_info</code></li>
+<li><code>get_shipping_info</code></li>
+<li><code>get_refund_info</code></li>
+</ul>
+<p>这些工具单看都没问题。</p>
+<p>但如果用户只是问：</p>
+<p>“我买的东西怎么还没发货？”</p>
+<p>Agent 可能要连续调用五六次。</p>
+<p>中间任何一步参数错了、结果空了、状态没记录好，后面就断了。</p>
+<p>工具太细，会让 Agent 变成一个脆弱的流程编排器。</p>
+<p>模型要做太多机械步骤。</p>
+<p>这不是它擅长的。</p>
+<h3 id="2-工具太粗-agent-又看不见过程">2. 工具太粗，Agent 又看不见过程</h3>
+<p>另一种极端是：</p>
+<ul>
+<li><code>handle_order_problem</code></li>
+<li><code>solve_user_issue</code></li>
+<li><code>process_after_sales</code></li>
+</ul>
+<p>这种工具太粗。</p>
+<p>Agent 调用之后，里面到底做了什么，它不知道。</p>
+<p>返回一个“处理成功”，它也不知道成功在哪里。</p>
+<p>出错了，也不知道是订单不存在、支付失败、库存不足，还是物流异常。</p>
+<p>工具太粗，Agent 表面上很省事。</p>
+<p>但系统会变成黑盒。</p>
+<p>不可解释，也不好调试。</p>
+<h3 id="3-合理粒度-围绕一个业务动作封装">3. 合理粒度：围绕一个业务动作封装</h3>
+<p>比较合理的粒度是：</p>
+<p><strong>一个工具完成一个清晰的业务动作，并返回可判断的结构化结果。</strong></p>
+<p>比如：</p>
+<ul>
+<li><code>get_order_detail</code>：查询订单完整状态</li>
+<li><code>check_refund_policy</code>：判断当前订单是否满足退款规则</li>
+<li><code>create_refund_draft</code>：创建退款申请草稿</li>
+<li><code>confirm_refund_submit</code>：用户确认后提交退款</li>
+<li><code>search_service_logs</code>：查询指定服务日志</li>
+<li><code>query_api_latency</code>：查询接口延迟指标</li>
+<li><code>get_deploy_records</code>：查询发布时间段内的发布记录</li>
+</ul>
+<p>这些工具既不是底层数据库接口，也不是“解决一切”的超级工具。</p>
+<p>它们都是围绕一个明确业务动作设计的。</p>
+<p>这样 Agent 才能稳定组合。</p>
+<p>面试时你可以这么说：</p>
+<p><strong>工具粒度要介于底层 API 和完整业务流程之间。太细会增加多步调用失败率，太粗会降低可控性和可解释性。</strong></p>
+<p>这句话很好用。</p>
+<p><img alt="工具粒度：太细会跑断，太粗会失控" src="https://file1.kamacoder.com/i/web/20260520110150_agent_tool_design_03_tool_granularity_compressed.png" /></p>
+<h2 id="六-有副作用的工具-必须单独设计边界">六、有副作用的工具，必须单独设计边界</h2>
+<p>Agent 工具大致可以分两类：</p>
+<p><strong>查询类工具</strong>和<strong>动作类工具</strong>。</p>
+<p>查询类工具只读数据。</p>
+<p>比如查订单、查日志、查监控、查知识库。</p>
+<p>动作类工具会改变外部世界。</p>
+<p>比如发邮件、提交退款、修改配置、重启服务、删除文件、创建工单。</p>
+<p>这两类工具绝对不能混在一起设计。</p>
+<p>因为风险完全不一样。</p>
+<p>查询错了，最多答案不准。</p>
+<p>动作错了，可能直接造成业务事故。</p>
+<p>所以有副作用的工具，至少要加三层保护。</p>
+<h3 id="1-读写工具分开">1. 读写工具分开</h3>
+<p>不要设计这种工具：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"handle_refund"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"处理退款问题"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>它太模糊了。</p>
+<p>处理退款到底是查规则，还是直接提交退款？</p>
+<p>更好的设计是拆开：</p>
+<ul>
+<li><code>get_order_detail</code></li>
+<li><code>check_refund_policy</code></li>
+<li><code>create_refund_draft</code></li>
+<li><code>submit_refund_after_user_confirm</code></li>
+</ul>
+<p>读是读。</p>
+<p>写是写。</p>
+<p>草稿是草稿。</p>
+<p>正式提交是正式提交。</p>
+<p>边界越清楚，越不容易出事故。</p>
+<h3 id="2-高风险动作必须二次确认">2. 高风险动作必须二次确认</h3>
+<p>凡是会影响钱、权限、数据、通知、生产环境的操作，都不要让 Agent 单独决定。</p>
+<p>比如：</p>
+<ul>
+<li>退款</li>
+<li>扣费</li>
+<li>删除数据</li>
+<li>修改权限</li>
+<li>发送正式邮件</li>
+<li>重启线上服务</li>
+<li>改生产配置</li>
+</ul>
+<p>这些操作前，应该让 Agent 先生成草稿或执行计划。</p>
+<p>然后让用户确认。</p>
+<p>确认后再调用真正的执行工具。</p>
+<p>这不是不智能。</p>
+<p>这是工程安全。</p>
+<p>一个成熟的 Agent 系统，必须知道什么时候停下来让人确认。</p>
+<h3 id="3-工具返回要记录审计信息">3. 工具返回要记录审计信息</h3>
+<p>动作类工具返回值里，最好包含：</p>
+<ul>
+<li>操作人</li>
+<li>操作对象</li>
+<li>操作时间</li>
+<li>操作前状态</li>
+<li>操作后状态</li>
+<li>审计 ID</li>
+<li>是否需要人工复核</li>
+</ul>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CREATE_REFUND_DRAFT"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"draft_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"RF_DRAFT_10086"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"order_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"202605190001"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"amount"</span><span class="p">:</span><span class="w"> </span><span class="mf">199.00</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"requires_user_confirm"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"audit_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AUDIT_7788"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这样 Agent 后续回答就不会说：</p>
+<p>“我已经退款了。”</p>
+<p>而应该说：</p>
+<p>“我已经创建退款申请草稿，需要你确认后才会正式提交。”</p>
+<p>这就是工具边界带来的稳定性。</p>
+<p><img alt="有副作用的工具必须加边界：先草稿、再确认、最后执行和审计" src="https://file1.kamacoder.com/i/web/20260520110152_agent_tool_design_04_side_effect_boundary_compressed.png" /></p>
+<h2 id="七-错误信息要能让-agent-恢复">七、错误信息要能让 Agent 恢复</h2>
+<p>很多工具失败时，返回值只有一句：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"系统异常"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这对 Agent 没什么帮助。</p>
+<p>它不知道接下来该重试、换参数、换工具，还是告诉用户稍后再试。</p>
+<p>好的错误返回，应该能帮助 Agent 恢复。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"error_code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MISSING_REQUIRED_PARAMETER"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"缺少订单ID"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"recoverable"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"recommended_action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ask_user_for_order_id"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>再比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"error_code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TIME_RANGE_TOO_LARGE"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"日志查询时间范围不能超过24小时"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"recoverable"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"recommended_action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"narrow_time_range"</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>这就清楚多了。</p>
+<p>Agent 可以根据错误类型决定下一步：</p>
+<ul>
+<li>缺参数，就追问用户</li>
+<li>时间范围太大，就缩小范围</li>
+<li>权限不足，就说明无法执行</li>
+<li>工具超时，可以有限重试</li>
+<li>业务规则不允许，就不要再试</li>
+</ul>
+<p>错误信息不要只给人看。</p>
+<p><strong>错误信息也要给 Agent 看。</strong></p>
+<p>如果工具失败后，Agent 无法恢复，它就很容易乱编一个答案。</p>
+<p>很多幻觉不是从模型生成开始的。</p>
+<p>而是从工具返回值太差开始的。</p>
+<p><img alt="错误信息要告诉 Agent 怎么恢复" src="https://file1.kamacoder.com/i/web/20260520110158_agent_tool_design_08_error_recovery_compressed.png" /></p>
+<h2 id="八-不要一次性把所有工具都塞给-agent">八、不要一次性把所有工具都塞给 Agent</h2>
+<p>还有一个常见误区：</p>
+<p>“工具越多，Agent 越强。”</p>
+<p>不一定。</p>
+<p>工具越多，选择空间越大。</p>
+<p>选择空间越大，选错概率也越高。</p>
+<p>如果你把订单、物流、退款、财务、日志、监控、代码、邮件、工单、数据库工具全塞给 Agent，它每一步都要在几十个工具里选。</p>
+<p>这对模型不是增强。</p>
+<p>这是干扰。</p>
+<p>更好的方式是按任务动态收敛工具集。</p>
+<p>比如客服 Agent 处理订单问题时，只给它：</p>
+<ul>
+<li>订单查询</li>
+<li>物流查询</li>
+<li>退款规则查询</li>
+<li>退款草稿创建</li>
+<li>用户追问工具</li>
+</ul>
+<p>排查故障时，只给它：</p>
+<ul>
+<li>监控查询</li>
+<li>日志查询</li>
+<li>发布记录查询</li>
+<li>链路追踪查询</li>
+<li>报告生成工具</li>
+</ul>
+<p>写代码时，只给它：</p>
+<ul>
+<li>文件读取</li>
+<li>代码搜索</li>
+<li>测试执行</li>
+<li>补丁编辑</li>
+<li>结果汇总</li>
+</ul>
+<p>工具集不是越大越好。</p>
+<p><strong>工具集要和当前任务相关。</strong></p>
+<p>这点和上一章的 Agent vs Workflow 是连着的。</p>
+<p>Workflow 可以先判断任务类型，再给 Agent 分配对应工具箱。</p>
+<p>外层流程负责收口，内部 Agent 负责开放探索。</p>
+<p>这样会稳很多。</p>
+<p><img alt="动态工具箱：按任务类型给 Agent 分配相关工具" src="https://file1.kamacoder.com/i/web/20260520110200_agent_tool_design_09_dynamic_toolbox_compressed.png" /></p>
+<h2 id="九-工具设计不好-agent-会出现哪些症状">九、工具设计不好，Agent 会出现哪些症状</h2>
+<p>判断工具设计有没有问题，不用玄学。</p>
+<p>看 Agent 的行为就知道。</p>
+<p>如果经常出现下面这些情况，大概率是工具设计有问题。</p>
+<h3 id="1-经常选错工具">1. 经常选错工具</h3>
+<p>比如用户问退款规则，Agent 却直接查物流。</p>
+<p>这通常是工具描述太像、边界不清。</p>
+<p>解决方式是把每个工具的适用场景和不适用场景写清楚。</p>
+<h3 id="2-参数经常填错">2. 参数经常填错</h3>
+<p>比如时间格式错、枚举值错、ID 类型错。</p>
+<p>这通常是参数 Schema 太松。</p>
+<p>解决方式是收紧类型、枚举、必填项和格式说明。</p>
+<h3 id="3-调用后不知道下一步">3. 调用后不知道下一步</h3>
+<p>工具返回一大段自然语言，Agent 看完继续猜。</p>
+<p>这通常是返回值没有状态字段和证据字段。</p>
+<p>解决方式是返回结构化结果。</p>
+<h3 id="4-一直重复调用同一个工具">4. 一直重复调用同一个工具</h3>
+<p>比如知识库没搜到，还连续搜五次。</p>
+<p>这通常是缺少失败语义和停止条件。</p>
+<p>解决方式是在返回值里标记无结果原因，并提示下一步应该追问用户或换策略。</p>
+<h3 id="5-做了不该做的动作">5. 做了不该做的动作</h3>
+<p>比如用户只是咨询退款，Agent 却直接提交退款。</p>
+<p>这通常是读写边界不清，没有二次确认。</p>
+<p>解决方式是拆分查询、草稿和正式执行工具。</p>
+<p>这些问题表面看是 Agent 不稳定。</p>
+<p>底层经常是工具契约没设计好。</p>
+<h2 id="十-面试时怎么讲工具设计">十、面试时怎么讲工具设计</h2>
+<p>Agent 面试里，工具设计是很高频的问题。</p>
+<p>面试官可能会问：</p>
+<p><strong>“你们 Agent 的工具是怎么设计的？”</strong></p>
+<p>不要只回答：</p>
+<p>“我们用 Function Calling 接了几个业务 API。”</p>
+<p>太浅了。</p>
+<p>可以这样答：</p>
+<p>“我们没有直接把后端 API 暴露给模型，而是按业务动作封装成工具。每个工具会写清楚使用场景、不适用场景、参数 Schema、返回结构和错误码。查询类工具和有副作用的执行类工具分开，高风险操作只允许先生成草稿，用户确认后再提交。”</p>
+<p>这个回答就比“接了 API”强很多。</p>
+<p>面试官继续问：</p>
+<p><strong>“工具粒度怎么控制？”</strong></p>
+<p>可以这样答：</p>
+<p>“工具粒度一般介于底层 API 和完整业务流程之间。太细会导致 Agent 多步调用链过长，任何一步错了都会断；太粗会让工具内部变成黑盒，Agent 看不到状态和证据。我们通常围绕一个清晰业务动作封装工具，比如查询订单完整状态、检查退款规则、创建退款草稿，而不是暴露一堆数据库接口。”</p>
+<p>面试官再问：</p>
+<p><strong>“如果工具调用失败怎么办？”</strong></p>
+<p>可以这样答：</p>
+<p>“工具失败不能只返回系统异常，而要返回结构化错误码、是否可恢复、推荐下一步。比如缺参数就让 Agent 追问用户，时间范围过大就缩小范围，权限不足就停止并说明原因。这样 Agent 才能从错误里恢复，而不是继续瞎猜。”</p>
+<p>如果问到安全边界，可以这样答：</p>
+<p>“查询类工具和写操作工具必须分开。写操作尤其是退款、发邮件、改配置、删数据这类有副作用的动作，要先生成草稿或执行计划，再经过用户确认。工具返回里要带审计信息，方便追踪和回放。”</p>
+<p>这套回答，基本能说明你是真的做过 Agent 工程设计。</p>
+<p>不是只会说 ReAct 和 Function Calling。</p>
+<h2 id="十一-工具设计-checklist">十一、工具设计 Checklist</h2>
+<p>最后给录友一个检查清单。</p>
+<p>做 Agent 工具时，可以逐项问自己：</p>
+<ul>
+<li>工具名能不能一眼看出业务动作？</li>
+<li>工具描述有没有写清楚适用场景？</li>
+<li>工具描述有没有写清楚不适用场景？</li>
+<li>必填参数是否足够明确？</li>
+<li>能枚举的参数有没有用 enum？</li>
+<li>时间、数量、范围有没有格式和上限？</li>
+<li>缺少关键参数时，Agent 是追问，还是硬编？</li>
+<li>返回值有没有结构化状态字段？</li>
+<li>返回值有没有证据字段？</li>
+<li>错误信息能不能指导 Agent 恢复？</li>
+<li>查询工具和写操作工具有没有分开？</li>
+<li>高风险动作有没有二次确认？</li>
+<li>工具调用有没有审计 ID？</li>
+<li>当前任务是否真的需要暴露这么多工具？</li>
+</ul>
+<p>这套清单不复杂。</p>
+<p>但能挡住很多 Agent 翻车。</p>
+<h2 id="十二-agent-的上限-藏在工具细节里">十二、Agent 的上限，藏在工具细节里</h2>
+<p>很多人做 Agent，喜欢先聊模型、框架、推理模式。</p>
+<p>这些当然重要。</p>
+<p>但落到工程里，Agent 能不能稳定完成任务，很大程度取决于工具设计。</p>
+<p>工具描述不清，Agent 会选错。</p>
+<p>参数设计太松，Agent 会填错。</p>
+<p>返回值太自然语言，Agent 下一步会猜。</p>
+<p>工具粒度太乱，Agent 要么跑断，要么变黑盒。</p>
+<p>权限边界不清，Agent 迟早做出危险动作。</p>
+<p>所以别把工具调用理解成“给模型接几个 API”。</p>
+<p><strong>工具是 Agent 连接外部世界的接口，也是约束 Agent 行为的边界。</strong></p>
+<p>真正靠谱的 Agent，不是让模型无限自由。</p>
+<p>而是把自由放在该自由的地方，把边界写在工具里。</p>
+<p>工具设计好了，Agent 才有上限。</p>
+<p>工具设计烂了，再好的模型也会被拖下水。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="agent_memory.html"><span class="k">← 上一篇</span><span class="v">Agent的记忆：短期记忆、长期记忆、RAG到底什么关系</span></a><a class="nx" href="agent_vs_workflow.html"><span class="k">下一篇 →</span><span class="v">Agent vs Workflow：什么时候根本不需要Agent，别把简单流程做复杂</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#工具设计决定-agent-上限">工具设计决定 Agent 上限</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/app/agent_tool_design.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

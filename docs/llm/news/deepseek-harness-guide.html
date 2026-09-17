@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepSeek Harness安装与使用教程：官方dsh怎么配置API、操作代码仓库、跑Headless任务和高效使用 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>deepseek-harness-guide</span></div>
+      <h1 id="deepseek官方harness怎么用-从安装到让它真正改完一个项目">DeepSeek官方Harness怎么用：从安装到让它真正改完一个项目</h1>
+<p>前面写 <a href="./deepseek-agent-harness-hiring.html">DeepSeek招聘Agent Harness工程师</a> 时，我们讲的是一个行业变化：<strong>模型负责推理，Harness负责把推理接到文件、命令、状态、权限和验证上。</strong></p>
+<p>当时不少录友问：概念我懂了，但 Harness 到底长什么样？普通人能不能直接用？</p>
+<p>现在 DeepSeek 自己把答案开源了。</p>
+<p><a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> 的命令叫 <code>dsh</code>。它不是再套一层聊天页面，而是一套能读写工作区、运行命令、维护计划、调用工具并持续执行任务的 Agent Harness。</p>
+<p>截至 2026 年 8 月 18 日，官方仍把它标为 <strong>Developer Preview</strong>。能用，值得研究，但版本升级出现不兼容也很正常。</p>
+<p>这篇不聊招聘，直接实操：怎么安装、怎么配置、怎么把任务交给它，以及怎么用得更快、更稳、更省钱。</p>
+<p>官方把话说得很直白：目前还是 Developer Preview，未来会有破坏兼容性的改动。所以下面的命令以官方仓库当前版本为准，遇到界面变化先回 README 核对。</p>
+<p>DeepSeek Harness github 仓库：https://github.com/deepseek-ai/deepseek-harness</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-08-18_10-44-56.jpg" /></p>
+<p>目前已经 15.6k star了！！</p>
+<h2 id="一-它到底解决什么问题">一、它到底解决什么问题</h2>
+<p>普通大模型 API 的工作方式是：你发消息，它返回一段文字。</p>
+<p>但“帮我解释登录报错”和“进入项目把登录问题修掉”，是两种完全不同的任务。</p>
+<p>后者至少要完成这些动作：</p>
+<ol>
+<li>找到项目入口和相关文件；</li>
+<li>读取上下文，判断问题在哪；</li>
+<li>修改代码，必要时执行多轮工具调用；</li>
+<li>运行测试或构建；</li>
+<li>根据失败结果继续修；</li>
+<li>把改动、验证结果和剩余风险交给用户。</li>
+</ol>
+<p><strong>DeepSeek Harness解决的，就是“模型会回答，但不会稳定干活”这层问题。</strong></p>
+<p>它把模型、工具和工作环境组织成一个执行闭环。官方默认能力包括文件读写、命令执行、计划维护、子任务委派和会话记录；遇到权限策略要求确认的操作，Web UI 会先询问用户。</p>
+<p>所以它最适合下面几类任务：</p>
+<ul>
+<li>阅读陌生仓库，梳理模块、调用链和启动方式；</li>
+<li>定位 Bug，修改代码，跑测试，再根据报错继续修；</li>
+<li>批量重构、补类型、补测试、改文档；</li>
+<li>把固定任务放进 Headless 模式，由脚本或 CI 调用；</li>
+<li>通过插件替换模型、工具、存储、沙箱和 Agent 循环，搭内部 Agent。</li>
+</ul>
+<p>这里有个边界要说清楚：<strong>它不是本地大模型，也不要求你在电脑上部署 DeepSeek 权重。</strong> Harness 在本机操作工作区，真正的模型推理仍然走你配置的 API。</p>
+<h2 id="二-安装前先准备好这三样">二、安装前先准备好这三样</h2>
+<h3 id="1-node-js">1. Node.js</h3>
+<p>官方仓库当前开发环境支持 Node.js <code>22.19+</code> 和 <code>24+</code>。建议直接使用这两个版本，不要拿奇数版本赌兼容性。</p>
+<p>先检查：</p>
+<div class="codehilite"><pre><span></span><code>node<span class="w"> </span>-v
+npm<span class="w"> </span>-v
+</code></pre></div>
+
+<p>如果没有 Node.js，可以先安装 Node.js 22 LTS；如果用 <code>nvm</code>：</p>
+<div class="codehilite"><pre><span></span><code>nvm<span class="w"> </span>install<span class="w"> </span><span class="m">22</span>
+nvm<span class="w"> </span>use<span class="w"> </span><span class="m">22</span>
+</code></pre></div>
+
+<h3 id="2-deepseek-api-key">2. DeepSeek API Key</h3>
+<p>进入 <a href="https://platform.deepseek.com/api_keys">DeepSeek开放平台</a> 创建 API Key，并确认账户有可用余额。</p>
+<p>Key 只在首次配置时复制一次，不要发进聊天记录，不要写进 Git 仓库，也不要把带 Key 的设置页截图发出来。</p>
+<h3 id="3-一个可以放心修改的项目副本">3. 一个可以放心修改的项目副本</h3>
+<p>第一次不要直接选生产目录。</p>
+<p>最好准备一个已提交 Git、能本地运行测试的练习仓库。这样 Agent 改错了，你能清楚看到 diff，也能恢复。</p>
+<h2 id="三-最快安装-一条命令启动web-ui">三、最快安装：一条命令启动Web UI</h2>
+<p>先进入要操作的项目目录，再启动：</p>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>/你的项目绝对路径
+npx<span class="w"> </span>@deepseek-ai/dsh<span class="w"> </span>web
+</code></pre></div>
+
+<p>首次运行会下载官方 npm 包，速度取决于网络。启动成功后，默认地址是：</p>
+<div class="codehilite"><pre><span></span><code>http://127.0.0.1:3080
+</code></pre></div>
+
+<p>第一次打开，会先看到 0.1 版本的内测声明：</p>
+<p><img alt="Harness内测声明" src="https://file1.kamacoder.com/i/web/20260818103916.png" /></p>
+<p>这个弹窗不是普通的欢迎页。它是在提醒你，核心插件和基础 API 仍会快速迭代。打算把它接进生产系统的录友，升级前一定要先锁版本、跑回归测试。</p>
+<p>我更建议开发者预览阶段先用 <code>npx</code>，不用急着全局安装。官方更新很快，<code>npx</code> 更适合体验当前版本。</p>
+<p>如果 3080 端口被占用，可以指定端口：</p>
+<div class="codehilite"><pre><span></span><code>npx<span class="w"> </span>@deepseek-ai/dsh<span class="w"> </span>web<span class="w"> </span>--port<span class="w"> </span><span class="m">3081</span>
+</code></pre></div>
+
+<p>注意：<strong>从哪个目录启动，哪个目录就是默认工作区位置。</strong> 不要图省事，在用户主目录或一个包含大量项目的父目录启动。</p>
+<h2 id="四-第一次配置-别漏掉工作区">四、第一次配置，别漏掉工作区</h2>
+<h3 id="第一步-配置模型">第一步：配置模型</h3>
+<p>打开 Web UI 后，进入 <code>Settings → Models</code>。</p>
+<p>在 DeepSeek 卡片中填入 API Key，保存即可，服务不用重启。官方文档说明，Key 会单独保存在 <code>$DSH_HOME/.credentials.yaml</code>，设置文件只保留凭证引用，页面重新读取时也不会把明文 Key 返回给前端。</p>
+<p>首次启动会直接弹出密钥输入框：</p>
+<p><img alt="Harness首次密钥配置" src="https://file1.kamacoder.com/i/web/20260818103918.png" /></p>
+<p>如果当时点了“稍后配置”，也可以从左下角进入 <code>设置 → 模型</code>：</p>
+<p><img alt="DeepSeek模型配置" src="https://file1.kamacoder.com/i/web/20260818103919.png" /></p>
+<p>这里除了 DeepSeek 官方路线，也能添加其他提供方和自定义提供方。API Key 输入框在截图中保持为空，正式配置时也别把带明文 Key 的页面发给别人。</p>
+<p>这里还支持 Anthropic、OpenAI 和自定义 OpenAI 兼容地址，但第一次体验先用官方 DeepSeek 路线，少加一层排查变量。</p>
+<h3 id="第二步-选择工作区">第二步：选择工作区</h3>
+<p>回到首页，点击 <code>Choose workspace</code>，添加并选中刚才启动 <code>dsh</code> 的项目目录。</p>
+<p>没有选工作区时，会话输入框不可用。这不是 Bug，而是在阻止 Agent 在一个你没确认的目录里执行。</p>
+<h3 id="第三步-先跑最小任务">第三步：先跑最小任务</h3>
+<p>别上来就说“重构整个项目”。先用一个只读任务确认模型、工作区和工具链都通了：</p>
+<div class="codehilite"><pre><span></span><code>请先不要修改文件。阅读这个仓库，告诉我：
+1. 项目解决什么问题；
+2. 主要模块分别负责什么；
+3. 本地启动和测试命令是什么；
+4. 你的结论分别来自哪些文件。
+</code></pre></div>
+
+<p>这一步通过后，再给它一个小型修改任务：</p>
+<div class="codehilite"><pre><span></span><code>请修复当前失败的单元测试。
+
+要求：
+- 先复现失败，再定位原因；
+- 只修改与根因有关的文件；
+- 不新增依赖，不提交Git；
+- 修复后运行相关测试；
+- 最后列出修改文件、验证命令和仍未解决的风险。
+</code></pre></div>
+
+<p>这才是在测试 Harness，不是在测试它会不会聊天。</p>
+<p><img alt="Harness最小任务配置" src="https://file1.kamacoder.com/i/web/20260818103924.png" /></p>
+<p>发送前检查四个地方：左侧工作区是不是目标项目，顶部是不是标准模式，输入框下方是不是 <code>Workspace Write</code>，右下角模型和推理等级是否符合任务。<strong>先把执行边界选对，再按发送。</strong></p>
+<h2 id="五-高效使用的关键-不是把提示词写得更长">五、高效使用的关键，不是把提示词写得更长</h2>
+<p>很多录友用 Coding Agent，任务一失败就继续补一句：“认真一点”“仔细检查”“一步一步思考”。</p>
+<p>作用有限。</p>
+<p>真正影响交付质量的，是下面这几件事。</p>
+<h3 id="1-先选对agent预设">1. 先选对Agent预设</h3>
+<p>当前内置了标准模式、PTC 模式、极简模式和创造模式：</p>
+<p><img alt="Harness四种Agent预设" src="https://file1.kamacoder.com/i/web/20260818103921.png" /></p>
+<ul>
+<li><strong>标准模式</strong>：完整的编码 Agent，第一次使用选它；</li>
+<li><strong>PTC 模式</strong>：通过 TypeScript 程序组合多步工具操作，适合步骤多、工具调用密集的任务；</li>
+<li><strong>极简模式</strong>：只保留持久 Bash 和文本替换编辑器，适合做基准测试或严格限制工具面；</li>
+<li><strong>创造模式</strong>：用来检查运行时、实验插件和创建自定义 Agent 预设。</li>
+</ul>
+<p>别看名字选最花哨的。普通仓库开发先用标准模式，确定现有能力不够，再加复杂度。</p>
+<h3 id="2-一次只给一个可验证目标">2. 一次只给一个可验证目标</h3>
+<p>“把项目优化一下”没有完成标准。</p>
+<p>“把 <code>/api/login</code> 的 P95 延迟从 800ms 降到 300ms 内，并保证现有测试通过”才有。</p>
+<p>一个好任务至少写清四项：</p>
+<div class="codehilite"><pre><span></span><code>目标：最终要改变什么
+范围：允许读写哪些目录
+约束：不能改什么、不能新增什么
+验收：执行什么命令算完成
+</code></pre></div>
+
+<p>Agent 可以自己规划步骤，但不能替你猜业务目标。</p>
+<h3 id="3-先让它调查-再让它动手">3. 先让它调查，再让它动手</h3>
+<p>陌生项目里，直接改代码很容易治标不治本。</p>
+<p>先让它复现问题、画出调用链、给出根因和最小修改范围。你确认方向以后，再允许执行。对于数据库迁移、鉴权、支付和部署脚本，这一步尤其重要。</p>
+<h3 id="4-把验收命令写进任务">4. 把验收命令写进任务</h3>
+<p>不要只说“改完告诉我”。</p>
+<p>明确要求运行单元测试、集成测试、Lint 或构建。没有自动化测试时，至少让它给出可重复的手工验证步骤和证据。</p>
+<p><strong>Agent说完成，不算完成；验证器通过，才算完成。</strong> 这也是 <a href="../app/agent_failure_modes.html">Agent为什么容易翻车</a> 里一直强调的问题。</p>
+<h3 id="5-缩小工作区-比塞满上下文更有用">5. 缩小工作区，比塞满上下文更有用</h3>
+<p>工作区越大，不代表 Agent 知道得越多。</p>
+<p>无关文件越多，搜索噪声、Token 消耗和误改风险都会增加。单体仓库可以只选当前服务，或者明确禁止修改生成目录、构建产物和第三方代码。</p>
+<p>项目已有 <code>AGENTS.md</code>、<code>CLAUDE.md</code>、开发规范或测试说明时，在第一轮要求 Agent 先读取，并让它复述与当前任务有关的约束。</p>
+<h3 id="6-一个会话只解决一条主线">6. 一个会话只解决一条主线</h3>
+<p>官方会话日志会保留模型请求与工具调用，继续同一会话有利于沿用上下文；但完全无关的新任务也塞进旧会话，会把错误假设和无用历史一起带过去。</p>
+<p>同一个 Bug 的后续验证继续原会话。换功能、换仓库、换目标，就新开会话。</p>
+<h3 id="7-探索用快模型-关键修改再上强模型">7. 探索用快模型，关键修改再上强模型</h3>
+<p>仓库搜索、日志归类、文档整理，不一定每一步都需要最强模型。复杂跨模块修复、架构决策和高风险审查，再切到更强模型。</p>
+<p>不是站队，是算账：<strong>先按任务难度分流，再看失败一次要返工多少。</strong> 关于模型和 Harness 的关系，可以接着看 <a href="./deepseek-v4.html">DeepSeek V4</a>。</p>
+<h3 id="8-审批不是弹窗障碍-是最后一道边界">8. 审批不是弹窗障碍，是最后一道边界</h3>
+<p>安装依赖、访问工作区外文件、执行高风险命令时，不要闭眼全放行。</p>
+<p>先看命令做什么、目标路径是哪、能否恢复。尤其是删除、数据库写入、部署和 Git 提交，应该始终由人最后确认。</p>
+<h2 id="六-重复任务用headless-不用一直开浏览器">六、重复任务用Headless，不用一直开浏览器</h2>
+<p>Web UI 适合观察和调试。任务稳定后，可以使用官方 <code>headless</code> profile 跑一次性任务：</p>
+<div class="codehilite"><pre><span></span><code>npx<span class="w"> </span>@deepseek-ai/dsh<span class="w"> </span>--profile<span class="w"> </span>headless<span class="w"> </span><span class="s2">"运行测试，修复失败用例，并输出验证结果"</span>
+</code></pre></div>
+
+<p>它会创建一段可持久化的新会话，打印最终答复后退出。</p>
+<p>适合这些场景：</p>
+<ul>
+<li>每晚扫描一批仓库并生成报告；</li>
+<li>CI 失败后自动收集日志、定位可能根因；</li>
+<li>批量补文档、补测试或做格式迁移；</li>
+<li>用外层脚本调度多个彼此独立的任务。</li>
+</ul>
+<p>先在 Web UI 中把任务跑稳定，再搬到 Headless。否则你只是在把一个不稳定的 Prompt 自动执行很多次。</p>
+<h2 id="七-想嵌进自己的系统-用python-sdk">七、想嵌进自己的系统，用Python SDK</h2>
+<p>官方还提供 <code>deepseek-harness-sdk</code>，适合把 Harness 当作运行时，而不是只把它当成一个网页工具。</p>
+<p>当前要求 Python 3.10+。最小安装方式：</p>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+.<span class="w"> </span>.venv/bin/activate
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>deepseek-harness-sdk
+</code></pre></div>
+
+<p>SDK 可以指定工作区、会话目录、模型和 Cordis 配置，并从程序里执行任务。官方示例会把组装后的模型请求、工具调用和会话状态写入 JSONL 日志，方便审计和复盘。</p>
+<p>这里要特别注意：官方最小示例使用了高权限本地执行配置。<strong>只应在隔离工作区、临时 Git 副本或容器里运行，不要直接指向生产机目录。</strong></p>
+<p>完整代码以官方的 <a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/python-sdk.md">Python SDK指南</a> 为准。Developer Preview 阶段接口变化快，文章里复制一份长代码，很快就会过期。</p>
+<h2 id="八-一切皆插件-到底有什么用">八、“一切皆插件”到底有什么用</h2>
+<p>DeepSeek Harness 底层由 Cordis 驱动。它把模型适配器、工具注册、会话日志、Agent循环、文件系统、沙箱和审批策略都做成插件。</p>
+<p>这不是为了多造一个插件市场，而是为了让企业可以替换其中一层，不必 Fork 整套代码：</p>
+<ul>
+<li>模型换成公司网关，执行层不动；</li>
+<li>本地文件系统换成远程沙箱，Agent循环不动；</li>
+<li>增加内部工单、数据库或发布工具，不改核心；</li>
+<li>换会话存储、审批策略和日志系统，模型工具仍可复用。</li>
+</ul>
+<p>普通用户暂时不用碰 Cordis 配置。先把 Web UI 和 Headless 用明白。</p>
+<p>需要排查配置时，可以查看最终组合出来的插件树：</p>
+<div class="codehilite"><pre><span></span><code>npx<span class="w"> </span>@deepseek-ai/dsh<span class="w"> </span>--profile<span class="w"> </span>web<span class="w"> </span>--dump-config
+</code></pre></div>
+
+<p>真正要开发插件，再阅读官方的 <a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md">架构文档</a> 和 <a href="https://github.com/deepseek-ai/deepseek-harness/tree/master/docs/user/develop/basic">插件开发教程</a>。</p>
+<h2 id="九-哪些事情别直接交给它">九、哪些事情别直接交给它</h2>
+<p>DeepSeek Harness 能把模型的手伸进真实环境，能力更强，风险也同步变大。</p>
+<p>下面几类任务不要无人值守：</p>
+<ul>
+<li>直接改生产数据库、线上配置和云资源；</li>
+<li>自动提交、合并、发布，且没有测试和审批门禁；</li>
+<li>把密钥、客户数据、未脱敏日志交给外部模型；</li>
+<li>在需求本身不清楚时做大范围架构重写；</li>
+<li>把 Agent 的最终文字当成测试结果或安全审计结论。</li>
+</ul>
+<p>它能解决的是执行链路问题，不能替你解决模糊需求、组织权限和工程责任。</p>
+<h2 id="写在最后">写在最后</h2>
+<p>DeepSeek Harness最值得看的，不是又多了一个 AI 编程页面。</p>
+<p>而是 DeepSeek 把模型之外那层真正决定 Agent 能不能交付的系统，摆到了台面上：工作区、工具、状态、权限、日志、验证和扩展点。</p>
+<p>录友第一次用，别让它表演“写一个贪吃蛇”。</p>
+<p>拿一个有测试的小项目，让它先读懂，再复现问题，再修改，最后拿验证结果说话。</p>
+<p><strong>会回答只是模型能力。能把任务安全地做完，才是 Harness 能力。</strong></p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="deepseek-agent-harness-hiring.html"><span class="k">← 上一篇</span><span class="v">DeepSeek大举招人，Agent Harness工程师火了：普通程序员怎么学Harness，怎么从AI套壳走到Agent工程</span></a><a class="nx" href="deepseek-v4-flash-official.html"><span class="k">下一篇 →</span><span class="v">DeepSeek V4-Flash正式版上线：Agent跑分82.7，能替代Codex主力模型吗？</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#deepseek官方harness怎么用-从安装到让它真正改完一个项目">DeepSeek官方Harness怎么用：从安装到让它真正改完一个项目</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/deepseek-harness-guide.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

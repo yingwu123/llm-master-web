@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MiniMax M3评测：SWE-Bench Pro 59.0，1M上下文，原生多模态，真能替代Claude Code吗？ · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>minimax-m3</span></div>
+      <h1 id="minimax-m3评测-swe-bench-pro-59-0-1m上下文-原生多模态-真能替代claude-code吗">MiniMax M3评测：SWE-Bench Pro 59.0，1M上下文，原生多模态，真能替代Claude Code吗？</h1>
+<p><a href="https://notes.kamacoder.com/qita/0021.gpt-5-6-sol-terra-luna-domestic-guide.html">
+  <img src="https://file1.kamacoder.com/i/web/2026-07-17_15-06-45.jpg" style="width:100%;cursor:pointer;" alt="KamaClaude">
+</a></p>
+<p>MiniMax M3 在 2026 06 01 正式发布。</p>
+<p>官方标题很猛：</p>
+<p><strong>前沿 Coding 能力，1M 上下文，原生多模态，一个模型全给你。</strong></p>
+<p>这句话不是普通宣传语。</p>
+<p>它背后其实是在抢一个位置：谁能做开发者日常用得起的 Agent 模型。</p>
+<p>过去这个位置基本被 Claude Code、GPT-5.5、Gemini 3.1 Pro 这些闭源模型占着。你想要强 Coding、长上下文、多模态、Computer Use，通常就得接受两个现实：</p>
+<ul>
+<li>贵</li>
+<li>封闭</li>
+</ul>
+<p>MiniMax M3 这次的打法很直接：<strong>我也给你这些能力，而且价格打下来，权重也要开。</strong></p>
+<p>听起来很香。</p>
+<p>但录友别急着喊“Claude Code 平替”。</p>
+<p>我看完官方发布后，结论是：</p>
+<p><strong>M3 是一个非常值得测的模型，尤其适合长上下文 Coding、批量 Agent 任务和多模态工程自动化。但它还不是闭眼迁生产的模型。</strong></p>
+<p>我们拆开看。</p>
+<p>官方链接在这里：https://www.minimaxi.com/blog/minimax-m3</p>
+<h2 id="一-m3-到底发了什么">一、M3 到底发了什么</h2>
+<p>MiniMax M3 不是只发了一个聊天模型。</p>
+<p>它同时发了四件事：</p>
+<ul>
+<li><strong>MiniMax M3 模型</strong>：主打 Coding、Agent、1M 上下文、原生多模态</li>
+<li><strong>MSA 架构</strong>：MiniMax Sparse Attention，解决长上下文成本问题</li>
+<li><strong>MiniMax Code</strong>：配套的编程 Agent 产品</li>
+<li><strong>Token Plan 和 API</strong>：让开发者按订阅或 API 直接用</li>
+</ul>
+<p>官方说 M3 是国内第一个同时具备这三类能力的模型：</p>
+<p><strong>第一，前沿 Coding 和 Agent 能力。</strong></p>
+<p>不是只会写函数，而是要能跑长任务、调用工具、持续迭代。</p>
+<p><strong>第二，1M 超长上下文。</strong></p>
+<p>不是 128K、200K，而是直接打到百万 Token。</p>
+<p><strong>第三，原生多模态。</strong></p>
+<p>支持图片、视频输入，也能操作电脑桌面。</p>
+<p>这三个能力放在一起，才是 M3 真正想讲的故事。</p>
+<p>不是“我某个榜单赢了谁”，而是：</p>
+<p><strong>以后 Agent 不是只读文字，它要能看图、看视频、读长文档、操作软件，还要连续干很久。</strong></p>
+<p>这条路是对的。</p>
+<p>但要注意一个细节：官方文末说，技术报告和模型权重会在接下来 10 天内更新和开源。</p>
+<p>所以在 2026 年 6 月 1 日发布当天，M3 更准确的状态是：</p>
+<p><strong>API 已开放，权重承诺开放，但还没到“权重已经摆在那儿随便验”的阶段。</strong></p>
+<p>这个区别很重要。</p>
+<h2 id="二-coding-跑分-最亮的是-swe-bench-pro">二、Coding 跑分：最亮的是 SWE-Bench Pro</h2>
+<p>MiniMax M3 最容易传播的数字，是这个：</p>
+<p><strong>SWE-Bench Pro：59.0%。</strong></p>
+<p>官方给出的对比里，M3 超过 GPT-5.5 和 Gemini 3.1 Pro，接近 Claude Opus 4.7。</p>
+<p>这确实很强。</p>
+<p>SWE-Bench Pro 测的不是“写个二分查找”。</p>
+<p>它更接近真实软件工程：给模型一个真实工程问题，让它理解代码库、定位问题、改代码、跑验证。</p>
+<p>所以这个分数有含金量。</p>
+<p>官方还列了几项 Coding 和 Agent 相关指标：</p>
+<table>
+<thead>
+<tr>
+<th>评测</th>
+<th style="text-align: right;">MiniMax M3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SWE-Bench Pro</td>
+<td style="text-align: right;">59.0%</td>
+</tr>
+<tr>
+<td>Terminal Bench 2.1</td>
+<td style="text-align: right;">66.0%</td>
+</tr>
+<tr>
+<td>SWE-fficiency</td>
+<td style="text-align: right;">34.8%</td>
+</tr>
+<tr>
+<td>KernelBench Hard</td>
+<td style="text-align: right;">28.8%</td>
+</tr>
+<tr>
+<td>MCP Atlas</td>
+<td style="text-align: right;">74.2%</td>
+</tr>
+</tbody>
+</table>
+<p>这里面要分开看。</p>
+<p><strong>SWE-Bench Pro 是亮点。</strong></p>
+<p>它说明 M3 在真实工程修复上已经不是“便宜但弱”的模型，而是能摸到闭源前沿模型边缘了。</p>
+<p><strong>Terminal Bench 2.1 没有领先。</strong></p>
+<p>官方图里，M3 是 66.0，Opus 4.7 是 66.1，GPT-5.5 是 78.2，Gemini 3.1 Pro 是 70.0。</p>
+<p>这说明 M3 在终端执行、复杂工具链、长链路操作上，还没到 GPT-5.5 那个层级。</p>
+<p>所以别把“M3 在 SWE-Bench Pro 接近 Opus”直接翻译成“M3 的 Agent 长任务全面接近 Opus/GPT”。</p>
+<p>这两个不是一回事。</p>
+<p><strong>一句话：M3 的代码修复能力很值得重视，但全链路 Agent 还要继续实测。</strong></p>
+<h2 id="三-msa-m3-真正值得看的技术点">三、MSA：M3 真正值得看的技术点</h2>
+<p>我觉得 M3 最值得看的不是某个单点跑分，而是 MSA。</p>
+<p>MSA 全称 MiniMax Sparse Attention。</p>
+<p>它想解决的是长上下文最难受的问题：</p>
+<p><strong>上下文越长，全注意力的计算和成本涨得越快。</strong></p>
+<p>100 万 Token 听起来很爽，但如果每次都按全注意力硬算，延迟和成本会直接劝退。</p>
+<p>MiniMax 的方案是做稀疏注意力。</p>
+<p>简单说，不是让每个 Query 都看所有 KV，而是先做一轮索引和筛选，找到更值得看的块，再对选中的块做注意力。</p>
+<p><img alt="MiniMax Sparse Attention架构图，展示Index Branch和Sparse Branch如何筛选KV块" src="https://filecdn.minimax.chat/public/m3-msa-arch.png" /></p>
+<p>官方给出的说法很激进：</p>
+<ul>
+<li>在 100 万上下文下，M3 每 Token 计算量只有上代模型的 <strong>1/20</strong></li>
+<li>Prefilling 阶段超过 <strong>9 倍</strong>加速</li>
+<li>Decoding 阶段超过 <strong>15 倍</strong>加速</li>
+<li>多个对照实验里，MSA 大部分能力与全注意力打平</li>
+</ul>
+<p>这才是长上下文能不能进入日常开发的关键。</p>
+<p>录友要明白，<strong>1M 上下文不是只看“能不能塞进去”，还要看“塞进去以后能不能用得起、等得起、找得准”。</strong></p>
+<p>如果 MSA 真能稳定成立，M3 的价值就不只是一个模型，而是把超长上下文 Agent 的成本曲线往下压了一截。</p>
+<p>这对大代码库、长文档、长视频、多轮工具调用都很关键。</p>
+<p>但也别神化 1M。</p>
+<p>上下文窗口大，不代表你可以把整个仓库无脑塞进去。</p>
+<p>我们之前讲 Claude Code 大代码库时也说过：大项目靠的不是“塞满上下文”，而是<strong>上下文治理</strong>。</p>
+<p>M3 降低了长上下文成本，但不会替你自动解决信息筛选、任务拆分、验证闭环这些工程问题。</p>
+<h2 id="四-长任务-demo-很猛-但要看清边界">四、长任务 Demo 很猛，但要看清边界</h2>
+<p>官方展示了几个实际任务。</p>
+<p>第一个是论文复现。</p>
+<p>MiniMax 把 ICLR 2025 Outstanding Paper Award 论文《Learning Dynamics of LLM Finetuning》丢给 M3，让它独立复现。</p>
+<p>结果是：</p>
+<ul>
+<li>自主运行接近 12 小时</li>
+<li>产出 18 次 commit</li>
+<li>生成 23 张实验图表</li>
+<li>跑通核心实验</li>
+<li>复现 SFT 阶段趋势、DPO squeezing 效应和 Extend 缓解方法</li>
+</ul>
+<p><img alt="MiniMax M3论文复现任务过程图，展示12小时内分阶段推进实验和得分变化" src="https://filecdn.minimax.chat/public/m3-paper-repro.png" /></p>
+<p>这个任务很适合展示 M3 的三件事：</p>
+<p><strong>长上下文</strong>：论文、代码、日志、实验结果都要长期保留。</p>
+<p><strong>多模态</strong>：论文里的曲线图、表格和公式不能只当纯文本看。</p>
+<p><strong>Agent 能力</strong>：不是一次回答，而是持续实验、失败、调整、再验证。</p>
+<p>第二个是 CUDA 算子优化。</p>
+<p>官方让 M3 优化 Hopper 架构上的 FP8 GEMM kernel，起点只有任务描述、benchmark 脚本和一个跑不起来的 Triton 骨架。</p>
+<p>最终结果：</p>
+<ul>
+<li>连续执行约 24 小时</li>
+<li>147 次 benchmark 提交</li>
+<li>1959 次工具调用</li>
+<li>峰值利用率从 7.6% 提升到 71.3%</li>
+<li>相比原始版本实现 9.4 倍加速</li>
+</ul>
+<p>这个 Demo 很硬。</p>
+<p>因为 CUDA kernel 优化不是普通 CRUD。</p>
+<p>它需要理解硬件、访存、流水线、autotune、CUDA Graph、persistent kernel，还要根据 benchmark 反馈持续调整。</p>
+<p>但我还是要泼一点冷水：</p>
+<p><strong>这些都是官方内部任务和官方展示结果。</strong></p>
+<p>不是说它假，而是说它还不等于你自己的业务一定能复现同样效果。</p>
+<p>Agent 模型最容易出现的问题就是：</p>
+<ul>
+<li>官方 Demo 很顺</li>
+<li>真实项目卡在环境、权限、依赖、脏数据、边界条件</li>
+<li>最后人工接盘</li>
+</ul>
+<p>所以 M3 最正确的打开方式不是直接替换主力模型。</p>
+<p>而是拿你自己的任务集测：</p>
+<ul>
+<li>修真实 bug</li>
+<li>改多文件需求</li>
+<li>跑单元测试</li>
+<li>处理失败日志</li>
+<li>读长文档后生成结构化结果</li>
+<li>多轮需求变更后看它是否偏航</li>
+</ul>
+<p><strong>能过你自己的评测，才叫能用。</strong></p>
+<h2 id="五-多模态和-computer-use-想象空间很大-风险也很大">五、多模态和 Computer Use：想象空间很大，风险也很大</h2>
+<p>M3 是原生多模态模型。</p>
+<p>官方说它从 Step 0 开始做多模态混合训练，支持图片和视频输入，还能操作电脑桌面。</p>
+<p>这点对 Coding Agent 很关键。</p>
+<p>以前很多 AI 编程工具主要读文本：</p>
+<ul>
+<li>代码</li>
+<li>日志</li>
+<li>文档</li>
+<li>issue</li>
+<li>terminal 输出</li>
+</ul>
+<p>但真实工作里有大量东西不是纯文本：</p>
+<ul>
+<li>页面截图</li>
+<li>设计稿</li>
+<li>报表</li>
+<li>PDF 图表</li>
+<li>Excel</li>
+<li>监控面板</li>
+<li>视频教程</li>
+<li>ERP、CRM、本地客户端</li>
+</ul>
+<p>如果 Agent 能看懂这些，再配合 Computer Use，就能做很多以前很别扭的自动化。</p>
+<p>比如官方举的场景：</p>
+<p>“帮我打开本地 ERP 客户端，按这份 Excel 批量录入发票信息。”</p>
+<p>这类任务不是单纯写代码。</p>
+<p>它是跨文件、跨应用、跨系统的自动操作。</p>
+<p>这也是未来 Agent 的方向。</p>
+<p>但录友一定要记住：</p>
+<p><strong>能操作电脑，不等于应该默认给它操作电脑。</strong></p>
+<p>Computer Use 场景必须配权限边界：</p>
+<ul>
+<li>哪些软件能打开</li>
+<li>哪些按钮能点</li>
+<li>哪些数据能读</li>
+<li>哪些动作必须人工确认</li>
+<li>出错后怎么回滚</li>
+<li>操作日志怎么审计</li>
+</ul>
+<p>越强的 Agent，越需要工程护栏。</p>
+<p>否则不是提效，是把事故自动化。</p>
+<h2 id="六-价格-m3-最现实的杀伤力">六、价格：M3 最现实的杀伤力</h2>
+<p>模型能力能不能打，要看评测。</p>
+<p>模型能不能进入日常，要看价格。</p>
+<p>MiniMax 这次的价格确实很有攻击性。</p>
+<p>Token Plan 三档：</p>
+<table>
+<thead>
+<tr>
+<th>套餐</th>
+<th style="text-align: right;">价格</th>
+<th style="text-align: right;">M3 月度用量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Plus</td>
+<td style="text-align: right;">¥49/月</td>
+<td style="text-align: right;">约 6 亿 token</td>
+</tr>
+<tr>
+<td>Max</td>
+<td style="text-align: right;">¥119/月</td>
+<td style="text-align: right;">约 18 亿 token</td>
+</tr>
+<tr>
+<td>Ultra</td>
+<td style="text-align: right;">¥469/月</td>
+<td style="text-align: right;">约 55 亿 token</td>
+</tr>
+</tbody>
+</table>
+<p>官方说，如果按相同价格算，约是 Claude 订阅的 15 倍用量。</p>
+<p><img alt="MiniMax M3 Token Plan套餐图，展示Plus、Max、Ultra三档月度token用量" src="https://filecdn.minimax.chat/public/m3-token-plan-1.png" /></p>
+<p>API 也按上下文长度分两档：</p>
+<table>
+<thead>
+<tr>
+<th>模型上下文</th>
+<th style="text-align: right;">输入价格</th>
+<th style="text-align: right;">输出价格</th>
+<th style="text-align: right;">缓存读取</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MiniMax M3 ≤512K</td>
+<td style="text-align: right;">¥4.20 / 百万 tokens</td>
+<td style="text-align: right;">¥16.80 / 百万 tokens</td>
+<td style="text-align: right;">¥0.84 / 百万 tokens</td>
+</tr>
+<tr>
+<td>MiniMax M3 512K-1M</td>
+<td style="text-align: right;">¥8.40 / 百万 tokens</td>
+<td style="text-align: right;">¥33.60 / 百万 tokens</td>
+<td style="text-align: right;">¥1.68 / 百万 tokens</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="MiniMax M3 API价格图，展示512K以内和512K到1M两档输入输出缓存价格" src="https://filecdn.minimax.chat/public/20260601-101351-1780280055505.jpeg" /></p>
+<p>这个价格对两类人特别有吸引力。</p>
+<p><strong>第一类，高频 AI 编程用户。</strong></p>
+<p>每天让 Agent 读代码、改文件、跑测试、总结 PR，Token 消耗很大。</p>
+<p>如果 M3 质量够用，成本会明显下降。</p>
+<p><strong>第二类，批量任务用户。</strong></p>
+<p>比如批量审代码、批量处理文档、批量生成测试、批量做多模态理解。</p>
+<p>这类任务最怕单次效果不错，但跑一万次以后账单爆炸。</p>
+<p>M3 的价格让很多原来舍不得跑的任务，可以进入“先跑起来看看”的阶段。</p>
+<p>但价格便宜也有一个副作用：</p>
+<p>很多人会忍不住把任务全丢给它。</p>
+<p>我的建议是：</p>
+<p><strong>低风险、高频、可验证的任务先上 M3；高风险、强推理、强业务边界的任务先做 A/B 评测。</strong></p>
+<p>别拿生产环境当 benchmark。</p>
+<h2 id="七-minimax-code-重点不是又一个代码编辑器">七、MiniMax Code：重点不是又一个代码编辑器</h2>
+<p>MiniMax Code 这次也跟着更新。</p>
+<p>官方说它是专为 M3 设计、并与 M3 一起训练的 Agent 产品。</p>
+<p>它最值得看的不是“能不能补全代码”，而是 Agent Team。</p>
+<p>官方描述里，Agent Team 可以把大任务拆成多阶段、可并发、可动态调整的 Workflow，再通过 Producer + Verifier 的对抗式 Harness 循环持续产出、反思、纠错。</p>
+<p>这和 Claude Code 近期的 Dynamic Workflows 是同一个大方向。</p>
+<p><strong>未来 AI 编程工具不会只是一个模型从头干到尾，而是多个 Agent 分工协作。</strong></p>
+<p>一个负责读仓库。</p>
+<p>一个负责定位影响范围。</p>
+<p>一个负责改代码。</p>
+<p>一个负责跑测试。</p>
+<p>一个负责挑错。</p>
+<p>主 Agent 负责合并判断。</p>
+<p>这比单 Agent 长时间硬跑更像真实工程。</p>
+<p>不过这也意味着一个现实问题：</p>
+<p><strong>Agent 越多，Token 越多，错误传播链路也越长。</strong></p>
+<p>所以 Agent Team 的关键不是“看起来很智能”，而是：</p>
+<ul>
+<li>子任务拆得准不准</li>
+<li>中间结果能不能验证</li>
+<li>Verifier 有没有真的挑错</li>
+<li>失败后能不能回滚</li>
+<li>用户能不能插手纠偏</li>
+</ul>
+<p>M3 这次把模型、产品、价格一起推出来，是对的。</p>
+<p>因为单独一个模型不够。</p>
+<p>Coding Agent 拼到最后，拼的是模型能力、工具链、上下文管理、执行 Harness 和价格。</p>
+<h2 id="八-m3-适合谁-不适合谁">八、M3 适合谁，不适合谁</h2>
+<p>如果你问我 M3 值不值得试。</p>
+<p>答案是：<strong>值得。</strong></p>
+<p>但怎么试，要分场景。</p>
+<p><strong>适合优先试 M3 的场景：</strong></p>
+<ul>
+<li>日常代码生成、重构、小 bug 修复</li>
+<li>大文档、大代码库的低风险分析</li>
+<li>批量代码审查、批量测试生成</li>
+<li>长上下文摘要、日志分析、资料归纳</li>
+<li>带图片、视频、PDF 的多模态理解任务</li>
+<li>成本敏感的 Agent 原型验证</li>
+</ul>
+<p>这些任务有一个共同点：</p>
+<p><strong>可以验证，失败成本相对可控。</strong></p>
+<p>比如生成测试，跑不过就退回来。</p>
+<p>比如代码审查，人工可以抽检。</p>
+<p>比如日志归纳，能和原始日志对照。</p>
+<p><strong>不建议直接迁 M3 的场景：</strong></p>
+<ul>
+<li>线上高风险自动改代码</li>
+<li>无人工确认的 Computer Use</li>
+<li>金融、医疗、合同等强责任场景</li>
+<li>强依赖通用知识准确性的问答</li>
+<li>复杂长任务的唯一主模型</li>
+</ul>
+<p>这些任务不是不能用 M3。</p>
+<p>而是不能只看官方榜单就上。</p>
+<p>你至少要有自己的评测集、回归集、人工抽检和失败兜底。</p>
+<h2 id="九-我的判断-m3-是价格战-也是-agent-战">九、我的判断：M3 是价格战，也是 Agent 战</h2>
+<p>MiniMax M3 这次最有意思的地方，不是“某个榜单赢了谁”。</p>
+<p>而是它把几个趋势合到了一起：</p>
+<p><strong>模型能力往 Agent 任务靠。</strong></p>
+<p>不只是回答问题，而是长期执行、工具调用、持续验证。</p>
+<p><strong>上下文窗口继续变大。</strong></p>
+<p>但重点从“最大能塞多少”变成“长上下文能不能便宜、快速、稳定地用”。</p>
+<p><strong>多模态进入开发者工作流。</strong></p>
+<p>Agent 不只读代码，还要看截图、看文档、看视频、操作软件。</p>
+<p><strong>价格开始逼近日常使用。</strong></p>
+<p>当 Token 便宜到一定程度，很多原来“不值得自动化”的任务，突然值得了。</p>
+<p>所以 M3 的意义，不是简单替代 Claude Code。</p>
+<p>它更像是在问整个市场一个问题：</p>
+<p><strong>如果一个模型同时给你 Coding、1M 上下文、多模态和低价格，你还愿意为闭源前沿模型付多少溢价？</strong></p>
+<p>这才是压力。</p>
+<p>最后给录友一个实用结论：</p>
+<p><strong>M3 可以进入你的模型候选池，但不要直接当成唯一主力。</strong></p>
+<p>先拿真实任务测。</p>
+<p>测三件事：</p>
+<ul>
+<li>能不能完成任务</li>
+<li>出错时能不能自救</li>
+<li>成本和延迟是不是真的划算</li>
+</ul>
+<p>如果这三项都过了，M3 就不是“便宜玩具”。</p>
+<p>它会是一个很有竞争力的工程模型。</p>
+<p>但如果你只看 SWE-Bench Pro 59.0 就全量迁移，那不是拥抱 AI。</p>
+<p>那是把生产环境交给热搜。</p>
+<h2 id="参考资料">参考资料</h2>
+<ul>
+<li>MiniMax M3 官方发布：https://www.minimaxi.com/blog/minimax-m3</li>
+<li>MiniMax M3 模型页：https://www.minimaxi.com/models/text/m3</li>
+</ul>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="kimi-k3.html"><span class="k">← 上一篇</span><span class="v">Kimi K3发布实测：2.8万亿参数、百万上下文，前端编程与美术审美凭什么冲到第一？</span></a><a class="nx" href="openai-cursor-partnership-end.html"><span class="k">下一篇 →</span><span class="v">OpenAI突然终止与Cursor合作：AI编程工具用户如何用APIDock中转继续接入GPT-5.6、GPT-4o和o1模型</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#minimax-m3评测-swe-bench-pro-59-0-1m上下文-原生多模态-真能替代claude-code吗">MiniMax M3评测：SWE-Bench Pro 59.0，1M上下文，原生多模态，真能替代Claude Code吗？</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/minimax-m3.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

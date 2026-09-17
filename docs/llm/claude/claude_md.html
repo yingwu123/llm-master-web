@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CLAUDE.md到底怎么写？Claude Code项目记忆、团队规范和上下文管理一篇讲明白 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><a href="../../../docs/llm/claude/README.html">claude</a><span class="sep">›</span><span>claude_md</span></div>
+      <h1 id="claude-md到底怎么写-claude-code项目记忆-团队规范和上下文管理一篇讲明白">CLAUDE.md到底怎么写？Claude Code项目记忆、团队规范和上下文管理一篇讲明白</h1>
+<p>录友们好，今天聊一个 Claude Code 里特别容易被低估的文件：<code>CLAUDE.md</code>。</p>
+<p>很多录友用 Claude Code 写代码时，都遇到过这种情况：</p>
+<p>你第一轮告诉它："这个项目用 pnpm，不要用 npm。"</p>
+<p>过一会儿，它又开始建议 <code>npm install</code>。</p>
+<p>你告诉它："不要直接改数据库表结构。"</p>
+<p>修着修着，它又想动 schema。</p>
+<p>你告诉它："改完要跑单测。"</p>
+<p>它把代码改完了，准备收工。</p>
+<blockquote>
+<p>不少读者问我，如何充值Claude会员，我在这里篇单独讲一下：<a href="../../qita/0002.claudepay.html">国内Claude充值会员的方法</a></p>
+</blockquote>
+<p>这时候很多人会觉得：是不是模型不听话？</p>
+<p>不完全是。</p>
+<p>更大的问题是：<strong>你把项目长期规则，当成了临时聊天内容。</strong></p>
+<p>临时聊天内容会被上下文挤压，会被压缩，会随着任务变长而变得越来越不稳定。</p>
+<p>但项目规则不应该每次都靠嘴说。</p>
+<p><code>CLAUDE.md</code> 就是为了解决这个问题的。</p>
+<p>它不是玄学提示词，也不是项目 README 的复制版。</p>
+<p>它更像是 Claude Code 进项目之前要看的"工作说明书"。</p>
+<h2 id="目录">目录</h2>
+<ol>
+<li><a href="#一为什么你总是在重复教育-claude-code">为什么你总是在重复教育 Claude Code？</a></li>
+<li><a href="#二claudemd-到底是什么">CLAUDE.md 到底是什么？</a></li>
+<li><a href="#三它和-readmepromptmemory-有什么区别">它和 README、Prompt、Memory 有什么区别？</a></li>
+<li><a href="#四claudemd-应该放在哪里">CLAUDE.md 应该放在哪里？</a></li>
+<li><a href="#五什么内容值得写进去">什么内容值得写进去？</a></li>
+<li><a href="#六什么内容不要写进去">什么内容不要写进去？</a></li>
+<li><a href="#七怎么写才真的有效">怎么写才真的有效？</a></li>
+<li><a href="#八大项目怎么拆-claudemd">大项目怎么拆 CLAUDE.md？</a></li>
+<li><a href="#九claudemd-和上下文窗口有什么关系">CLAUDE.md 和上下文窗口有什么关系？</a></li>
+<li><a href="#十给你一个可以直接抄的模板">给你一个可以直接抄的模板</a></li>
+<li><a href="#十一团队里怎么维护-claudemd">团队里怎么维护 CLAUDE.md？</a></li>
+<li><a href="#十二面试和工作中怎么讲这个能力">面试和工作中怎么讲这个能力？</a></li>
+</ol>
+<h2 id="一-为什么你总是在重复教育-claude-code">一、为什么你总是在重复教育 Claude Code？</h2>
+<p>先说一个很常见的场景。</p>
+<p>你打开一个老项目，让 Claude Code 帮你改一个接口。</p>
+<p>你会先说一大堆：</p>
+<ul>
+<li>这个项目是 VuePress 1.x，不要按 VuePress 2.x 写</li>
+<li>命令要在 <code>docs/</code> 目录下执行</li>
+<li>依赖版本别乱升</li>
+<li>不要改部署脚本</li>
+<li>Markdown 图片必须有 ALT</li>
+<li>改完之后跑 <code>npm run build</code></li>
+</ul>
+<p>这些话有用吗？</p>
+<p>有用。</p>
+<p>但问题是：<strong>你每次开新任务都要说一遍。</strong></p>
+<p>更麻烦的是，复杂任务跑久了以后，上下文越来越长，前面那些要求会被一堆文件内容、命令输出、错误日志淹没。</p>
+<p>你以为 Claude Code "记得"这些规则，其实它只是当前上下文里还能看到这些规则。</p>
+<p>一旦上下文压缩、裁剪、切换任务，它就可能忘。</p>
+<p>所以项目规则不能只靠聊天输入。</p>
+<p>它需要一个更稳定的入口。</p>
+<p>这就是 <code>CLAUDE.md</code>。</p>
+<p><strong>你可以把它理解成：写给 Claude Code 的项目交接文档。</strong></p>
+<p>新人进组之前，你会告诉他：</p>
+<ul>
+<li>项目怎么启动</li>
+<li>哪些目录放什么</li>
+<li>哪些地方不能动</li>
+<li>常见坑在哪里</li>
+<li>提 PR 前要跑什么检查</li>
+</ul>
+<p>Claude Code 也是一样。</p>
+<p>你不能指望它每次都自己摸索一遍。</p>
+<p>摸索会浪费 token，也会制造风险。</p>
+<h2 id="二-claude-md-到底是什么">二、CLAUDE.md 到底是什么？</h2>
+<p><code>CLAUDE.md</code> 是一个普通的 Markdown 文件。</p>
+<p>Claude Code 会自动读取它，把里面的内容作为项目上下文的一部分。</p>
+<p>注意几个关键词：</p>
+<p><strong>第一，它是普通 Markdown。</strong></p>
+<p>不是配置文件，不是 JSON，不是 YAML，不需要写复杂语法。</p>
+<p>你就按正常文档写：</p>
+<div class="codehilite"><pre><span></span><code><span class="gh"># 项目说明</span>
+
+<span class="k">-</span><span class="w"> </span>使用 pnpm 管理依赖
+<span class="k">-</span><span class="w"> </span>开发命令：pnpm dev
+<span class="k">-</span><span class="w"> </span>构建命令：pnpm build
+<span class="k">-</span><span class="w"> </span>不要直接修改数据库 schema
+</code></pre></div>
+
+<p><strong>第二，它是给 Claude Code 看的。</strong></p>
+<p>README 主要给人看，<code>CLAUDE.md</code> 主要给 AI 编程 Agent 看。</p>
+<p>所以它不用写项目愿景、业务背景长文、团队文化。</p>
+<p>它要写的是能直接影响 Claude Code 行动的信息。</p>
+<p><strong>第三，它会进入上下文。</strong></p>
+<p>这点很重要。</p>
+<p><code>CLAUDE.md</code> 不是在外面摆着好看的文档。</p>
+<p>Claude Code 读到它之后，里面的规则会参与后续推理。</p>
+<p>所以它能让 Claude Code 更稳定，但也会占上下文窗口。</p>
+<p>这就决定了一个原则：</p>
+<p><strong>CLAUDE.md 要短、准、可执行。</strong></p>
+<p>不是越长越好。</p>
+<!-- drawio源文件: ./drawio/claude_md_01_positioning.drawio -->
+<p><img alt="图1：临时聊天规则会被上下文稀释，CLAUDE.md 能把长期规则沉淀成稳定约束" src="https://file1.kamacoder.com/i/web/20260527112101_claude_md_01_positioning_compressed.png" /></p>
+<h2 id="三-它和-readme-prompt-memory-有什么区别">三、它和 README、Prompt、Memory 有什么区别？</h2>
+<p>很多录友会问：那我已经有 README 了，还要 <code>CLAUDE.md</code> 干嘛？</p>
+<p>这俩不是一个东西。</p>
+<p>README 的读者是人。</p>
+<p>它通常会写：</p>
+<ul>
+<li>项目介绍</li>
+<li>功能说明</li>
+<li>安装方式</li>
+<li>使用文档</li>
+<li>贡献指南</li>
+</ul>
+<p>这些信息对人很友好，但对 Agent 不一定高效。</p>
+<p>因为 Claude Code 真正需要的是行动约束：</p>
+<ul>
+<li>这个任务应该从哪个目录入手</li>
+<li>改代码前先看哪些文件</li>
+<li>用哪个命令验证</li>
+<li>哪些文件不要碰</li>
+<li>遇到某类错误先检查哪里</li>
+</ul>
+<p>Prompt 又不一样。</p>
+<p>Prompt 是当前任务的临时要求。</p>
+<p>比如你说："帮我修登录失败，但不要改后端接口。"</p>
+<p>这句话就适合放当前对话里。</p>
+<p>因为它只对这次任务生效。</p>
+<p>而 <code>CLAUDE.md</code> 适合放跨任务都稳定的规则。</p>
+<p>比如：</p>
+<ul>
+<li>项目统一用 TypeScript</li>
+<li>测试命令是什么</li>
+<li>API 层统一走 <code>src/api</code></li>
+<li>UI 组件不要直接请求接口</li>
+<li>禁止提交真实 token</li>
+</ul>
+<p>Memory 也要分清。</p>
+<p>Claude Code 的 memory 有多种层级，比如用户级、项目级、企业级。</p>
+<p><code>CLAUDE.md</code> 本身就是一种项目记忆。</p>
+<p>但你个人的习惯，比如"我喜欢先看计划再改代码"，更适合放用户级记忆。</p>
+<p>团队共享规则，才适合放项目里的 <code>CLAUDE.md</code>。</p>
+<!-- drawio源文件: ./drawio/claude_md_02_boundaries.drawio -->
+<p><img alt="图2：不同类型的信息要分流到 README、Prompt、CLAUDE.md 和用户记忆" src="https://file1.kamacoder.com/i/web/20260527112102_claude_md_02_boundaries_compressed.png" /></p>
+<p>一句话区分：</p>
+<p><strong>README 告诉人怎么理解项目，Prompt 告诉模型这次要做什么，CLAUDE.md 告诉 Claude Code 在这个项目里怎么干活。</strong></p>
+<h2 id="四-claude-md-应该放在哪里">四、CLAUDE.md 应该放在哪里？</h2>
+<p>这块是最容易乱的地方。</p>
+<p>Claude Code 的 memory 不是只有一个位置。</p>
+<p>常见位置有这几类。</p>
+<h3 id="1-用户级-claude-claude-md">1. 用户级：<code>~/.claude/CLAUDE.md</code></h3>
+<p>这个文件属于你个人。</p>
+<p>适合放你跨项目都稳定的偏好。</p>
+<p>比如：</p>
+<ul>
+<li>默认先解释风险再改代码</li>
+<li>优先使用项目现有命令</li>
+<li>修改代码后尽量运行相关测试</li>
+<li>回答时用中文</li>
+</ul>
+<p>这些不属于某个项目，而是你个人的工作习惯。</p>
+<p>所以不要把它提交到仓库里。</p>
+<h3 id="2-项目级-claude-md-或-claude-claude-md">2. 项目级：<code>./CLAUDE.md</code> 或 <code>./.claude/CLAUDE.md</code></h3>
+<p>这是最常用的位置。</p>
+<p>适合放团队共享的项目规则。</p>
+<p>比如：</p>
+<ul>
+<li>项目架构</li>
+<li>常用命令</li>
+<li>代码风格</li>
+<li>测试方式</li>
+<li>禁止改动范围</li>
+<li>常见问题排查</li>
+</ul>
+<p>这个文件可以进 Git。</p>
+<p>团队所有人用 Claude Code 时，都能获得同一套项目规则。</p>
+<h3 id="3-子目录级-模块自己的-claude-md">3. 子目录级：模块自己的 <code>CLAUDE.md</code></h3>
+<p>大仓库里，一个根目录 <code>CLAUDE.md</code> 往往不够。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code>project/
+  CLAUDE.md
+  frontend/
+    CLAUDE.md
+  backend/
+    CLAUDE.md
+  docs/
+    CLAUDE.md
+</code></pre></div>
+
+<p>前端、后端、文档的规则不一样。</p>
+<p>强行塞进一个根文件，会越来越长，Claude Code 反而抓不住重点。</p>
+<p>更好的方式是根文件写全局规则，子目录文件写模块规则。</p>
+<p>官方文档里也提到，Claude Code 会从当前工作目录往上查找记忆；当前工作目录下面更深层的 <code>CLAUDE.md</code>，通常会在 Claude 读取对应子树文件时再纳入上下文。</p>
+<p>这对大项目很有用。</p>
+<p><strong>不要让前端任务背着后端所有细节跑，也不要让文档任务背着数据库规则跑。</strong></p>
+<h3 id="4-私人项目偏好-更推荐用-import">4. 私人项目偏好：更推荐用 import</h3>
+<p>以前有些场景会用 <code>CLAUDE.local.md</code> 放个人项目偏好。</p>
+<p>但现在更推荐在项目记忆里用 <code>@path</code> import 引入个人文件。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="gh"># 个人偏好</span>
+
+<span class="k">-</span><span class="w"> </span>@~/.claude/my-project-preferences.md
+</code></pre></div>
+
+<p>这样个人规则不用进仓库，也更适合多 worktree 场景。</p>
+<p><code>@path</code> import 还可以引入项目里的其他文档。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code>请参考 <span class="ni">@README</span>.md 了解项目概览。
+测试规范见 <span class="ni">@docs/testing</span>.md。
+</code></pre></div>
+
+<p>但这里也要克制。</p>
+<p>不要把一堆长文档全 import 进来。</p>
+<p>能引用关键文档很好，滥用 import 就会把上下文变成垃圾桶。</p>
+<!-- drawio源文件: ./drawio/claude_md_03_scope.drawio -->
+<p><img alt="图3：多级 CLAUDE.md 按任务路径加载，避免无关模块规则污染上下文" src="https://file1.kamacoder.com/i/web/20260527112104_claude_md_03_scope_compressed.png" /></p>
+<h2 id="五-什么内容值得写进去">五、什么内容值得写进去？</h2>
+<p>判断一条信息该不该写进 <code>CLAUDE.md</code>，我有一个很简单的标准：</p>
+<p><strong>它是否会反复影响 Claude Code 的行动？</strong></p>
+<p>如果会，就值得写。</p>
+<p>如果只对当前一次任务有效，就放 prompt。</p>
+<p>如果只是给人看的背景，就放 README。</p>
+<h3 id="1-常用命令">1. 常用命令</h3>
+<p>这是最应该写的。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="gu">## 常用命令</span>
+
+<span class="k">-</span><span class="w"> </span>安装依赖：pnpm install
+<span class="k">-</span><span class="w"> </span>本地开发：pnpm dev
+<span class="k">-</span><span class="w"> </span>单元测试：pnpm test
+<span class="k">-</span><span class="w"> </span>构建检查：pnpm build
+</code></pre></div>
+
+<p>命令一定要写完整。</p>
+<p>尤其是 monorepo 或 VuePress 这类项目，经常要求在特定目录执行。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>所有命令都在 <span class="sb">`docs/`</span> 目录下执行。
+<span class="k">-</span><span class="w"> </span>开发服务器：`cd docs &amp;&amp; npm run dev`
+<span class="k">-</span><span class="w"> </span>构建：`cd docs &amp;&amp; npm run build`
+</code></pre></div>
+
+<p>这比你每次提醒它强太多。</p>
+<h3 id="2-项目结构">2. 项目结构</h3>
+<p>写目录职责，不要贴完整文件树。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="gu">## 目录结构</span>
+
+<span class="k">-</span><span class="w"> </span><span class="sb">`src/components/`</span>：通用 UI 组件
+<span class="k">-</span><span class="w"> </span><span class="sb">`src/pages/`</span>：页面入口
+<span class="k">-</span><span class="w"> </span><span class="sb">`src/api/`</span>：接口封装，组件不要直接调用 fetch
+<span class="k">-</span><span class="w"> </span><span class="sb">`src/store/`</span>：全局状态
+<span class="k">-</span><span class="w"> </span><span class="sb">`tests/`</span>：单元测试和集成测试
+</code></pre></div>
+
+<p>这能帮助 Claude Code 少走弯路。</p>
+<h3 id="3-编码规范">3. 编码规范</h3>
+<p>写具体规则。</p>
+<p>不要写：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>保持代码优雅
+</code></pre></div>
+
+<p>这句话没用。</p>
+<p>要写：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>新组件使用函数组件
+<span class="k">-</span><span class="w"> </span>样式优先使用已有 token，不新增散乱颜色
+<span class="k">-</span><span class="w"> </span>API 错误统一通过 <span class="sb">`handleApiError()`</span> 处理
+<span class="k">-</span><span class="w"> </span>不要在组件中直接写请求逻辑
+</code></pre></div>
+
+<p><strong>越具体，越有用。</strong></p>
+<h3 id="4-禁止事项">4. 禁止事项</h3>
+<p>这类信息非常适合放 <code>CLAUDE.md</code>。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="gu">## 禁止事项</span>
+
+<span class="k">-</span><span class="w"> </span>不要修改数据库 schema，除非用户明确要求。
+<span class="k">-</span><span class="w"> </span>不要升级核心依赖版本。
+<span class="k">-</span><span class="w"> </span>不要提交 <span class="sb">`.env`</span>、token、密钥。
+<span class="k">-</span><span class="w"> </span>不要重写历史迁移文件。
+<span class="k">-</span><span class="w"> </span>不要删除用户已有改动。
+</code></pre></div>
+
+<p>AI 编程最怕的不是写得慢，而是乱动不该动的地方。</p>
+<p>禁止事项写清楚，能减少很多事故。</p>
+<h3 id="5-验证流程">5. 验证流程</h3>
+<p>很多项目不是改完就完了。</p>
+<p>要写清楚什么改动跑什么检查。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="gu">## 验证要求</span>
+
+<span class="k">-</span><span class="w"> </span>修改业务逻辑后，优先运行相关单测。
+<span class="k">-</span><span class="w"> </span>修改公共组件后，运行组件测试和构建。
+<span class="k">-</span><span class="w"> </span>修改依赖或配置后，运行完整构建。
+<span class="k">-</span><span class="w"> </span>如果测试无法运行，要在最终说明里写明原因。
+</code></pre></div>
+
+<p>这能让 Claude Code 更像一个靠谱同事。</p>
+<h3 id="6-常见坑">6. 常见坑</h3>
+<p>项目里有些坑，人踩过一次就知道。</p>
+<p>AI 不知道。</p>
+<p>所以要写。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="gu">## 常见坑</span>
+
+<span class="k">-</span><span class="w"> </span>VuePress 1.x 插件必须使用 <span class="sb">`@vuepress/back-to-top`</span>，不要写成 VuePress 2.x 的插件名。
+<span class="k">-</span><span class="w"> </span>dev 模式关闭了文件监听，改完文件需要手动刷新浏览器。
+<span class="k">-</span><span class="w"> </span>图片必须使用上传后的图床地址，不要引用本地临时文件。
+</code></pre></div>
+
+<p>这种信息放在聊天里很容易丢。</p>
+<p>放在 <code>CLAUDE.md</code> 里，价值很高。</p>
+<!-- drawio源文件: ./drawio/claude_md_04_decision.drawio -->
+<p><img alt="图4：一条信息能不能写进 CLAUDE.md，要经过反复性、行动性和可维护性判断" src="https://file1.kamacoder.com/i/web/20260527112106_claude_md_04_decision_compressed.png" /></p>
+<h2 id="六-什么内容不要写进去">六、什么内容不要写进去？</h2>
+<p><code>CLAUDE.md</code> 最大的问题不是没人写。</p>
+<p>而是很多人越写越长，最后变成项目垃圾场。</p>
+<p>以下内容不建议写进去。</p>
+<h3 id="1-完整接口文档">1. 完整接口文档</h3>
+<p>接口字段、返回值、错误码，如果很多，应该放专门文档。</p>
+<p><code>CLAUDE.md</code> 里最多写：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>API 文档见 <span class="sb">`docs/api.md`</span>
+<span class="k">-</span><span class="w"> </span>修改接口调用前先检查 <span class="sb">`src/api/`</span>
+</code></pre></div>
+
+<p>不要把几十个接口全贴进去。</p>
+<h3 id="2-历史流水账">2. 历史流水账</h3>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>2025-01-03 修了登录问题
+<span class="k">-</span><span class="w"> </span>2025-02-11 重构过首页
+<span class="k">-</span><span class="w"> </span>2025-03-07 和产品讨论过按钮颜色
+</code></pre></div>
+
+<p>这类信息对当前行动通常没帮助。</p>
+<p>如果某个历史决策很重要，要写成规则：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>登录态统一由 <span class="sb">`authStore`</span> 管理，不要在页面组件里重复维护 token。
+</code></pre></div>
+
+<p>别写流水账，写结论。</p>
+<h3 id="3-空泛口号">3. 空泛口号</h3>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>写高质量代码
+<span class="k">-</span><span class="w"> </span>注意性能
+<span class="k">-</span><span class="w"> </span>保持架构清晰
+</code></pre></div>
+
+<p>这类话看着正确，但不能指导行动。</p>
+<p>改成可执行规则：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>列表页超过 100 条数据时使用分页，不要一次性渲染全量数据。
+<span class="k">-</span><span class="w"> </span>公共逻辑超过两个页面复用时，抽到 <span class="sb">`src/hooks/`</span>。
+</code></pre></div>
+
+<h3 id="4-过期规则">4. 过期规则</h3>
+<p>过期规则比没有规则更危险。</p>
+<p>比如项目已经从 npm 换成 pnpm，但 <code>CLAUDE.md</code> 里还写 npm。</p>
+<p>Claude Code 会很听话地继续错。</p>
+<p>所以 <code>CLAUDE.md</code> 不是写完就不管。</p>
+<p>它要随着项目演进更新。</p>
+<h3 id="5-太细的临时任务">5. 太细的临时任务</h3>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>今天先修用户 A 的导出 bug
+</code></pre></div>
+
+<p>这种就不该进项目记忆。</p>
+<p>它属于当前对话。</p>
+<p>任务结束后还留在 <code>CLAUDE.md</code> 里，只会污染后续任务。</p>
+<h2 id="七-怎么写才真的有效">七、怎么写才真的有效？</h2>
+<p>我建议录友记住三个词：</p>
+<p><strong>短、准、硬。</strong></p>
+<p>短，是不要写长篇大论。</p>
+<p>准，是每条都和行动有关。</p>
+<p>硬，是尽量写成明确约束，而不是温柔建议。</p>
+<p>比如这句话：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>尽量注意测试。
+</code></pre></div>
+
+<p>太软。</p>
+<p>改成：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>修改业务逻辑后，必须运行相关测试；如果无法运行，在最终回复说明原因。
+</code></pre></div>
+
+<p>这就好多了。</p>
+<p>再比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>代码要符合项目风格。
+</code></pre></div>
+
+<p>太虚。</p>
+<p>改成：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>新增 API 请求必须放在 <span class="sb">`src/api/`</span>，页面组件只能调用封装后的 API 方法。
+</code></pre></div>
+
+<p>这才是 Claude Code 能执行的规则。</p>
+<p>我会把好 <code>CLAUDE.md</code> 的写法分成 6 类：</p>
+<ol>
+<li>项目是什么</li>
+<li>命令怎么跑</li>
+<li>目录怎么分</li>
+<li>代码怎么写</li>
+<li>什么不能做</li>
+<li>改完怎么验</li>
+</ol>
+<p>其他内容能不放就不放。</p>
+<p><strong>写 CLAUDE.md，不是为了显得你很懂 AI，而是为了让 AI 少猜。</strong></p>
+<h2 id="八-大项目怎么拆-claude-md">八、大项目怎么拆 CLAUDE.md？</h2>
+<p>小项目一个根 <code>CLAUDE.md</code> 就够了。</p>
+<p>大项目一定要拆。</p>
+<p>尤其是 monorepo。</p>
+<p>比如一个项目有：</p>
+<ul>
+<li>Web 前端</li>
+<li>Node 后端</li>
+<li>移动端</li>
+<li>文档站</li>
+<li>基础组件库</li>
+</ul>
+<p>如果你把所有规则都写进根 <code>CLAUDE.md</code>，最后一定变成十几屏。</p>
+<p>Claude Code 每次做一个很小的任务，都要背着一堆无关规则。</p>
+<p>更好的结构是：</p>
+<div class="codehilite"><pre><span></span><code>repo/
+  CLAUDE.md
+  apps/web/CLAUDE.md
+  apps/admin/CLAUDE.md
+  packages/ui/CLAUDE.md
+  docs/CLAUDE.md
+</code></pre></div>
+
+<p>根文件写全局规则：</p>
+<ul>
+<li>包管理器</li>
+<li>Git 流程</li>
+<li>安全要求</li>
+<li>全局禁止事项</li>
+<li>通用验证方式</li>
+</ul>
+<p>模块文件写模块规则：</p>
+<ul>
+<li>当前模块目录职责</li>
+<li>本模块启动命令</li>
+<li>本模块测试命令</li>
+<li>本模块常见坑</li>
+</ul>
+<p>这样 Claude Code 在处理具体模块时，拿到的是更相关的上下文。</p>
+<p>这和我们前面讲 Agent 上下文管理是同一个逻辑：</p>
+<p><strong>不是让模型看见更多，而是让它看见更有价值的信息。</strong></p>
+<!-- drawio源文件: ./drawio/claude_md_05_context_budget.drawio -->
+<p><img alt="图5：大项目拆分 CLAUDE.md 的核心价值是减少无关规则占用上下文预算" src="https://file1.kamacoder.com/i/web/20260527112108_claude_md_05_context_budget_compressed.png" /></p>
+<h2 id="九-claude-md-和上下文窗口有什么关系">九、CLAUDE.md 和上下文窗口有什么关系？</h2>
+<p>这里要讲一个很关键的点。</p>
+<p><code>CLAUDE.md</code> 虽然好用，但它不是免费空间。</p>
+<p>它会进入 Claude Code 的上下文。</p>
+<p>上下文窗口就像一张工作台。</p>
+<p>你把项目规则放上去，模型就能看到。</p>
+<p>但你放太多，工具输出、文件内容、用户要求就会被挤。</p>
+<p>所以不要把 <code>CLAUDE.md</code> 当成无限记事本。</p>
+<p>官方资料里也提到，Claude Code 会对 <code>CLAUDE.md</code> 使用 prompt caching。</p>
+<p>这能降低重复读取带来的成本。</p>
+<p>但录友要注意：<strong>缓存降低的是计费压力，不代表它不占上下文空间，也不代表信息越多越好。</strong></p>
+<p>一份 300 行的 <code>CLAUDE.md</code>，即使缓存了，模型每次也要在大量规则里找重点。</p>
+<p>这就会带来两个问题：</p>
+<p>第一，重要规则被淹没。</p>
+<p>第二，无关规则干扰当前任务。</p>
+<p>所以我更推荐：</p>
+<ul>
+<li>根 <code>CLAUDE.md</code> 控制在几屏内</li>
+<li>每条规则尽量一行说明</li>
+<li>长文档用链接或 import 引用</li>
+<li>低频规则放到对应子目录</li>
+<li>定期删除过期内容</li>
+</ul>
+<p><strong>CLAUDE.md 的目标不是大而全，而是让 Claude Code 进入项目后少踩坑。</strong></p>
+<h2 id="十-给你一个可以直接抄的模板">十、给你一个可以直接抄的模板</h2>
+<p>下面这个模板，录友可以直接放到项目根目录，然后按自己项目改。</p>
+<div class="codehilite"><pre><span></span><code><span class="gh"># 项目工作说明</span>
+
+<span class="gu">## 项目概述</span>
+
+<span class="k">-</span><span class="w"> </span>本项目是一个 XXX 应用，主要技术栈是 XXX。
+<span class="k">-</span><span class="w"> </span>主要代码在 <span class="sb">`src/`</span>，测试在 <span class="sb">`tests/`</span>。
+<span class="k">-</span><span class="w"> </span>优先遵循现有代码风格，不要引入新的架构风格。
+
+<span class="gu">## 常用命令</span>
+
+<span class="k">-</span><span class="w"> </span>安装依赖：`pnpm install`
+<span class="k">-</span><span class="w"> </span>本地开发：`pnpm dev`
+<span class="k">-</span><span class="w"> </span>单元测试：`pnpm test`
+<span class="k">-</span><span class="w"> </span>构建检查：`pnpm build`
+
+<span class="gu">## 目录结构</span>
+
+<span class="k">-</span><span class="w"> </span><span class="sb">`src/components/`</span>：通用组件
+<span class="k">-</span><span class="w"> </span><span class="sb">`src/pages/`</span>：页面入口
+<span class="k">-</span><span class="w"> </span><span class="sb">`src/api/`</span>：接口封装
+<span class="k">-</span><span class="w"> </span><span class="sb">`src/hooks/`</span>：可复用业务逻辑
+<span class="k">-</span><span class="w"> </span><span class="sb">`tests/`</span>：测试文件
+
+<span class="gu">## 编码规范</span>
+
+<span class="k">-</span><span class="w"> </span>新增 API 请求必须放在 <span class="sb">`src/api/`</span>。
+<span class="k">-</span><span class="w"> </span>页面组件不要直接调用 <span class="sb">`fetch`</span>。
+<span class="k">-</span><span class="w"> </span>公共逻辑被两个以上模块复用时，抽到 <span class="sb">`src/hooks/`</span>。
+<span class="k">-</span><span class="w"> </span>修改已有功能时，优先保持现有接口兼容。
+
+<span class="gu">## 禁止事项</span>
+
+<span class="k">-</span><span class="w"> </span>不要提交 <span class="sb">`.env`</span>、token、密钥。
+<span class="k">-</span><span class="w"> </span>不要升级核心依赖版本，除非用户明确要求。
+<span class="k">-</span><span class="w"> </span>不要修改数据库 schema，除非用户明确要求。
+<span class="k">-</span><span class="w"> </span>不要删除用户已有改动。
+
+<span class="gu">## 验证要求</span>
+
+<span class="k">-</span><span class="w"> </span>修改业务逻辑后，运行相关测试。
+<span class="k">-</span><span class="w"> </span>修改公共组件后，运行构建检查。
+<span class="k">-</span><span class="w"> </span>如果测试无法运行，在最终回复里说明原因。
+
+<span class="gu">## 常见坑</span>
+
+<span class="k">-</span><span class="w"> </span>本项目使用 pnpm，不要使用 npm 或 yarn。
+<span class="k">-</span><span class="w"> </span>修改配置文件后，需要重新启动开发服务器。
+<span class="k">-</span><span class="w"> </span>遇到鉴权问题，先检查 <span class="sb">`src/api/auth.ts`</span> 和 <span class="sb">`src/store/auth.ts`</span>。
+</code></pre></div>
+
+<p>这个模板不是让你照搬到所有项目。</p>
+<p>它的价值是结构。</p>
+<p>你真正要做的是把里面每一条改成自己项目里的真实规则。</p>
+<p><strong>假的规范，比没有规范更坑。</strong></p>
+<h2 id="十一-团队里怎么维护-claude-md">十一、团队里怎么维护 CLAUDE.md？</h2>
+<p>如果团队已经大量使用 AI 编程，我建议把 <code>CLAUDE.md</code> 当成工程资产维护。</p>
+<p>不要让它变成某个人电脑里的私货。</p>
+<p>团队可以这么做：</p>
+<p><strong>第一，项目根 <code>CLAUDE.md</code> 进仓库。</strong></p>
+<p>凡是团队共享规则，都应该进 Git。</p>
+<p>比如构建命令、目录职责、代码规范、禁止事项。</p>
+<p><strong>第二，个人偏好放用户级 memory。</strong></p>
+<p>比如你喜欢中文回复、喜欢先看计划、喜欢最终说明简短。</p>
+<p>这些不应该污染团队项目文件。</p>
+<p><strong>第三，规则变更要像代码一样审查。</strong></p>
+<p>尤其是禁止事项、测试命令、架构规则。</p>
+<p>它们会直接影响 AI 的行动。</p>
+<p>写错了，就是把错误流程自动化。</p>
+<p><strong>第四，踩坑之后及时沉淀。</strong></p>
+<p>如果 Claude Code 因为某个项目坑连续犯错，不要只在聊天里骂它。</p>
+<p>把坑写进 <code>CLAUDE.md</code>。</p>
+<p>比如：</p>
+<div class="codehilite"><pre><span></span><code><span class="k">-</span><span class="w"> </span>支付模块的金额单位是分，不是元。
+</code></pre></div>
+
+<p>这种一句话，可能能避免很多次错误。</p>
+<p><strong>第五，定期删。</strong></p>
+<p><code>CLAUDE.md</code> 不是只加不删。</p>
+<p>每隔一段时间看一眼：</p>
+<ul>
+<li>有没有过期命令</li>
+<li>有没有已经不存在的目录</li>
+<li>有没有重复规则</li>
+<li>有没有临时任务残留</li>
+</ul>
+<p>越短越准，越有用。</p>
+<h2 id="十二-面试和工作中怎么讲这个能力">十二、面试和工作中怎么讲这个能力？</h2>
+<p>很多人以为会用 Claude Code，就是会让它写代码。</p>
+<p>其实更高级一点，是你能把 AI 编程变成稳定流程。</p>
+<p><code>CLAUDE.md</code> 就是一个很好的例子。</p>
+<p>面试官如果问你："你怎么让 AI 编程工具更稳定？"</p>
+<p>你可以这样答：</p>
+<p>"我不会只靠临时 prompt 管项目规则。对于跨任务稳定的信息，比如项目架构、常用命令、测试方式、代码风格、禁止改动范围，我会沉淀到 <code>CLAUDE.md</code>。这样 Claude Code 每次进入项目时都能读取这些规则，减少重复解释，也减少上下文压缩后丢约束的问题。</p>
+<p>但我不会把 <code>CLAUDE.md</code> 写成大杂烩。因为它会进入上下文，太长会稀释注意力。所以我会按全局规则和模块规则拆分，根目录写通用约束，子目录写模块细节；临时任务放 prompt，个人偏好放用户级 memory，团队规则放项目级 <code>CLAUDE.md</code>。核心目标不是让模型看到更多，而是让它看到更稳定、更有行动价值的信息。"</p>
+<p>这个回答就不只是"我会用工具"。</p>
+<p>它说明你理解 AI Coding 背后的工程化问题。</p>
+<h2 id="结尾">结尾</h2>
+<p><code>CLAUDE.md</code> 不是魔法。</p>
+<p>它不会让 Claude Code 瞬间变成懂你公司所有业务的老员工。</p>
+<p>但它能解决一个非常实际的问题：</p>
+<p><strong>别让 AI 每次进项目都从零猜。</strong></p>
+<p>项目怎么启动，代码怎么写，哪里不能动，改完怎么验，这些规则越早沉淀，Claude Code 越像一个靠谱队友。</p>
+<p>录友们不要把 <code>CLAUDE.md</code> 写成百科全书。</p>
+<p>就写那些会反复影响行动的规则。</p>
+<p>短一点，准一点，硬一点。</p>
+<p>这就够了。</p>
+<h2 id="参考资料">参考资料</h2>
+<ul>
+<li>Claude Code Docs：Manage Claude's memory：https://docs.claude.com/en/docs/claude-code/memory)</li>
+<li>Claude Help Center：Give Claude context: CLAUDE.md and better prompts：https://support.claude.com/en/articles/14553240-give-claude-context-claude-md-and-better-prompts</li>
+<li>Claude Help Center：Claude Code cheatsheet：https://support.claude.com/en/articles/14553413-claude-code-cheatsheet</li>
+</ul>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="claude_code_toolkit_guide.html"><span class="k">← 上一篇</span><span class="v">Claude Code完整使用指南：CLAUDE.md、Skills、Subagents、MCP、Hooks、Plugins怎么配置</span></a><a class="nx" href="claude_prompt_cache.html"><span class="k">下一篇 →</span><span class="v">Claude Code 为什么快？Prompt Cache、Plan Mode、MCP工具加载和上下文压缩一篇讲明白</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#claude-md到底怎么写-claude-code项目记忆-团队规范和上下文管理一篇讲明白">CLAUDE.md到底怎么写？Claude Code项目记忆、团队规范和上下文管理一篇讲明白</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/claude/claude_md.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

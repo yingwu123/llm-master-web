@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepSeek终于能看图了：V4-Flash-Vision-Exp识图、图表、ASCII和SVG实测，Harness多模态怎么用？ · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>deepseek-v4-flash-vision-exp</span></div>
+      <h1 id="deepseek终于能看图了-复杂截图-图表-ascii和svg实测">DeepSeek终于能看图了：复杂截图、图表、ASCII和SVG实测</h1>
+<p>大家好，我是卡哥。</p>
+<p>本周四，DeepSeek Harness 先迎来了一波更新，其中最关键的一项，就是补上了多模态输入。</p>
+<p>普通对话可以传图，<code>/goal</code>、<code>/plan</code> 这些常用命令也开始接收图文输入。</p>
+<p>刚看到更新时，我还以为 Harness 只是把入口准备好，让我们接第三方视觉模型。</p>
+<p>结果第二天，DeepSeek 就发布了自己的实验性视觉理解模型：<code>DeepSeek-V4-Flash-Vision-Exp</code>。</p>
+<p>好家伙，DeepSeek 终于能看图了。</p>
+<p>现在回头看，Harness 这次更新明显是在给自家模型铺路。前面那篇 <a href="./deepseek-harness-guide.html">DeepSeek Harness 安装教程</a> 讲的是怎么把 Agent 跑起来，这篇直接实测它的新眼睛。</p>
+<h2 id="先确认一件事-这次不是第三方套壳">先确认一件事：这次不是第三方套壳</h2>
+<p>我测试时，npm 上最新的 Harness 已经是 <code>0.1.1-rc.2</code>。官方 <code>/models</code> 接口也直接返回了 <code>deepseek-v4-flash-vision-exp</code>。</p>
+<p><img alt="Vision实测环境" src="https://file1.kamacoder.com/i/web/20260823165020.png" /></p>
+<p>所以这次走的是 DeepSeek 官方 API，不是外挂一个视觉模型识图，再把文字转给 <a href="./deepseek-v4-flash-official.html">DeepSeek V4-Flash</a>。</p>
+<p>官方 8 月 21 日的<a href="https://api-docs.deepseek.com/zh-cn/news/news260821">发布说明</a>也把定位写得很清楚：这是一个实验模型，纯文本能力与 V4-Flash 正式版持平，新增的是视觉理解能力。</p>
+<p>当前支持 Chat Completions、Anthropic Messages 和 Responses API。图片可以用三种方式传入：</p>
+<ul>
+<li>base64 内联；</li>
+<li>外部图片 URL；</li>
+<li>先传到免费的 Files API，再用 <code>file_id</code> 引用。</li>
+</ul>
+<p>JPEG、PNG、GIF、WebP 都支持。只有 Vision-Exp 接受图片，普通 Flash 和 Pro 收到图片仍会返回 400。</p>
+<h2 id="官方跑分很漂亮-但先别急着下结论">官方跑分很漂亮，但先别急着下结论</h2>
+<p>官方公布了同一套模型在文本 Agent 和多模态 Agent 基准上的成绩。</p>
+<p><img alt="官方多模态跑分" src="https://file1.kamacoder.com/i/web/20260823165024.png" /></p>
+<p>从图里看，Vision-Exp 的文本 Agent 能力确实没有因为加视觉而掉下去。</p>
+<p>Terminal Bench 2.1 从 82.7 到 83.9，DeepSWE 从 54.4 到 59.3，Toolathlon-Verified 从 70.3 到 75.9。只有 CyberGym 从 76.7 降到 75.3。</p>
+<p>多模态项目上提升更明显：ApexBench 从 26.2 到 36.5，Agents' Last Exam 从 25.2 到 27.3。</p>
+<p>不过官方脚注也说明，文本 Code Agent 测试使用 DeepSeek Harness 极简模式、<code>max</code> 档位、<code>temperature=1.0</code>、<code>top_p=0.95</code>。这能说明模型上限，不能替代你自己的仓库和验收。</p>
+<p>官方还展示了 PPT、Harness 官网二次创作和前端 Mini Demo 三个案例。</p>
+<p><img alt="官方PPT生成案例" src="https://api-docs.deepseek.com/zh-cn/img/v4_260821_case1.png" /></p>
+<p><img alt="Harness网页改造" src="https://api-docs.deepseek.com/zh-cn/img/v4_260821_case2.gif" /></p>
+<p><img alt="黏土怪物Demo" src="https://api-docs.deepseek.com/zh-cn/img/v4_260821_case3.gif" /></p>
+<p>看着都不错，但官方 Demo 永远是挑过的。接下来还是自己跑。</p>
+<h2 id="第一轮-复杂网页截图-ocr-到底稳不稳">第一轮：复杂网页截图，OCR 到底稳不稳</h2>
+<p>我先打开自己的 <a href="https://notes.kamacoder.com/">卡码笔记</a>，截了一张 1680×952 的首屏。</p>
+<p>这张图不只是一个大标题。里面有中英文混排、小字号导航、十个导航入口、八个蓝色链接，以及 <code>C++</code>、<code>agent</code>、<code>rag</code>、<code>transformer</code> 这种 OCR 很容易抄错的技术名词。</p>
+<p><img alt="卡码笔记网站首屏" src="https://file1.kamacoder.com/i/web/20260823172734.png" /></p>
+<p>提示词里我明确要求它不要搜索，只看图识别站点、导航、主副标题、八个链接标题和三个易错细节。</p>
+<p>站点名称、主标题、副标题和导航语义都识别对了。八个蓝色链接里，七个完整：</p>
+<ul>
+<li>计算机基础面试题</li>
+<li>大模型应用开发面试题</li>
+<li>C++面试题</li>
+<li>Java面试题</li>
+<li>Go面试题</li>
+<li>代码随想录</li>
+<li>卡码投递表</li>
+</ul>
+<p>唯一的漏字是把「真实面经（含大模型）」截成了「真实面经」。<code>C++</code> 和说明文字里的 <code>agent</code>、<code>rag</code>、<code>transformer</code> 都抄对了。</p>
+<p><img alt="网页OCR结果" src="https://file1.kamacoder.com/i/web/20260823172735.png" /></p>
+<p>这轮我的结论是：<strong>普通网页截图里的中文、小字号和中英文技术名词已经能用，但括号里的补充信息仍可能漏掉。</strong></p>
+<p>关闭思考后，这个任务输入 477 Token、输出 555 Token，没有为一段 OCR 结果绕很远的路。</p>
+<h2 id="第二轮-让它读官方跑分图-再自己算差值">第二轮：让它读官方跑分图，再自己算差值</h2>
+<p>只会 OCR 还不够。</p>
+<p>我把前面的官方跑分图原样丢回 Vision-Exp，要求它抄出全部 11 行数据，再计算 Vision-Exp 相比 Flash 的差值，找出超过 Opus-4.8 的项目。</p>
+<p>这轮它不但把 11 行全部抄对，减法也全部正确。</p>
+<p><img alt="图表识别结果" src="https://file1.kamacoder.com/i/web/20260823165028.png" /></p>
+<p>它算出的最大提升是 ApexBench，<code>36.5 - 26.2 = 10.3</code>。</p>
+<p>超过 Opus-4.8 的项目有三个：DeepSWE、Agents' Last Exam、ZeroBench。与 Opus 差距不到 1 分的项目是 Toolathlon-Verified 和 Chartography。</p>
+<p>还有个细节我挺喜欢：图里的 <code>**</code> 没有解释含义，它明确说“不知道，不做猜测”。</p>
+<p><strong>识别图表不难，抄对数字、做对计算、遇到缺失信息不脑补，才是这轮真正有用的地方。</strong></p>
+<h2 id="第三轮-看着-k-logo-能不能画成-ascii">第三轮：看着 K Logo，能不能画成 ASCII</h2>
+<p>接下来测一点更抽象的。</p>
+<p>我把卡码笔记首页的 K Logo 单独拿出来，让它限制在 48 个等宽字符内，只用纯 ASCII 重新画。</p>
+<p><img alt="卡码笔记K Logo" src="https://file1.kamacoder.com/i/web/20260823172737.jpg" /></p>
+<p>它确实画出了一块代码窗口，括号、斜杠和下方横线都能辨认。</p>
+<p>但如果只看相似度，这轮明显不及格。原图最有辨识度的 K 形斜面直接丢了，输出更像一个普通的矩形代码图标。</p>
+<p><img alt="ASCII重绘结果" src="https://file1.kamacoder.com/i/web/20260823172738.png" /></p>
+<p>所以“看懂图片”和“用字符重新表现图片”，明显不是同一个难度。</p>
+<p>DeepSeek 能抓住内部元素，但压缩成 ASCII 后，连品牌图形最关键的外轮廓都可能保不住。</p>
+<h2 id="第四轮-它到底能不能制作图片">第四轮：它到底能不能制作图片</h2>
+<p>这里要先把边界说清楚。</p>
+<p><code>DeepSeek-V4-Flash-Vision-Exp</code> 是视觉理解模型，不是文生图模型。它不会像图片生成模型那样直接返回一张 PNG。</p>
+<p>但它可以看图后生成 SVG、HTML、CSS 或 Canvas 代码，再由浏览器或渲染器把代码变成图片和界面。</p>
+<p>我继续使用同一张 K Logo，要求它只用 SVG 原生图形重画，不得嵌入原图、base64、外链和文字。</p>
+<p>最终生成的是一份 1.7 KB 的纯 SVG。</p>
+<p><img alt="SVG重绘对比" src="https://file1.kamacoder.com/i/web/20260823172739.png" /></p>
+<p>深蓝色 K 形主体、白色代码窗口、括号、斜杠和两条横线都保住了，说明它确实理解了原图结构和配色。</p>
+<p>问题主要在比例：右侧斜面更宽，代码窗口更大，底部留白和原图也不完全一致。</p>
+<p>所以这轮更准确的评价是：<strong>能根据图片制作可编辑矢量图，但还不是像素级复刻。</strong></p>
+<p>拿它做图标草稿、示意图和网页占位图没问题；品牌 Logo、人物肖像和要求严格的视觉资产，仍然要设计师或更强的图像生成模型收尾。</p>
+<h2 id="一个很烧钱的坑-画图任务别默认开思考">一个很烧钱的坑：画图任务别默认开思考</h2>
+<p>前面的 K Logo ASCII 和 SVG，我其实都跑了两遍。</p>
+<p>第一遍使用默认思考模式。两个请求都消耗了 11999 个 reasoning Token，几乎把我设置的 12000 输出 Token 全部用完，<code>finish_reason</code> 是 <code>length</code>，最终正文却是空的。</p>
+<p>第二遍关闭思考模式，ASCII 总计 597 Token，SVG 总计 1081 Token，很快就正常返回。</p>
+<p>这个差异太夸张了。</p>
+<p><strong>视觉任务不是越会想越好。</strong> OCR、格式转换、SVG 重绘这类目标明确的任务，先关思考；只有图表推理、复杂界面分析和多步 Agent 任务，再考虑打开思考。</p>
+<p>否则模型可能把预算全部花在内部推理上，用户连一个字符都拿不到。</p>
+<h2 id="一张图片最多384-token-价格还是flash档">一张图片最多384 Token，价格还是Flash档</h2>
+<p>官方<a href="https://api-docs.deepseek.com/zh-cn/guides/vision#token-usage">图像理解指南</a>说明，图片会先按比例缩放，再换算成 Token。</p>
+<p>小图会放大，大图会缩小到总像素约等于 800×800。<strong>每张图片最多占 384 Token。</strong> 2000×2000 和 5000×5000 的大图缩放后，图片 Token 相同。</p>
+<p>单个请求最多传 600 张图；图片单边最长 8192 像素，达到 15 张及以上时降为 4096 像素。</p>
+<p>Vision-Exp 与 V4-Flash 同价。按 2026 年 8 月 23 日官方<a href="https://api-docs.deepseek.com/zh-cn/quick_start/pricing">价格页</a>：</p>
+<table>
+<thead>
+<tr>
+<th>计费项</th>
+<th style="text-align: right;">空闲时段</th>
+<th style="text-align: right;">高峰时段</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>缓存命中输入</td>
+<td style="text-align: right;">0.05 元/百万Token</td>
+<td style="text-align: right;">0.10 元/百万Token</td>
+</tr>
+<tr>
+<td>缓存未命中输入</td>
+<td style="text-align: right;">1.5 元/百万Token</td>
+<td style="text-align: right;">3.0 元/百万Token</td>
+</tr>
+<tr>
+<td>输出</td>
+<td style="text-align: right;">4.5 元/百万Token</td>
+<td style="text-align: right;">9.0 元/百万Token</td>
+</tr>
+</tbody>
+</table>
+<p>高峰时段是工作日 9:00–12:00、14:00–18:00，其余为空闲时段。</p>
+<p>我这次四组有效实验，加上两次接近 12000 Token 的失败请求，按高峰价粗算约 0.27 元。</p>
+<p>便宜是真便宜，但默认思考模式如果放进批量图片任务，浪费也会被并发放大。</p>
+<h2 id="写在最后">写在最后</h2>
+<p>这次不是 DeepSeek 多了一个“上传图片”按钮。</p>
+<p>真正补上的，是 AI 编程和 Agent 工作流里很关键的一块能力：<strong>看见截图、理解截图，再把截图里的信息变成文字、计算结果和可执行代码。</strong></p>
+<p>实测下来，网页 OCR 和图表理解已经很能打，SVG 重绘能用，ASCII 和高相似度视觉还原还有明显提升空间。</p>
+<p>模型名字里还带着 <code>Exp</code>，这个结果很合理。</p>
+<p>但从这次开始，DeepSeek 至少不再是一个只能靠别人描述世界的文本模型了。</p>
+<p>它终于有自己的眼睛了。</p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="deepseek-v4-flash-official.html"><span class="k">← 上一篇</span><span class="v">DeepSeek V4-Flash正式版上线：Agent跑分82.7，能替代Codex主力模型吗？</span></a><a class="nx" href="deepseek-v4-official-api-pricing.html"><span class="k">下一篇 →</span><span class="v">DeepSeek V4全系列正式版上线：Flash、Pro新定价，API最高涨12倍</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#deepseek终于能看图了-复杂截图-图表-ascii和svg实测">DeepSeek终于能看图了：复杂截图、图表、ASCII和SVG实测</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/deepseek-v4-flash-vision-exp.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>

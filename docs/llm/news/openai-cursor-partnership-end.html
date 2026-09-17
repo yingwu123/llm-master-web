@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenAI突然终止与Cursor合作：AI编程工具用户如何用APIDock中转继续接入GPT-5.6、GPT-4o和o1模型 · llm-master</title>
+<link rel="stylesheet" href="../../../assets/style.css">
+</head>
+<body>
+<div id="readbar"></div>
+<div id="layout">
+  <aside id="side">
+    <div class="hd">
+      <div class="t">📚 llm-master 学习站</div>
+      <div class="s">173 篇 · 本地离线</div>
+      <input id="q" type="search" placeholder="搜索标题 / 文件名…  (Ctrl+K)" autocomplete="off">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <div id="main">
+    <article id="doc">
+      <div id="crumb"><a href="../../../root.html">索引</a><span class="sep">›</span><a href="../../../docs/README.html">docs</a><span class="sep">›</span><a href="../../../docs/llm/README.html">llm</a><span class="sep">›</span><span>news</span><span class="sep">›</span><span>openai-cursor-partnership-end</span></div>
+      <h1 id="openai突然终止与cursor合作-ai编程用户怎么办">OpenAI突然终止与Cursor合作，AI编程用户怎么办</h1>
+<p>大家好，我是卡哥。</p>
+<p>这两天，不少用 Cursor 的录友发现：<strong>内置的 OpenAI 模型突然用不了了。</strong></p>
+<p>不是网络问题，也不是账号欠费，而是 OpenAI 直接切断了与 Cursor 的合作通道。</p>
+<p>8月中旬，OpenAI 官方确认终止与 Cursor 的合作关系。之前 Cursor 用户可以直接在编辑器里调用 GPT-5.6、GPT-4o 和 o1，现在这条路彻底断了。</p>
+<p>对很多习惯了 Cursor + GPT 组合拳的录友来说，这不只是换个模型那么简单。<strong>代码补全、重构建议、Bug 排查的整套工作流，可能一夜之间就得重新搭。</strong></p>
+<h2 id="openai为什么要断掉cursor">OpenAI为什么要断掉Cursor</h2>
+<p>OpenAI 没有公开详细原因，但从业内传出的消息看，主要有三个方向。</p>
+<p><strong>第一，Cursor的用量太大，OpenAI觉得分成不划算。</strong></p>
+<p>Cursor 是目前最火的 AI 编程工具之一，日活用户和 API 调用量都在快速增长。按照之前的合作模式，Cursor 用户通过内置通道调用 OpenAI 模型，OpenAI 收取 API 费用，Cursor 拿服务分成。</p>
+<p>但 Cursor 用户的使用强度远高于普通 ChatGPT 用户。一个编程任务可能要来回调用几十次模型，上下文长、Token 消耗大。OpenAI 可能觉得这笔账不如直接卖 API 给企业客户划算。</p>
+<p><strong>第二，OpenAI想推自己的编程工具。</strong></p>
+<p>OpenAI 一直在布局开发者工具生态。之前推出了 Canvas、Code Interpreter，今年还在测试更深度的代码生成和项目管理功能。</p>
+<p>Cursor 本质上是 OpenAI 模型的一个强力前端。用户在 Cursor 里习惯了 GPT 的能力，但品牌认知和使用粘性留在了 Cursor，OpenAI 只是后端供应商。</p>
+<p><strong>断掉 Cursor，逼用户要么直接用 OpenAI 的工具，要么自己去申请 API。</strong> 这是把流量和品牌都拿回来。</p>
+<p><strong>第三，Cursor开始支持更多竞品模型。</strong></p>
+<p>Cursor 不只接 OpenAI，还支持 <a href="./claude-opus-5.html">Claude Opus 5</a>、Gemini、本地模型。用户可以在设置里自由切换。</p>
+<p>OpenAI 可能不愿意继续为一个"多模型编辑器"提供独家通道，尤其是当这个编辑器还在大力推广 Claude 的时候。</p>
+<h2 id="对cursor用户的影响">对Cursor用户的影响</h2>
+<p>影响最直接的是两类人。</p>
+<p><strong>一类是只用 Cursor 内置 OpenAI 的用户。</strong> 之前不需要自己申请 API Key，直接在 Cursor 里登录 OpenAI 账号就能用。现在这条路断了，要么换模型，要么自己去搞 API。</p>
+<p><strong>另一类是项目里大量依赖 GPT-5.6 或 o1 推理能力的用户。</strong> Claude、Gemini 虽然也很强，但模型之间的输出风格、推理路径、工具调用习惯都不完全一样。迁移不只是改个配置，可能要重新调整提示词和验收标准。</p>
+<p>还有一个隐藏影响：<strong>Cursor 的用户增长可能会放缓。</strong></p>
+<p>之前 Cursor 最大的优势之一，就是"开箱即用 GPT"。新用户不需要懂 API、不需要管账单，直接开始写代码。现在这个优势没了，Cursor 和其他支持自定义 API 的编辑器站在了同一起跑线上。</p>
+<h2 id="还想用gpt-接中转服务就行">还想用GPT？接中转服务就行</h2>
+<p>OpenAI 断掉的是 Cursor 的内置通道，<strong>不是 OpenAI API 本身。</strong></p>
+<p>只要你有 OpenAI API Key，Cursor 仍然可以调用 GPT 模型。问题是怎么拿到稳定的 API 访问。</p>
+<p>直接去 OpenAI 官网申请 API Key，国内用户会遇到三个坎：</p>
+<ol>
+<li><strong>注册需要国外手机号和支付方式。</strong></li>
+<li><strong>API 调用会检测 IP 地址，国内 IP 直接被拒。</strong></li>
+<li><strong>封号风险高。</strong> OpenAI 对 API 滥用和异常流量管得很严，稍有不慎账号就没了。</li>
+</ol>
+<p>这时候，<strong>API 中转服务就是最现实的选择。</strong></p>
+<p>中转服务的逻辑很简单：你通过中转商提供的 API Key 调用模型，中转商负责把请求转发给 OpenAI，再把结果返回给你。你不需要直接和 OpenAI 打交道，也不需要担心 IP 和支付问题。</p>
+<p><strong><a href="https://apidock.ai">APIDock</a> 是目前国内比较稳定的 OpenAI API 中转服务之一。</strong></p>
+<p>它支持 GPT-5.6、GPT-4o、o1 等主流模型，兼容 OpenAI 官方 API 格式，可以直接在 Cursor、Continue、Windsurf 等编辑器里配置使用。</p>
+<p>相比直接找 OpenAI，APIDock 有几个实际优势：</p>
+<ul>
+<li><strong>国内直连，不需要代理。</strong></li>
+<li><strong>支付宝、微信都能充值，不需要信用卡。</strong></li>
+<li><strong>按量计费，用多少花多少，不用担心月费浪费。</strong></li>
+<li><strong>账号稳定，不会因为 IP 问题被封。</strong></li>
+</ul>
+<p>当然，中转服务也有成本。APIDock 的价格会比 OpenAI 官方稍高一点，但考虑到省下的代理费用、注册成本和封号风险，对国内用户来说仍然是更划算的选择。</p>
+<h2 id="在cursor里配置apidock">在Cursor里配置APIDock</h2>
+<p>配置过程很简单，5 分钟就能搞定。</p>
+<p>而且关于<a href="https://apidock.ai">APIDock</a>有配置相关问题，可以直接在这里问客服。</p>
+<p><img alt="" src="https://file1.kamacoder.com/i/web/2026-07-08_16-59-21.jpg" /></p>
+<p><strong>第一步：注册并充值</strong></p>
+<p>访问 APIDock 官网（apidock.ai），注册账号，充值一笔金额。建议先充 50-100 元测试，确认稳定后再加。</p>
+<p>充值后，在控制台里找到你的 API Key。这个 Key 后面会用到。</p>
+<p><strong>第二步：打开 Cursor 设置</strong></p>
+<p>在 Cursor 里按 <code>Cmd + ,</code>（Mac）或 <code>Ctrl + ,</code>（Windows），进入设置页面。</p>
+<p>找到 <code>Models</code> 或 <code>Language Models</code> 选项。</p>
+<p><strong>第三步：添加自定义模型</strong></p>
+<p>点击 <code>Add Model</code>，选择 <code>OpenAI Compatible</code>。</p>
+<p>填写以下信息：</p>
+<ul>
+<li><strong>API Base URL</strong>：<code>https://api.apidock.ai/v1</code>（具体地址以 APIDock 控制台显示为准）</li>
+<li><strong>API Key</strong>：粘贴你刚才复制的 APIDock API Key</li>
+<li><strong>Model Name</strong>：<code>gpt-5.6</code> 或 <code>gpt-4o</code>，根据你的需求选择</li>
+</ul>
+<p>保存后，在代码编辑器里选择刚才配置的模型，发一条测试消息。</p>
+<p>如果返回正常，说明配置成功。</p>
+<p><strong>第四步：调整使用习惯</strong></p>
+<p>中转服务的响应速度和稳定性，取决于中转商的服务质量和你的网络环境。</p>
+<p>如果遇到偶尔超时或响应慢，可以在 Cursor 设置里把 <code>Timeout</code> 时间调高一点，比如从 30 秒改到 60 秒。</p>
+<p>另外，<strong>别把 API Key 直接写在代码里或分享给别人。</strong> 中转服务的 Key 和官方 API Key 一样，泄露了就等于你的余额被别人花。</p>
+<h2 id="写在最后">写在最后</h2>
+<p>OpenAI 断掉 Cursor，表面上是一次商业决策，<strong>实际上是 AI 编程工具市场的一次洗牌。</strong></p>
+<p>之前用户选 Cursor，很大程度上是因为它"自带 GPT"。现在这个护城河没了，Cursor 要么靠产品体验留住用户，要么眼睁睁看着用户流向 Claude Code、Continue 和其他竞品。</p>
+<p>对我们这些写代码的人来说，这次变化不是坏事。</p>
+<p><strong>工具和模型解耦，反而让我们有了更多选择。</strong></p>
+<p>想继续用 GPT？接 APIDock 中转。觉得 Claude 更适合？直接上 Claude Code。想本地部署？DeepSeek、Qwen 都可以。</p>
+<p>别把自己的工作流绑死在一个工具或一个模型上。</p>
+<p><strong>学会快速切换、快速验证、快速回退，才是 AI 编程时代最该练的能力。</strong></p>
+      <div id="pager"><div style="display:flex;width:100%;gap:12px"><a class="pv" href="minimax-m3.html"><span class="k">← 上一篇</span><span class="v">MiniMax M3评测：SWE-Bench Pro 59.0，1M上下文，原生多模态，真能替代Claude Code吗？</span></a><a class="nx" href="qoder-security.html"><span class="k">下一篇 →</span><span class="v">AI十分钟写完头像上传，却可能顺手埋下漏洞：Qoder Security把安全检查塞进写码会话</span></a></div></div>
+    </article>
+    <nav id="toc"><div class="th">本页大纲</div><ul><li><a class="l1" href="#openai突然终止与cursor合作-ai编程用户怎么办">OpenAI突然终止与Cursor合作，AI编程用户怎么办</a></li></ul></nav>
+  </div>
+</div>
+<button id="toTop" title="回到顶部">↑</button>
+<button id="burger" title="目录">☰</button>
+<script src="../../../assets/nav.js"></script>
+<script>window.__HERE__="docs/llm/news/openai-cursor-partnership-end.md";window.__ROOT__="../../../assets/root.html";</script>
+<script src="../../../assets/app.js"></script>
+</body>
+</html>
